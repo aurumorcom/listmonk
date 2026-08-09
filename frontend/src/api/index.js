@@ -169,6 +169,39 @@ export const getSubscribers = async (params) => http.get(
   },
 );
 
+// Contacts.
+export const getContacts = async (params) => http.get(
+  '/api/contacts',
+  {
+    params,
+    loading: models.subscribers,
+    store: models.subscribers,
+    camelCase: (keyPath) => !keyPath.startsWith('.results.*.attribs'),
+  },
+);
+
+export const getContact = async (id) => http.get(
+  `/api/contacts/${id}`,
+  { loading: models.subscribers },
+);
+
+export const createContact = (data) => http.post(
+  '/api/contacts',
+  data,
+  { loading: models.subscribers },
+);
+
+export const updateContact = (data) => http.put(
+  `/api/contacts/${data.id}`,
+  data,
+  { loading: models.subscribers },
+);
+
+export const deleteContacts = (params) => http.delete(
+  '/api/contacts',
+  { params, loading: models.subscribers },
+);
+
 export const getSubscriber = async (id) => http.get(
   `/api/subscribers/${id}`,
   { loading: models.subscribers },
