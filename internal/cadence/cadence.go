@@ -121,10 +121,10 @@ func (m *Manager) ProcessBatch() error {
 			continue
 		}
 
-		// Resolve subscriber details
-		subscriber, err := m.core.GetSubscriber(sub.SubscriberID, "", "")
+		// Resolve contact details
+		contact, err := m.core.GetContact(sub.SubscriberID, "", "")
 		if err != nil {
-			m.log.Printf("error resolving subscriber %d: %v", sub.SubscriberID, err)
+			m.log.Printf("error resolving contact %d: %v", sub.SubscriberID, err)
 			continue
 		}
 
@@ -140,7 +140,7 @@ func (m *Manager) ProcessBatch() error {
 
 		msgID := fmt.Sprintf("<cadence-%d-%d-%s@listmonk>", sub.CadenceID, step.StepNumber, uuid.Must(uuid.NewV4()).String())
 		msg := models.Message{
-			Subscriber: subscriber,
+			Subscriber: contact,
 			Subject:    step.Subject,
 			Body:       []byte(step.Body),
 			Messenger:  msgr.Name(),
