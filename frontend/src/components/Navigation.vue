@@ -18,6 +18,9 @@
       <b-menu-item v-if="$can('subscribers:get_all', 'subscribers:get')" :to="{ name: 'subscribers' }" tag="router-link"
         :active="activeItem.subscribers" data-cy="all-subscribers" icon="account-multiple"
         :label="$t('menu.allSubscribers')" />
+      <b-menu-item v-if="$can('subscribers:get_all', 'subscribers:get')" :to="{ name: 'contacts' }" tag="router-link"
+        :active="activeItem.contacts" data-cy="all-contacts" icon="account-box-outline"
+        :label="$t('menu.allContacts')" />
       <b-menu-item v-if="$can('subscribers:import')" :to="{ name: 'import' }" tag="router-link"
         :active="activeItem.import" data-cy="import" icon="file-upload-outline" :label="$t('menu.import')" />
       <b-menu-item v-if="$can('bounces:get')" :to="{ name: 'bounces' }" tag="router-link" :active="activeItem.bounces"
