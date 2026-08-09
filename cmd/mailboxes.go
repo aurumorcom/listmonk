@@ -14,7 +14,7 @@ func (a *App) GetMailboxes(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, okResp(mbs))
+	return c.JSON(http.StatusOK, okResp{mbs})
 }
 
 // GetMailbox returns a single mailbox by ID.
@@ -24,7 +24,7 @@ func (a *App) GetMailbox(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, okResp(mb))
+	return c.JSON(http.StatusOK, okResp{mb})
 }
 
 // CreateMailbox creates a new sending mailbox.
@@ -38,7 +38,7 @@ func (a *App) CreateMailbox(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, okResp(mb))
+	return c.JSON(http.StatusOK, okResp{mb})
 }
 
 // UpdateMailbox updates an existing mailbox.
@@ -54,7 +54,7 @@ func (a *App) UpdateMailbox(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, okResp(mb))
+	return c.JSON(http.StatusOK, okResp{mb})
 }
 
 // DeleteMailbox deletes a mailbox.
@@ -63,5 +63,5 @@ func (a *App) DeleteMailbox(c echo.Context) error {
 	if err := a.core.DeleteMailbox(id); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, okResp(true))
+	return c.JSON(http.StatusOK, okResp{true})
 }
