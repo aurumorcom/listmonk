@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"github.com/knadh/listmonk/internal/auth"
-	"github.com/knadh/listmonk/models"
 	"github.com/labstack/echo/v4"
 )
 
