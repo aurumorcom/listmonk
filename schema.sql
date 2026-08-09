@@ -443,3 +443,72 @@ CREATE MATERIALIZED VIEW mat_list_subscriber_stats AS
     UNION ALL
     SELECT NOW() AS updated_at, 0 AS list_id, NULL AS status, COUNT(id) AS subscriber_count FROM subscribers;
 DROP INDEX IF EXISTS mat_list_subscriber_stats_idx; CREATE UNIQUE INDEX mat_list_subscriber_stats_idx ON mat_list_subscriber_stats (list_id, status);
+
+-- cadences
+DROP TABLE IF EXISTS cadences CASCADE;
+CREATE TABLE cadences (
+    id          SERIAL PRIMARY KEY,
+    uuid        UUID NOT NULL DEFAULT uuid_generate_v4() UNIQUE,
+    name        TEXT NOT NULL,
+    status      TEXT NOT NULL DEFAULT 'active',
+    send_window JSONB NOT NULL DEFAULT '{}',
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- cadence_steps
+DROP TABLE IF EXISTS cadence_steps CASCADE;
+CREATE TABLE cadence_steps (
+    id          SERIAL PRIMARY KEY,
+    cadence_id  INTEGER NOT NULL REFERENCES cadences(id) ON DELETE CASCADE,
+    step_number INTEGER NOT NULL DEFAULT 1,
+    delay_days  INTEGER NOT NULL DEFAULT 0,
+    messenger   TEXT NOT NULL DEFAULT 'email',
+    condition   TEXT NOT NULL DEFAULT 'always',
+    subject     TEXT NOT NULL DEFAULT '',
+    body        TEXT NOT NULL DEFAULT '',
+    template_id INTEGER NULL REFERENCES templates(id) ON DELETE SET NULL,
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+CREATE INDEX idx_cadence_steps_cadence_id ON cadence_steps(cadence_id);
+
+-- cadence_step_media
+DROP TABLE IF EXISTS cadence_step_media CASCADE;
+CREATE TABLE cadence_step_media (
+    cadence_step_id INTEGER REFERENCES cadence_steps(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    media_id        INTEGER NULL REFERENCES media(id) ON DELETE SET NULL ON UPDATE CASCADE,
+    filename        TEXT NOT NULL DEFAULT ''
+);
+DROP INDEX IF EXISTS idx_cadence_step_media_id; CREATE UNIQUE INDEX idx_cadence_step_media_id ON cadence_step_media (cadence_step_id, media_id);
+DROP INDEX IF EXISTS idx_cadence_step_media_step_id; CREATE INDEX idx_cadence_step_media_step_id ON cadence_step_media(cadence_step_id);
+
+-- cadence_subscribers
+DROP TABLE IF EXISTS cadence_subscribers CASCADE;
+CREATE TABLE cadence_subscribers (
+    cadence_id      INTEGER NOT NULL REFERENCES cadences(id) ON DELETE CASCADE,
+    subscriber_id   INTEGER NOT NULL REFERENCES subscribers(id) ON DELETE CASCADE,
+    status          TEXT NOT NULL DEFAULT 'scheduled',
+    current_step    INTEGER NOT NULL DEFAULT 1,
+    next_send_at    TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    last_read_at    TIMESTAMP WITH TIME ZONE NULL,
+    last_clicked_at TIMESTAMP WITH TIME ZONE NULL,
+    last_message_id TEXT NULL,
+    created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    PRIMARY KEY (cadence_id, subscriber_id)
+);
+CREATE INDEX idx_cadence_subscribers_next_send ON cadence_subscribers(status, next_send_at);
+
+-- mailboxes
+DROP TABLE IF EXISTS mailboxes CASCADE;
+CREATE TABLE mailboxes (
+    id          SERIAL PRIMARY KEY,
+    name        TEXT NOT NULL,
+    email       TEXT NOT NULL UNIQUE,
+    smtp_config JSONB NOT NULL DEFAULT '{}',
+    imap_config JSONB NOT NULL DEFAULT '{}',
+    daily_limit INTEGER NOT NULL DEFAULT 50,
+    sent_today  INTEGER NOT NULL DEFAULT 0,
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
