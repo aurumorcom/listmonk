@@ -120,7 +120,10 @@ func (w *Waha) Name() string {
 
 // Push pushes a message to the WAHA server using human typing simulation and keep-alives.
 func (w *Waha) Push(m models.Message) error {
-	phone := extractPhone(m.Subscriber.Attribs, w.o.PhoneAttribute)
+	phone := m.Subscriber.Phone.String
+	if phone == "" {
+		phone = extractPhone(m.Subscriber.Attribs, w.o.PhoneAttribute)
+	}
 	if phone == "" {
 		return fmt.Errorf("subscriber %s missing phone attribute '%s'", m.Subscriber.UUID, w.o.PhoneAttribute)
 	}
