@@ -114,6 +114,25 @@ type Settings struct {
 		MaxMsgRetries int    `json:"max_msg_retries"`
 	} `json:"messengers"`
 
+	WAHAMessengers []struct {
+		UUID              string  `json:"uuid"`
+		Enabled           bool    `json:"enabled"`
+		Name              string  `json:"name"`
+		RootURL           string  `json:"root_url"`
+		APIKey            string  `json:"api_key,omitempty"`
+		Session           string  `json:"session"`
+		PhoneAttribute    string  `json:"phone_attribute"`
+		TypingDelayMs     int     `json:"typing_delay_ms"`
+		TargetWPM         int     `json:"target_wpm"`
+		WPMStd            float64 `json:"wpm_std"`
+		KeyboardLayout    string  `json:"keyboard_layout"`
+		TypingMode        string  `json:"typing_mode"`
+		MaxTypingDelaySec int     `json:"max_typing_delay_sec"`
+		MaxConns          int     `json:"max_conns"`
+		Timeout           string  `json:"timeout"`
+		MaxMsgRetries     int     `json:"max_msg_retries"`
+	} `json:"waha_messengers"`
+
 	BounceEnabled        bool `json:"bounce.enabled"`
 	BounceEnableWebhooks bool `json:"bounce.webhooks_enabled"`
 	BounceActions        map[string]struct {
