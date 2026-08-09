@@ -54,6 +54,10 @@
             <messenger-settings :form="form" :key="key" />
           </b-tab-item><!-- messengers -->
 
+          <b-tab-item label="WhatsApp (WAHA)">
+            <waha-settings :form="form" :key="key" />
+          </b-tab-item><!-- waha -->
+
           <b-tab-item :label="$t('settings.appearance.name')">
             <appearance-settings :form="form" :key="key" />
           </b-tab-item><!-- appearance -->
@@ -71,6 +75,7 @@ import BounceSettings from './settings/bounces.vue';
 import GeneralSettings from './settings/general.vue';
 import MediaSettings from './settings/media.vue';
 import MessengerSettings from './settings/messengers.vue';
+import WahaSettings from './settings/waha.vue';
 import PerformanceSettings from './settings/performance.vue';
 import PrivacySettings from './settings/privacy.vue';
 import SecuritySettings from './settings/security.vue';
@@ -86,6 +91,7 @@ export default Vue.extend({
     SmtpSettings,
     BounceSettings,
     MessengerSettings,
+    WahaSettings,
     AppearanceSettings,
   },
 
