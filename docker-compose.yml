@@ -63,8 +63,28 @@ services:
         source: listmonk-data
         target: /var/lib/postgresql/data
 
+  # WAHA WhatsApp HTTP API
+  waha:
+    image: devlikeapro/waha:latest
+    container_name: listmonk_waha
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    networks:
+      - listmonk
+    environment:
+      WHATSAPP_API_KEY: ${WAHA_API_KEY:-secret-key}
+      WAHA_PRINT_QR: "true"
+      WHATSAPP_HOOK_URL: "http://app:9000/api/webhooks/waha"
+      WHATSAPP_HOOK_EVENTS: "message.ack,message"
+    volumes:
+      - type: volume
+        source: waha-sessions
+        target: /app/.sessions
+
 networks:
   listmonk:
 
 volumes:
   listmonk-data:
+  waha-sessions:
