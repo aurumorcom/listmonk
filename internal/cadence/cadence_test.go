@@ -59,3 +59,16 @@ func TestReplyListenerProcessReply(t *testing.T) {
 		t.Errorf("expected nil error for empty email, got %v", err)
 	}
 }
+
+func TestCadenceStepMediaIDs(t *testing.T) {
+	step := models.CadenceStep{
+		ID:         1,
+		CadenceID:  10,
+		StepNumber: 1,
+		MediaIDs:   []int64{101, 102},
+	}
+
+	if len(step.MediaIDs) != 2 || step.MediaIDs[0] != 101 || step.MediaIDs[1] != 102 {
+		t.Errorf("unexpected MediaIDs: %v", step.MediaIDs)
+	}
+}

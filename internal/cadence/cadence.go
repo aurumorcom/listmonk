@@ -11,6 +11,7 @@ import (
 	"github.com/gofrs/uuid/v5"
 	"github.com/knadh/listmonk/internal/core"
 	"github.com/knadh/listmonk/internal/manager"
+	"github.com/knadh/listmonk/internal/media"
 	"github.com/knadh/listmonk/models"
 	null "gopkg.in/volatiletech/null.v6"
 )
@@ -19,6 +20,7 @@ import (
 type Manager struct {
 	core       *core.Core
 	messengers map[string]manager.Messenger
+	mediaStore media.Store
 	log        *log.Logger
 
 	ctx    context.Context
@@ -27,11 +29,12 @@ type Manager struct {
 }
 
 // NewManager returns a new Cadence Manager.
-func NewManager(c *core.Core, msgrs map[string]manager.Messenger, l *log.Logger) *Manager {
+func NewManager(c *core.Core, msgrs map[string]manager.Messenger, store media.Store, l *log.Logger) *Manager {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Manager{
 		core:       c,
 		messengers: msgrs,
+		mediaStore: store,
 		log:        l,
 		ctx:        ctx,
 		cancel:     cancel,
@@ -141,6 +144,15 @@ func (m *Manager) ProcessBatch() error {
 			Subject:    step.Subject,
 			Body:       []byte(step.Body),
 			Messenger:  msgr.Name(),
+		}
+
+		if len(step.MediaIDs) > 0 && m.mediaStore != nil {
+			atts, err := m.core.GetStepAttachments(m.mediaStore, step.MediaIDs)
+			if err != nil {
+				m.log.Printf("error loading attachments for step %d: %v", step.ID, err)
+			} else {
+				msg.Attachments = atts
+			}
 		}
 
 		// Threading headers if previous step message exists
