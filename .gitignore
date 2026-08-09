@@ -18,3 +18,14 @@ node_modules
 listmonk
 dist/*
 uploads/
+
+# Agent
+plans/
+
+# Rune
+.rune/*
+!.rune/config
+!.rune/index
+.agents/skills/waha/modules/waha
+.agents/skills/waha/modules/waha-docs
+.agents/skills/humantyping/modules/HumanTyping
