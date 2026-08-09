@@ -173,7 +173,7 @@ func (c *Core) EnrollCadenceSubscribers(cadenceID int, subscriberIDs []int) erro
 		return nil
 	}
 
-	query := `INSERT INTO cadence_subscribers (cadence_id, subscriber_id, status, current_step, next_send_at)
+	query := `INSERT INTO cadence_contacts (cadence_id, subscriber_id, status, current_step, next_send_at)
 		SELECT $1, unnest($2::int[]), 'scheduled', 1, NOW()
 		ON CONFLICT (cadence_id, subscriber_id) DO NOTHING`
 
@@ -189,7 +189,7 @@ func (c *Core) EnrollCadenceSubscribers(cadenceID int, subscriberIDs []int) erro
 func (c *Core) GetDueCadenceSubscribers(limit int) ([]models.CadenceSubscriber, error) {
 	var out []models.CadenceSubscriber
 	err := c.db.Select(&out, `SELECT cadence_id, subscriber_id, status, current_step, next_send_at, last_read_at, last_clicked_at, last_message_id, created_at
-		FROM cadence_subscribers
+		FROM cadence_contacts
 		WHERE status IN ('scheduled', 'in_progress') AND next_send_at <= NOW()
 		LIMIT $1`, limit)
 	if err != nil {
@@ -201,7 +201,7 @@ func (c *Core) GetDueCadenceSubscribers(limit int) ([]models.CadenceSubscriber, 
 
 // UpdateCadenceSubscriberStatus updates progress of a subscriber in a cadence.
 func (c *Core) UpdateCadenceSubscriberStatus(cadenceID, subID int, status string, currentStep int, nextSendAt null.Time, lastMsgID null.String) error {
-	_, err := c.db.Exec(`UPDATE cadence_subscribers
+	_, err := c.db.Exec(`UPDATE cadence_contacts
 		SET status = $3, current_step = $4, next_send_at = $5, last_message_id = $6
 		WHERE cadence_id = $1 AND subscriber_id = $2`,
 		cadenceID, subID, status, currentStep, nextSendAt, lastMsgID)
@@ -210,19 +210,19 @@ func (c *Core) UpdateCadenceSubscriberStatus(cadenceID, subID int, status string
 
 // RecordCadenceRead records an open/read event for a cadence subscriber.
 func (c *Core) RecordCadenceRead(cadenceID, subID int) error {
-	_, err := c.db.Exec(`UPDATE cadence_subscribers SET last_read_at = NOW() WHERE cadence_id = $1 AND subscriber_id = $2`, cadenceID, subID)
+	_, err := c.db.Exec(`UPDATE cadence_contacts SET last_read_at = NOW() WHERE cadence_id = $1 AND subscriber_id = $2`, cadenceID, subID)
 	return err
 }
 
 // RecordCadenceClick records a link click event for a cadence subscriber.
 func (c *Core) RecordCadenceClick(cadenceID, subID int) error {
-	_, err := c.db.Exec(`UPDATE cadence_subscribers SET last_clicked_at = NOW() WHERE cadence_id = $1 AND subscriber_id = $2`, cadenceID, subID)
+	_, err := c.db.Exec(`UPDATE cadence_contacts SET last_clicked_at = NOW() WHERE cadence_id = $1 AND subscriber_id = $2`, cadenceID, subID)
 	return err
 }
 
 // RecordCadenceReply marks subscriber status as 'replied' by email.
 func (c *Core) RecordCadenceReply(email string) error {
-	_, err := c.db.Exec(`UPDATE cadence_subscribers
+	_, err := c.db.Exec(`UPDATE cadence_contacts
 		SET status = 'replied'
 		WHERE subscriber_id = (SELECT id FROM subscribers WHERE email = $1 LIMIT 1)
 		  AND status IN ('scheduled', 'in_progress')`, email)
