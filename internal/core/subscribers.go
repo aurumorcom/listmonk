@@ -59,6 +59,11 @@ func (c *Core) GetSubscriber(id int, uuid, email string) (models.Subscriber, err
 	return out[0], nil
 }
 
+// GetContact fetches a contact (subscriber domain alias) by one of the given params.
+func (c *Core) GetContact(id int, uuid, email string) (models.Contact, error) {
+	return c.GetSubscriber(id, uuid, email)
+}
+
 // HasSubscriberLists checks if the given subscribers have at least one of the given lists.
 func (c *Core) HasSubscriberLists(subIDs []int, listIDs []int) (map[int]bool, error) {
 	res := []struct {
