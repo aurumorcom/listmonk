@@ -46,6 +46,7 @@ import (
 	"github.com/knadh/listmonk/internal/media/providers/s3"
 	"github.com/knadh/listmonk/internal/messenger/email"
 	"github.com/knadh/listmonk/internal/messenger/postback"
+	"github.com/knadh/listmonk/internal/messenger/waha"
 	"github.com/knadh/listmonk/internal/notifs"
 	"github.com/knadh/listmonk/internal/subimporter"
 	"github.com/knadh/listmonk/models"
@@ -745,6 +746,40 @@ func initPostbackMessengers(ko *koanf.Koanf) []manager.Messenger {
 		out = append(out, p)
 
 		lo.Printf("loaded Postback messenger: %s", name)
+	}
+
+	return out
+}
+
+// initWAHAMessengers initializes and returns all the enabled
+// WAHA WhatsApp messenger backends.
+func initWAHAMessengers(ko *koanf.Koanf) []manager.Messenger {
+	items := ko.Slices("waha_messengers")
+	if len(items) == 0 {
+		return nil
+	}
+
+	var out []manager.Messenger
+	for _, item := range items {
+		if !item.Bool("enabled") {
+			continue
+		}
+
+		var (
+			name = item.String("name")
+			o    waha.Options
+		)
+		if err := item.UnmarshalWithConf("", &o, koanf.UnmarshalConf{Tag: "json"}); err != nil {
+			lo.Fatalf("error reading WAHA config: %v", err)
+		}
+
+		w, err := waha.New(o)
+		if err != nil {
+			lo.Fatalf("error initializing WAHA messenger %s: %v", name, err)
+		}
+		out = append(out, w)
+
+		lo.Printf("loaded WAHA messenger: %s", name)
 	}
 
 	return out

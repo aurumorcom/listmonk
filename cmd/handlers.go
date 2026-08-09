@@ -175,6 +175,21 @@ func initHTTPHandlers(e *echo.Echo, a *App) {
 		g.DELETE("/api/campaigns", pm(a.DeleteCampaigns, "campaigns:manage", "campaigns:manage_all"))
 		g.DELETE("/api/campaigns/:id", pm(hasID(a.DeleteCampaign), "campaigns:manage_all", "campaigns:manage"))
 
+		g.GET("/api/cadences", pm(a.GetCadences, "campaigns:manage_all", "campaigns:manage"))
+		g.GET("/api/cadences/:id", pm(a.GetCadence, "campaigns:manage_all", "campaigns:manage"))
+		g.POST("/api/cadences", pm(a.CreateCadence, "campaigns:manage_all", "campaigns:manage"))
+		g.PUT("/api/cadences/:id", pm(a.UpdateCadence, "campaigns:manage_all", "campaigns:manage"))
+		g.DELETE("/api/cadences/:id", pm(a.DeleteCadence, "campaigns:manage_all", "campaigns:manage"))
+		g.GET("/api/cadences/:id/steps", pm(a.GetCadenceSteps, "campaigns:manage_all", "campaigns:manage"))
+		g.POST("/api/cadences/:id/steps", pm(a.SaveCadenceSteps, "campaigns:manage_all", "campaigns:manage"))
+		g.POST("/api/cadences/:id/enroll", pm(a.EnrollCadenceSubscribers, "campaigns:manage_all", "campaigns:manage"))
+
+		g.GET("/api/mailboxes", pm(a.GetMailboxes, "settings:maintain"))
+		g.GET("/api/mailboxes/:id", pm(hasID(a.GetMailbox), "settings:maintain"))
+		g.POST("/api/mailboxes", pm(a.CreateMailbox, "settings:maintain"))
+		g.PUT("/api/mailboxes/:id", pm(hasID(a.UpdateMailbox), "settings:maintain"))
+		g.DELETE("/api/mailboxes/:id", pm(hasID(a.DeleteMailbox), "settings:maintain"))
+
 		g.GET("/api/media", pm(a.GetAllMedia, "media:get"))
 		g.GET("/api/media/:id", pm(hasID(a.GetMedia), "media:get"))
 		g.POST("/api/media", pm(a.UploadMedia, "media:manage"))
@@ -223,6 +238,7 @@ func initHTTPHandlers(e *echo.Echo, a *App) {
 			// Private authenticated bounce endpoint.
 			g.POST("/webhooks/bounce", pm(a.BounceWebhook, "webhooks:post_bounce"))
 		}
+		g.POST("/api/webhooks/waha", a.WAHAWebhook)
 	}
 
 	// =================================================================

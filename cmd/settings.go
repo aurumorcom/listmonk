@@ -71,6 +71,9 @@ func (a *App) GetSettings(c echo.Context) error {
 	for i := range s.Messengers {
 		s.Messengers[i].Password = strings.Repeat(pwdMask, utf8.RuneCountInString(s.Messengers[i].Password))
 	}
+	for i := range s.WAHAMessengers {
+		s.WAHAMessengers[i].APIKey = strings.Repeat(pwdMask, utf8.RuneCountInString(s.WAHAMessengers[i].APIKey))
+	}
 
 	s.UploadS3AwsSecretAccessKey = strings.Repeat(pwdMask, utf8.RuneCountInString(s.UploadS3AwsSecretAccessKey))
 	s.SendgridKey = strings.Repeat(pwdMask, utf8.RuneCountInString(s.SendgridKey))
@@ -225,6 +228,32 @@ func (a *App) UpdateSettings(c echo.Context) error {
 		}
 
 		set.Messengers[i].Name = name
+		names[name] = true
+	}
+
+	for i, m := range set.WAHAMessengers {
+		if m.UUID == "" {
+			set.WAHAMessengers[i].UUID = uuid.Must(uuid.NewV4()).String()
+		}
+
+		if m.APIKey == "" {
+			for _, c := range cur.WAHAMessengers {
+				if m.UUID == c.UUID {
+					set.WAHAMessengers[i].APIKey = c.APIKey
+				}
+			}
+		}
+
+		name := reAlphaNum.ReplaceAllString(strings.ToLower(m.Name), "")
+		if _, ok := names[name]; ok {
+			return echo.NewHTTPError(http.StatusBadRequest,
+				a.i18n.Ts("settings.duplicateMessengerName", "name", name))
+		}
+		if len(name) == 0 {
+			return echo.NewHTTPError(http.StatusBadRequest, a.i18n.T("settings.invalidMessengerName"))
+		}
+
+		set.WAHAMessengers[i].Name = name
 		names[name] = true
 	}
 

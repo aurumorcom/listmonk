@@ -310,3 +310,26 @@ func (a *App) validateBounceFields(b models.Bounce) (models.Bounce, error) {
 
 	return b, nil
 }
+
+// WAHAWebhook handles delivery status webhooks from WAHA.
+func (a *App) WAHAWebhook(c echo.Context) error {
+	type wahaPayload struct {
+		Event   string `json:"event"`
+		Payload struct {
+			Ack   int    `json:"ack"`
+			To    string `json:"to"`
+			Error string `json:"error"`
+		} `json:"payload"`
+	}
+
+	var req wahaPayload
+	if err := c.Bind(&req); err != nil {
+		return c.NoContent(http.StatusOK)
+	}
+
+	if req.Event == "message.ack" && req.Payload.Ack == -1 {
+		a.log.Printf("WAHA delivery failure for %s: %s", req.Payload.To, req.Payload.Error)
+	}
+
+	return c.NoContent(http.StatusOK)
+}
