@@ -18,12 +18,15 @@ type ContactSummary struct {
 	Phone string `json:"phone,omitempty"`
 }
 
-// PrimaryIdentifier returns phone if valid and non-empty, otherwise returns email.
+// PrimaryIdentifier returns email if non-empty, otherwise returns phone if valid, or empty string.
 func (c Contact) PrimaryIdentifier() string {
+	if strings.TrimSpace(c.Email) != "" {
+		return strings.TrimSpace(c.Email)
+	}
 	if c.Phone.Valid && strings.TrimSpace(c.Phone.String) != "" {
 		return strings.TrimSpace(c.Phone.String)
 	}
-	return c.Email
+	return ""
 }
 
 // ChannelAddress returns recipient address string based on target messenger.

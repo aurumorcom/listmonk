@@ -29,20 +29,20 @@ func TestContactAliasEquivalence(t *testing.T) {
 }
 
 func TestContactPrimaryIdentifier(t *testing.T) {
-	cPhone := Contact{
+	cEmail := Contact{
 		Email: "user@example.com",
 		Phone: null.StringFrom("+15559876543"),
 	}
-	if id := cPhone.PrimaryIdentifier(); id != "+15559876543" {
-		t.Errorf("expected +15559876543, got %s", id)
+	if id := cEmail.PrimaryIdentifier(); id != "user@example.com" {
+		t.Errorf("expected user@example.com, got %s", id)
 	}
 
-	cEmailOnly := Contact{
-		Email: "user@example.com",
-		Phone: null.String{},
+	cPhoneOnly := Contact{
+		Email: "",
+		Phone: null.StringFrom("+15559876543"),
 	}
-	if id := cEmailOnly.PrimaryIdentifier(); id != "user@example.com" {
-		t.Errorf("expected user@example.com, got %s", id)
+	if id := cPhoneOnly.PrimaryIdentifier(); id != "+15559876543" {
+		t.Errorf("expected +15559876543, got %s", id)
 	}
 }
 
