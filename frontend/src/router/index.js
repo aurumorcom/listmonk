@@ -42,6 +42,18 @@ const routes = [
     component: () => import('../views/Subscribers.vue'),
   },
   {
+    path: '/contacts',
+    name: 'contacts',
+    meta: { title: 'globals.terms.contacts', group: 'contacts' },
+    component: () => import('../views/Contacts.vue'),
+  },
+  {
+    path: '/contacts/:id',
+    name: 'contact',
+    meta: { title: 'globals.terms.contacts', group: 'contacts' },
+    component: () => import('../views/Contacts.vue'),
+  },
+  {
     path: '/subscribers/import',
     name: 'import',
     meta: { title: 'import.title', group: 'subscribers' },
