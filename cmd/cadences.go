@@ -108,7 +108,7 @@ func (a *App) EnrollCadenceSubscribers(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, a.i18n.Ts("globals.messages.invalidReq"))
 	}
 
-	if err := a.core.EnrollCadenceSubscribers(id, req.SubscriberIDs); err != nil {
+	if err := a.core.EnrollCadenceContacts(id, req.SubscriberIDs); err != nil {
 		return err
 	}
 	return c.JSON(http.StatusOK, okResp{true})

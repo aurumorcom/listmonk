@@ -11,17 +11,17 @@ import (
 func TestEvaluateStepCondition(t *testing.T) {
 	now := time.Now()
 
-	subUnread := models.CadenceSubscriber{
+	subUnread := models.CadenceContact{
 		LastReadAt:    null.Time{},
 		LastClickedAt: null.Time{},
 	}
 
-	subRead := models.CadenceSubscriber{
+	subRead := models.CadenceContact{
 		LastReadAt:    null.TimeFrom(now),
 		LastClickedAt: null.Time{},
 	}
 
-	subClicked := models.CadenceSubscriber{
+	subClicked := models.CadenceContact{
 		LastReadAt:    null.TimeFrom(now),
 		LastClickedAt: null.TimeFrom(now),
 	}
@@ -29,7 +29,7 @@ func TestEvaluateStepCondition(t *testing.T) {
 	tests := []struct {
 		name      string
 		condition string
-		sub       models.CadenceSubscriber
+		sub       models.CadenceContact
 		expected  bool
 	}{
 		{"Always - Unread", models.CadenceConditionAlways, subUnread, true},

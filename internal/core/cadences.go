@@ -167,8 +167,8 @@ func (c *Core) GetStepAttachments(store media.Store, mediaIDs []int64) ([]models
 	return atts, nil
 }
 
-// EnrollCadenceSubscribers enrolls subscribers into a cadence.
-func (c *Core) EnrollCadenceSubscribers(cadenceID int, subscriberIDs []int) error {
+// EnrollCadenceContacts enrolls contacts into a cadence.
+func (c *Core) EnrollCadenceContacts(cadenceID int, subscriberIDs []int) error {
 	if len(subscriberIDs) == 0 {
 		return nil
 	}
@@ -179,28 +179,28 @@ func (c *Core) EnrollCadenceSubscribers(cadenceID int, subscriberIDs []int) erro
 
 	_, err := c.db.Exec(query, cadenceID, subscriberIDs)
 	if err != nil {
-		c.log.Printf("error enrolling cadence subscribers: %v", err)
+		c.log.Printf("error enrolling cadence contacts: %v", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, c.i18n.Ts("public.errorProcessingRequest"))
 	}
 	return nil
 }
 
-// GetDueCadenceSubscribers returns cadence subscribers due for sending.
-func (c *Core) GetDueCadenceSubscribers(limit int) ([]models.CadenceSubscriber, error) {
-	var out []models.CadenceSubscriber
+// GetDueCadenceContacts returns cadence contacts due for sending.
+func (c *Core) GetDueCadenceContacts(limit int) ([]models.CadenceContact, error) {
+	var out []models.CadenceContact
 	err := c.db.Select(&out, `SELECT cadence_id, subscriber_id, status, current_step, next_send_at, last_read_at, last_clicked_at, last_message_id, created_at
 		FROM cadence_contacts
 		WHERE status IN ('scheduled', 'in_progress') AND next_send_at <= NOW()
 		LIMIT $1`, limit)
 	if err != nil {
-		c.log.Printf("error getting due cadence subscribers: %v", err)
+		c.log.Printf("error getting due cadence contacts: %v", err)
 		return nil, err
 	}
 	return out, nil
 }
 
-// UpdateCadenceSubscriberStatus updates progress of a subscriber in a cadence.
-func (c *Core) UpdateCadenceSubscriberStatus(cadenceID, subID int, status string, currentStep int, nextSendAt null.Time, lastMsgID null.String) error {
+// UpdateCadenceContactStatus updates progress of a contact in a cadence.
+func (c *Core) UpdateCadenceContactStatus(cadenceID, subID int, status string, currentStep int, nextSendAt null.Time, lastMsgID null.String) error {
 	_, err := c.db.Exec(`UPDATE cadence_contacts
 		SET status = $3, current_step = $4, next_send_at = $5, last_message_id = $6
 		WHERE cadence_id = $1 AND subscriber_id = $2`,

@@ -73,7 +73,7 @@ func (m *Manager) Stop() {
 }
 
 // EvaluateStepCondition evaluates whether a step condition is satisfied.
-func EvaluateStepCondition(cond string, sub models.CadenceSubscriber) bool {
+func EvaluateStepCondition(cond string, sub models.CadenceContact) bool {
 	switch cond {
 	case models.CadenceConditionAlways:
 		return true
@@ -88,9 +88,9 @@ func EvaluateStepCondition(cond string, sub models.CadenceSubscriber) bool {
 	}
 }
 
-// ProcessBatch processes due cadence subscribers.
+// ProcessBatch processes due cadence contacts.
 func (m *Manager) ProcessBatch() error {
-	subs, err := m.core.GetDueCadenceSubscribers(100)
+	subs, err := m.core.GetDueCadenceContacts(100)
 	if err != nil {
 		return err
 	}
@@ -103,7 +103,7 @@ func (m *Manager) ProcessBatch() error {
 		}
 
 		if len(steps) == 0 || sub.CurrentStep > len(steps) {
-			_ = m.core.UpdateCadenceSubscriberStatus(sub.CadenceID, sub.SubscriberID, models.CadenceSubStatusFinished, sub.CurrentStep, null.Time{}, null.String{})
+			_ = m.core.UpdateCadenceContactStatus(sub.CadenceID, sub.SubscriberID, models.CadenceContactStatusFinished, sub.CurrentStep, null.Time{}, null.String{})
 			continue
 		}
 
@@ -113,10 +113,10 @@ func (m *Manager) ProcessBatch() error {
 			// Skip step if condition not met and advance to next step
 			nextStep := sub.CurrentStep + 1
 			if nextStep > len(steps) {
-				_ = m.core.UpdateCadenceSubscriberStatus(sub.CadenceID, sub.SubscriberID, models.CadenceSubStatusFinished, nextStep, null.Time{}, null.String{})
+				_ = m.core.UpdateCadenceContactStatus(sub.CadenceID, sub.SubscriberID, models.CadenceContactStatusFinished, nextStep, null.Time{}, null.String{})
 			} else {
 				nextSend := null.TimeFrom(time.Now().Add(time.Duration(steps[nextStep-1].DelayDays) * 24 * time.Hour))
-				_ = m.core.UpdateCadenceSubscriberStatus(sub.CadenceID, sub.SubscriberID, models.CadenceSubStatusInProgress, nextStep, nextSend, null.String{})
+				_ = m.core.UpdateCadenceContactStatus(sub.CadenceID, sub.SubscriberID, models.CadenceContactStatusInProgress, nextStep, nextSend, null.String{})
 			}
 			continue
 		}
@@ -169,15 +169,15 @@ func (m *Manager) ProcessBatch() error {
 
 		nextStep := sub.CurrentStep + 1
 		var nextSend null.Time
-		status := models.CadenceSubStatusInProgress
+		status := models.CadenceContactStatusInProgress
 
 		if nextStep > len(steps) {
-			status = models.CadenceSubStatusFinished
+			status = models.CadenceContactStatusFinished
 		} else {
 			nextSend = null.TimeFrom(time.Now().Add(time.Duration(steps[nextStep-1].DelayDays) * 24 * time.Hour))
 		}
 
-		_ = m.core.UpdateCadenceSubscriberStatus(sub.CadenceID, sub.SubscriberID, status, nextStep, nextSend, null.StringFrom(msgID))
+		_ = m.core.UpdateCadenceContactStatus(sub.CadenceID, sub.SubscriberID, status, nextStep, nextSend, null.StringFrom(msgID))
 	}
 
 	return nil

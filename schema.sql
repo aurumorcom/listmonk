@@ -22,6 +22,7 @@ CREATE TABLE subscribers (
     uuid uuid       NOT NULL UNIQUE,
     email           TEXT NOT NULL UNIQUE,
     name            TEXT NOT NULL,
+    phone           TEXT NULL DEFAULT '',
     attribs         JSONB NOT NULL DEFAULT '{}',
     status          subscriber_status NOT NULL DEFAULT 'enabled',
 
@@ -29,6 +30,7 @@ CREATE TABLE subscribers (
     updated_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 DROP INDEX IF EXISTS idx_subs_email; CREATE UNIQUE INDEX idx_subs_email ON subscribers(LOWER(email));
+DROP INDEX IF EXISTS idx_subs_phone; CREATE INDEX idx_subs_phone ON subscribers(phone) WHERE phone IS NOT NULL AND phone != '';
 DROP INDEX IF EXISTS idx_subs_status; CREATE INDEX idx_subs_status ON subscribers(status);
 DROP INDEX IF EXISTS idx_subs_id_status; CREATE INDEX idx_subs_id_status ON subscribers(id, status);
 DROP INDEX IF EXISTS idx_subs_created_at; CREATE INDEX idx_subs_created_at ON subscribers(created_at);
@@ -482,9 +484,9 @@ CREATE TABLE cadence_step_media (
 DROP INDEX IF EXISTS idx_cadence_step_media_id; CREATE UNIQUE INDEX idx_cadence_step_media_id ON cadence_step_media (cadence_step_id, media_id);
 DROP INDEX IF EXISTS idx_cadence_step_media_step_id; CREATE INDEX idx_cadence_step_media_step_id ON cadence_step_media(cadence_step_id);
 
--- cadence_subscribers
-DROP TABLE IF EXISTS cadence_subscribers CASCADE;
-CREATE TABLE cadence_subscribers (
+-- cadence_contacts
+DROP TABLE IF EXISTS cadence_contacts CASCADE;
+CREATE TABLE cadence_contacts (
     cadence_id      INTEGER NOT NULL REFERENCES cadences(id) ON DELETE CASCADE,
     subscriber_id   INTEGER NOT NULL REFERENCES subscribers(id) ON DELETE CASCADE,
     status          TEXT NOT NULL DEFAULT 'scheduled',
@@ -496,7 +498,7 @@ CREATE TABLE cadence_subscribers (
     created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     PRIMARY KEY (cadence_id, subscriber_id)
 );
-CREATE INDEX idx_cadence_subscribers_next_send ON cadence_subscribers(status, next_send_at);
+CREATE INDEX idx_cadence_contacts_next_send ON cadence_contacts(status, next_send_at);
 
 -- mailboxes
 DROP TABLE IF EXISTS mailboxes CASCADE;

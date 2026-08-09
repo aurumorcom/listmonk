@@ -47,7 +47,7 @@ RETURNING id, cadence_id, step_number, delay_days, messenger, condition, subject
 DELETE FROM cadence_steps WHERE cadence_id = $1;
 
 -- name: enroll-cadence-subscribers
-INSERT INTO cadence_subscribers (cadence_id, subscriber_id, status, current_step, next_send_at)
+INSERT INTO cadence_contacts (cadence_id, subscriber_id, status, current_step, next_send_at)
 SELECT $1, id, 'scheduled', 1, NOW()
 FROM subscribers
 WHERE id = ANY($2::INT[])
@@ -55,27 +55,27 @@ ON CONFLICT (cadence_id, subscriber_id) DO NOTHING;
 
 -- name: get-due-cadence-subscribers
 SELECT cadence_id, subscriber_id, status, current_step, next_send_at, last_read_at, last_clicked_at, last_message_id, created_at
-FROM cadence_subscribers
+FROM cadence_contacts
 WHERE status IN ('scheduled', 'in_progress') AND next_send_at <= NOW()
 LIMIT $1;
 
 -- name: update-cadence-subscriber-status
-UPDATE cadence_subscribers
+UPDATE cadence_contacts
 SET status = $3, current_step = $4, next_send_at = $5, last_message_id = $6
 WHERE cadence_id = $1 AND subscriber_id = $2;
 
 -- name: update-cadence-subscriber-read
-UPDATE cadence_subscribers
+UPDATE cadence_contacts
 SET last_read_at = NOW()
 WHERE cadence_id = $1 AND subscriber_id = $2;
 
 -- name: update-cadence-subscriber-click
-UPDATE cadence_subscribers
+UPDATE cadence_contacts
 SET last_clicked_at = NOW()
 WHERE cadence_id = $1 AND subscriber_id = $2;
 
 -- name: set-cadence-subscriber-replied
-UPDATE cadence_subscribers
+UPDATE cadence_contacts
 SET status = 'replied'
 WHERE subscriber_id = (SELECT id FROM subscribers WHERE email = $1 LIMIT 1)
   AND status IN ('scheduled', 'in_progress');

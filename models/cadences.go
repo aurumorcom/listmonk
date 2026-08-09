@@ -12,11 +12,11 @@ const (
 	CadenceStatusPaused   = "paused"
 	CadenceStatusArchived = "archived"
 
-	CadenceSubStatusScheduled  = "scheduled"
-	CadenceSubStatusInProgress = "in_progress"
-	CadenceSubStatusReplied    = "replied"
-	CadenceSubStatusFinished   = "finished"
-	CadenceSubStatusOptedOut   = "opted_out"
+	CadenceContactStatusScheduled  = "scheduled"
+	CadenceContactStatusInProgress = "in_progress"
+	CadenceContactStatusReplied    = "replied"
+	CadenceContactStatusFinished   = "finished"
+	CadenceContactStatusOptedOut   = "opted_out"
 
 	CadenceConditionAlways    = "always"
 	CadenceConditionIfRead    = "if_read"
@@ -54,11 +54,11 @@ type CadenceStep struct {
 	MediaIDs   pq.Int64Array `db:"media_ids" json:"media_ids"`
 }
 
-// CadenceSubscribers represents a slice of CadenceSubscriber.
-type CadenceSubscribers []CadenceSubscriber
+// CadenceContacts represents a slice of CadenceContact.
+type CadenceContacts []CadenceContact
 
-// CadenceSubscriber tracks the state machine position of a lead within a cadence.
-type CadenceSubscriber struct {
+// CadenceContact tracks the state machine position of a lead/contact within a cadence.
+type CadenceContact struct {
 	CadenceID     int         `db:"cadence_id" json:"cadence_id"`
 	SubscriberID  int         `db:"subscriber_id" json:"subscriber_id"`
 	Status        string      `db:"status" json:"status"`
