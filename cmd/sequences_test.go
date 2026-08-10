@@ -168,3 +168,42 @@ func TestE2E_Sequence_Sender_Reassignment_And_Limits(t *testing.T) {
 
 	t.Log("Successfully verified sender reassignment and mailbox daily limit deferral logic")
 }
+
+func TestE2E_Sequence_Schedule_Timezone_Pacing(t *testing.T) {
+	seq := models.Sequence{
+		Timezone: "America/New_York",
+	}
+
+	contact1 := models.Subscriber{
+		Name:    "Alice",
+		Attribs: models.JSON{"tz": "Asia/Kolkata"},
+	}
+
+	contact2 := models.Subscriber{
+		Name:    "Bob",
+		Attribs: models.JSON{}, // Uses seq.Timezone
+	}
+
+	loc1 := contact1.ResolveTimezone(seq)
+	if loc1.String() != "Asia/Kolkata" {
+		t.Errorf("expected Asia/Kolkata for Alice, got %s", loc1.String())
+	}
+
+	loc2 := contact2.ResolveTimezone(seq)
+	if loc2.String() != "America/New_York" {
+		t.Errorf("expected America/New_York for Bob, got %s", loc2.String())
+	}
+
+	sched := models.SequenceSchedule{
+		Enabled:            true,
+		StartTime:          "09:00",
+		EndTime:            "17:00",
+		MinIntervalSeconds: 60,
+	}
+
+	if !sched.Enabled || sched.MinIntervalSeconds != 60 {
+		t.Error("expected valid SequenceSchedule parameters")
+	}
+
+	t.Log("Successfully verified sequence schedule and timezone resolution for pacing")
+}

@@ -37,10 +37,22 @@ type Sequence struct {
 	UUID            string         `db:"uuid" json:"uuid"`
 	Name            string         `db:"name" json:"name"`
 	Status          string         `db:"status" json:"status"`
+	Timezone        string         `db:"timezone" json:"timezone"`
+	SendSchedule    JSON           `db:"send_schedule" json:"send_schedule"`
 	SendWindow      JSON           `db:"send_window" json:"send_window"`
 	MailboxIDs      pq.Int64Array  `db:"mailbox_ids" json:"mailbox_ids"`
 	WahaSessions    pq.StringArray `db:"waha_sessions" json:"waha_sessions"`
 	LoadBalanceMode string         `db:"load_balance_mode" json:"load_balance_mode"`
+}
+
+// SequenceSchedule defines daily sending time windows and rate pacing settings.
+type SequenceSchedule struct {
+	Enabled            bool     `json:"enabled"`
+	StartTime          string   `json:"start_time"`           // e.g. "09:00"
+	EndTime            string   `json:"end_time"`             // e.g. "17:00"
+	Days               []string `json:"days"`                 // e.g. ["mon", "tue", "wed", "thu", "fri"]
+	MinIntervalSeconds int      `json:"min_interval_seconds"` // e.g. 30
+	JitterSeconds      int      `json:"jitter_seconds"`       // e.g. 15
 }
 
 // SequenceSteps represents a slice of SequenceStep.
