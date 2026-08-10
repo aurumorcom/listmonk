@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/knadh/listmonk/internal/core"
 	"github.com/knadh/listmonk/models"
 	null "gopkg.in/volatiletech/null.v6"
 )
@@ -70,5 +71,88 @@ func TestSequenceStepMediaIDs(t *testing.T) {
 
 	if len(step.MediaIDs) != 2 || step.MediaIDs[0] != 101 || step.MediaIDs[1] != 102 {
 		t.Errorf("unexpected MediaIDs: %v", step.MediaIDs)
+	}
+}
+
+func TestAllocateSendersRoundRobinInt(t *testing.T) {
+	subIDs := []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
+	pool := []int64{10, 20, 30}
+
+	alloc := core.AllocateSendersRoundRobinInt(subIDs, pool)
+
+	if len(alloc) != 10 {
+		t.Fatalf("expected 10 allocations, got %d", len(alloc))
+	}
+
+	expected := map[int]int{
+		1: 10, 2: 20, 3: 30,
+		4: 10, 5: 20, 6: 30,
+		7: 10, 8: 20, 9: 30,
+		10: 10,
+	}
+
+	for subID, expMb := range expected {
+		got, ok := alloc[subID]
+		if !ok || !got.Valid || got.Int != expMb {
+			t.Errorf("subscriber %d: expected mailbox %d, got %v", subID, expMb, got)
+		}
+	}
+}
+
+func TestAllocateSendersRoundRobinString(t *testing.T) {
+	subIDs := []int{1, 2, 3, 4, 5}
+	pool := []string{"session_a", "session_b"}
+
+	alloc := core.AllocateSendersRoundRobinString(subIDs, pool)
+
+	if len(alloc) != 5 {
+		t.Fatalf("expected 5 allocations, got %d", len(alloc))
+	}
+
+	expected := map[int]string{
+		1: "session_a",
+		2: "session_b",
+		3: "session_a",
+		4: "session_b",
+		5: "session_a",
+	}
+
+	for subID, expSession := range expected {
+		got, ok := alloc[subID]
+		if !ok || !got.Valid || got.String != expSession {
+			t.Errorf("subscriber %d: expected session %s, got %v", subID, expSession, got)
+		}
+	}
+}
+
+func TestAllocateSendersCapacityWeighted(t *testing.T) {
+	var subIDs []int
+	for i := 1; i <= 20; i++ {
+		subIDs = append(subIDs, i)
+	}
+
+	mailboxes := []models.Mailbox{
+		{Base: models.Base{ID: 1}, DailyLimit: 100, SentToday: 90}, // Remaining: 10
+		{Base: models.Base{ID: 2}, DailyLimit: 100, SentToday: 50}, // Remaining: 50
+		{Base: models.Base{ID: 3}, DailyLimit: 100, SentToday: 60}, // Remaining: 40
+	}
+
+	alloc := core.AllocateSendersCapacityWeighted(subIDs, mailboxes)
+
+	counts := make(map[int]int)
+	for _, mbID := range alloc {
+		if mbID.Valid {
+			counts[mbID.Int]++
+		}
+	}
+
+	if counts[1] != 2 {
+		t.Errorf("expected mailbox 1 count = 2, got %d", counts[1])
+	}
+	if counts[2] != 10 {
+		t.Errorf("expected mailbox 2 count = 10, got %d", counts[2])
+	}
+	if counts[3] != 8 {
+		t.Errorf("expected mailbox 3 count = 8, got %d", counts[3])
 	}
 }

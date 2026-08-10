@@ -138,12 +138,38 @@ func (m *Manager) ProcessBatch() error {
 			}
 		}
 
+		var activeMailbox *models.Mailbox
+		if step.Messenger == "email" || msgr.Name() == "email" {
+			if sub.MailboxID.Valid {
+				mb, err := m.core.GetMailbox(sub.MailboxID.Int)
+				if err != nil {
+					m.log.Printf("error resolving assigned mailbox %d for contact %d: %v", sub.MailboxID.Int, sub.SubscriberID, err)
+				} else {
+					if mb.SentToday >= mb.DailyLimit {
+						m.log.Printf("mailbox %d (%s) reached daily limit (%d/%d), deferring sequence step for contact %d", mb.ID, mb.Email, mb.SentToday, mb.DailyLimit, sub.SubscriberID)
+						deferSend := null.TimeFrom(time.Now().Add(24 * time.Hour))
+						_ = m.core.UpdateSequenceContactStatus(sub.SequenceID, sub.SubscriberID, sub.Status, sub.CurrentStep, deferSend, sub.LastMessageID)
+						continue
+					}
+					activeMailbox = mb
+				}
+			}
+		}
+
 		msgID := fmt.Sprintf("<sequence-%d-%d-%s@listmonk>", sub.SequenceID, step.StepNumber, uuid.Must(uuid.NewV4()).String())
 		msg := models.Message{
 			Subscriber: contact,
 			Subject:    step.Subject,
 			Body:       []byte(step.Body),
 			Messenger:  msgr.Name(),
+		}
+
+		if activeMailbox != nil {
+			msg.From = activeMailbox.Email
+		}
+
+		if (step.Messenger == "waha" || msgr.Name() == "waha") && sub.WahaSession.Valid {
+			msg.MessengerSession = sub.WahaSession.String
 		}
 
 		if len(step.MediaIDs) > 0 && m.mediaStore != nil {
@@ -165,6 +191,10 @@ func (m *Manager) ProcessBatch() error {
 		if err := msgr.Push(msg); err != nil {
 			m.log.Printf("error pushing sequence message for subscriber %d: %v", sub.SubscriberID, err)
 			continue
+		}
+
+		if activeMailbox != nil {
+			_ = m.core.IncrementMailboxSent(activeMailbox.ID)
 		}
 
 		nextStep := sub.CurrentStep + 1
