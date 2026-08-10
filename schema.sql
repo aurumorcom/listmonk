@@ -7,13 +7,14 @@ DROP TYPE IF EXISTS campaign_status CASCADE; CREATE TYPE campaign_status AS ENUM
 DROP TYPE IF EXISTS campaign_type CASCADE; CREATE TYPE campaign_type AS ENUM ('regular', 'optin');
 DROP TYPE IF EXISTS content_type CASCADE; CREATE TYPE content_type AS ENUM ('richtext', 'html', 'plain', 'markdown', 'visual');
 DROP TYPE IF EXISTS bounce_type CASCADE; CREATE TYPE bounce_type AS ENUM ('soft', 'hard', 'complaint');
-DROP TYPE IF EXISTS template_type CASCADE; CREATE TYPE template_type AS ENUM ('campaign', 'campaign_visual', 'tx');
+DROP TYPE IF EXISTS template_type CASCADE; CREATE TYPE template_type AS ENUM ('campaign', 'campaign_visual', 'tx', 'prompt');
 DROP TYPE IF EXISTS user_type CASCADE; CREATE TYPE user_type AS ENUM ('user', 'api');
 DROP TYPE IF EXISTS user_status CASCADE; CREATE TYPE user_status AS ENUM ('enabled', 'disabled');
 DROP TYPE IF EXISTS role_type CASCADE; CREATE TYPE role_type AS ENUM ('user', 'list');
 DROP TYPE IF EXISTS twofa_type CASCADE; CREATE TYPE twofa_type AS ENUM ('none', 'totp');
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- subscribers
 DROP TABLE IF EXISTS subscribers CASCADE;
@@ -82,6 +83,7 @@ CREATE TABLE templates (
     name            TEXT NOT NULL,
     type            template_type NOT NULL DEFAULT 'campaign',
     subject         TEXT NOT NULL,
+    system_prompt   TEXT NOT NULL DEFAULT '',
     body            TEXT NOT NULL,
     body_source     TEXT NULL,
     is_default      BOOLEAN NOT NULL DEFAULT false,
@@ -446,11 +448,25 @@ CREATE MATERIALIZED VIEW mat_list_subscriber_stats AS
     SELECT NOW() AS updated_at, 0 AS list_id, NULL AS status, COUNT(id) AS subscriber_count FROM subscribers;
 DROP INDEX IF EXISTS mat_list_subscriber_stats_idx; CREATE UNIQUE INDEX mat_list_subscriber_stats_idx ON mat_list_subscriber_stats (list_id, status);
 
+-- mailboxes
+DROP TABLE IF EXISTS mailboxes CASCADE;
+CREATE TABLE mailboxes (
+    id          SERIAL PRIMARY KEY,
+    name        TEXT NOT NULL,
+    email       TEXT NOT NULL UNIQUE,
+    smtp_config JSONB NOT NULL DEFAULT '{}',
+    imap_config JSONB NOT NULL DEFAULT '{}',
+    daily_limit INTEGER NOT NULL DEFAULT 50,
+    sent_today  INTEGER NOT NULL DEFAULT 0,
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- sequences
 DROP TABLE IF EXISTS sequences CASCADE;
 CREATE TABLE sequences (
     id                SERIAL PRIMARY KEY,
-    uuid              UUID NOT NULL DEFAULT uuid_generate_v4() UNIQUE,
+    uuid              UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
     name              TEXT NOT NULL,
     status            TEXT NOT NULL DEFAULT 'active',
     send_window       JSONB NOT NULL DEFAULT '{}',
@@ -505,18 +521,4 @@ CREATE TABLE sequence_contacts (
 );
 CREATE INDEX idx_sequence_contacts_next_send ON sequence_contacts(status, next_send_at);
 CREATE INDEX idx_sequence_contacts_sender ON sequence_contacts(sequence_id, mailbox_id, waha_session);
-
--- mailboxes
-DROP TABLE IF EXISTS mailboxes CASCADE;
-CREATE TABLE mailboxes (
-    id          SERIAL PRIMARY KEY,
-    name        TEXT NOT NULL,
-    email       TEXT NOT NULL UNIQUE,
-    smtp_config JSONB NOT NULL DEFAULT '{}',
-    imap_config JSONB NOT NULL DEFAULT '{}',
-    daily_limit INTEGER NOT NULL DEFAULT 50,
-    sent_today  INTEGER NOT NULL DEFAULT 0,
-    created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
 
