@@ -187,7 +187,7 @@ func AllocateSendersRoundRobinInt(subIDs []int, pool []int64) map[int]null.Int {
 		return alloc
 	}
 	for i, subID := range subIDs {
-		alloc[subID] = null.IntFrom(pool[i%len(pool)])
+		alloc[subID] = null.IntFrom(int(pool[i%len(pool)]))
 	}
 	return alloc
 }
@@ -266,14 +266,14 @@ func AllocateSendersCapacityWeighted(subIDs []int, mailboxes []models.Mailbox) m
 	for _, b := range active {
 		q := quotas[b.id]
 		for j := 0; j < q && subIdx < len(subIDs); j++ {
-			alloc[subIDs[subIdx]] = null.IntFrom(b.id)
+			alloc[subIDs[subIdx]] = null.IntFrom(int(b.id))
 			subIdx++
 		}
 	}
 
 	// Fallback for any leftover subscriber IDs
 	for subIdx < len(subIDs) {
-		alloc[subIDs[subIdx]] = null.IntFrom(active[subIdx%len(active)].id)
+		alloc[subIDs[subIdx]] = null.IntFrom(int(active[subIdx%len(active)].id))
 		subIdx++
 	}
 
@@ -352,7 +352,7 @@ func (c *Core) EnrollSequenceContacts(sequenceID int, subscriberIDs []int, expli
 
 		var mbVal any
 		if mbID.Valid {
-			mbVal = mbID.Int64
+			mbVal = mbID.Int
 		}
 		var wsVal any
 		if wSession.Valid && wSession.String != "" {
@@ -372,7 +372,7 @@ func (c *Core) EnrollSequenceContacts(sequenceID int, subscriberIDs []int, expli
 func (c *Core) ReassignSequenceContactSender(sequenceID, subID int, mailboxID null.Int, wahaSession null.String) error {
 	var mbVal any
 	if mailboxID.Valid {
-		mbVal = mailboxID.Int64
+		mbVal = mailboxID.Int
 	}
 	var wsVal any
 	if wahaSession.Valid && wahaSession.String != "" {
