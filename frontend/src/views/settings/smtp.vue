@@ -367,7 +367,7 @@ export default Vue.extend({
       if (!item.host || !item.port) {
         return false;
       }
-      if (item.auth_protocol !== 'none' && item.password.includes('•')) {
+      if (item.auth_protocol !== 'none' && item.password.includes('â€¢')) {
         return false;
       }
 

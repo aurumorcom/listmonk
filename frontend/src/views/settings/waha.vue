@@ -53,6 +53,7 @@
             </div>
           </div>
 
+          <!-- eslint-disable-next-line vuejs-accessibility/aria-props -->
           <b-collapse class="card mt-3 mb-3" :open="false" aria-id="advanced-human-typing">
             <template #trigger="props">
               <div class="card-header" role="button" aria-controls="advanced-human-typing" :aria-expanded="props.open">
@@ -60,7 +61,7 @@
                   <b-icon icon="keyboard-outline" size="is-small" class="mr-1" />
                   Advanced Human Typing Settings (Optional Override)
                 </p>
-                <a class="card-header-icon">
+                <a class="card-header-icon" aria-label="Toggle">
                   <b-icon :icon="props.open ? 'chevron-up' : 'chevron-down'" />
                 </a>
               </div>
@@ -136,7 +137,7 @@ export default {
       }
       this.data.waha_messengers.push({
         enabled: true,
-        name: 'whatsapp-' + (this.data.waha_messengers.length + 1),
+        name: `whatsapp-${this.data.waha_messengers.length + 1}`,
         root_url: 'http://waha:3000',
         api_key: '',
         session: 'default',
