@@ -2,8 +2,12 @@ package core
 
 import (
 	"database/sql"
+	"fmt"
+	"math/rand"
 	"net/http"
 	"regexp"
+	"strings"
+	"time"
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/knadh/listmonk/internal/media"
@@ -449,4 +453,124 @@ func (c *Core) RecordSequenceReplyByPhone(phone string) error {
 			   OR REGEXP_REPLACE(attribs->>'phone', '[^\d]', '', 'g') = $1
 		) AND status IN ('scheduled', 'in_progress')`, cleaned)
 	return err
+}
+
+// IsInsideSequenceSchedule checks if current time in loc is within active schedule window.
+// Returns whether currently inside the schedule and next valid start time if outside.
+func IsInsideSequenceSchedule(sched models.SequenceSchedule, loc *time.Location, now time.Time) (bool, time.Time) {
+	if loc == nil {
+		loc = time.UTC
+	}
+	if !sched.Enabled {
+		return true, now
+	}
+
+	localNow := now.In(loc)
+	dayName := strings.ToLower(localNow.Format("Mon"))
+
+	dayValid := false
+	if len(sched.Days) == 0 {
+		dayValid = true
+	} else {
+		for _, d := range sched.Days {
+			if strings.EqualFold(strings.TrimSpace(d), dayName) {
+				dayValid = true
+				break
+			}
+		}
+	}
+
+	startHour, startMin := 9, 0
+	if sched.StartTime != "" {
+		fmt.Sscanf(sched.StartTime, "%d:%d", &startHour, &startMin)
+	}
+
+	endHour, endMin := 17, 0
+	if sched.EndTime != "" {
+		fmt.Sscanf(sched.EndTime, "%d:%d", &endHour, &endMin)
+	}
+
+	startTimeToday := time.Date(localNow.Year(), localNow.Month(), localNow.Day(), startHour, startMin, 0, 0, loc)
+	endTimeToday := time.Date(localNow.Year(), localNow.Month(), localNow.Day(), endHour, endMin, 0, 0, loc)
+
+	if dayValid && !localNow.Before(startTimeToday) && localNow.Before(endTimeToday) {
+		return true, localNow
+	}
+
+	nextStart := startTimeToday
+	if !dayValid || !localNow.Before(startTimeToday) {
+		nextStart = nextStart.AddDate(0, 0, 1)
+	}
+
+	if len(sched.Days) > 0 {
+		for i := 0; i < 7; i++ {
+			dName := strings.ToLower(nextStart.Format("Mon"))
+			valid := false
+			for _, d := range sched.Days {
+				if strings.EqualFold(strings.TrimSpace(d), dName) {
+					valid = true
+					break
+				}
+			}
+			if valid {
+				break
+			}
+			nextStart = nextStart.AddDate(0, 0, 1)
+		}
+	}
+
+	return false, nextStart
+}
+
+// CalculatePacedInterval calculates the interval spacing in seconds between messages
+// given remaining schedule time and total pending contacts.
+func CalculatePacedInterval(sched models.SequenceSchedule, totalContacts int, remainingSeconds int) int {
+	if totalContacts <= 1 || remainingSeconds <= 0 {
+		return 0
+	}
+
+	interval := remainingSeconds / totalContacts
+	if sched.MinIntervalSeconds > 0 && interval < sched.MinIntervalSeconds {
+		interval = sched.MinIntervalSeconds
+	}
+	return interval
+}
+
+// CalculatePacedScheduleTimestamps computes staggered next_send_at timestamps for a batch of contacts.
+func CalculatePacedScheduleTimestamps(sched models.SequenceSchedule, loc *time.Location, now time.Time, totalContacts int) []time.Time {
+	timestamps := make([]time.Time, totalContacts)
+	if totalContacts == 0 {
+		return timestamps
+	}
+
+	inside, nextStart := IsInsideSequenceSchedule(sched, loc, now)
+	start := now
+	if !inside {
+		start = nextStart
+	}
+
+	localStart := start.In(loc)
+	endHour, endMin := 17, 0
+	if sched.EndTime != "" {
+		fmt.Sscanf(sched.EndTime, "%d:%d", &endHour, &endMin)
+	}
+	endTimeToday := time.Date(localStart.Year(), localStart.Month(), localStart.Day(), endHour, endMin, 0, 0, loc)
+
+	remainingSec := int(endTimeToday.Sub(localStart).Seconds())
+	if remainingSec < 0 {
+		remainingSec = 0
+	}
+
+	interval := CalculatePacedInterval(sched, totalContacts, remainingSec)
+
+	for i := 0; i < totalContacts; i++ {
+		st := localStart.Add(time.Duration(i*interval) * time.Second)
+		if sched.JitterSeconds > 0 && interval > 0 {
+			jitter := rand.Intn(sched.JitterSeconds*2+1) - sched.JitterSeconds
+			st = st.Add(time.Duration(jitter) * time.Second)
+		}
+		timestamps[i] = st.UTC()
+	}
+
+	return timestamps
 }
