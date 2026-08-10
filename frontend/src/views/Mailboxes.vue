@@ -84,11 +84,11 @@ export default {
       });
     },
     deleteMailbox(id) {
-      if (confirm('Delete mailbox?')) {
+      this.$utils.confirm('Delete mailbox?', () => {
         this.$api.deleteMailbox(id).then(() => {
           this.getMailboxes();
         });
-      }
+      });
     },
   },
 };
