@@ -256,6 +256,88 @@ func (w *Waha) post(url string, body any) error {
 	return nil
 }
 
+func (w *Waha) put(url string, body any) error {
+	b, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+
+	httpReq, err := http.NewRequest(http.MethodPut, url, bytes.NewBuffer(b))
+	if err != nil {
+		return err
+	}
+
+	httpReq.Header.Set("Content-Type", "application/json")
+	if w.o.APIKey != "" {
+		httpReq.Header.Set("X-Api-Key", w.o.APIKey)
+	}
+
+	resp, err := w.c.Do(httpReq)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("WAHA error (%d): %s", resp.StatusCode, string(respBody))
+	}
+
+	return nil
+}
+
+type webhookItem struct {
+	URL    string   `json:"url"`
+	Events []string `json:"events"`
+}
+
+type sessionConfigPayload struct {
+	Config struct {
+		Webhooks []webhookItem `json:"webhooks"`
+	} `json:"config"`
+}
+
+// SyncWebhook ensures the WAHA session is configured with Listmonk's webhook URL for message events.
+func (w *Waha) SyncWebhook(publicURL string) error {
+	if w.o.RootURL == "" {
+		return nil
+	}
+	webhookURL := strings.TrimRight(publicURL, "/") + "/api/webhooks/waha"
+	session := w.o.Session
+	if session == "" {
+		session = "default"
+	}
+
+	payload := sessionConfigPayload{}
+	payload.Config.Webhooks = []webhookItem{
+		{
+			URL:    webhookURL,
+			Events: []string{"message.ack", "message"},
+		},
+	}
+
+	urlPut := fmt.Sprintf("%s/api/sessions/%s", strings.TrimRight(w.o.RootURL, "/"), session)
+	err := w.put(urlPut, payload)
+	if err == nil {
+		return nil
+	}
+
+	urlStart := fmt.Sprintf("%s/api/sessions/start", strings.TrimRight(w.o.RootURL, "/"))
+	startPayload := struct {
+		Name   string               `json:"name"`
+		Config sessionConfigPayload `json:"config"`
+	}{
+		Name:   session,
+		Config: payload,
+	}
+
+	err = w.post(urlStart, startPayload)
+	if err != nil && (strings.Contains(err.Error(), "already started") || strings.Contains(err.Error(), "422")) {
+		return nil
+	}
+	return err
+}
+
 // --- HUMAN TYPING MARKOV SIMULATION MODEL ---
 
 const (

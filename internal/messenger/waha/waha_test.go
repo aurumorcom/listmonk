@@ -1,6 +1,7 @@
 package waha
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -178,5 +179,48 @@ func TestWahaPushSequence(t *testing.T) {
 	}
 	if calls[len(calls)-1] != "/api/sendText" {
 		t.Errorf("expected last call to be /api/sendText, got %s", calls[len(calls)-1])
+	}
+}
+
+func TestWahaSyncWebhook(t *testing.T) {
+	var receivedPayload sessionConfigPayload
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/sessions/default" {
+			t.Errorf("expected path /api/sessions/default, got %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPut {
+			t.Errorf("expected PUT method, got %s", r.Method)
+		}
+		body, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(body, &receivedPayload)
+
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status": "ok"}`))
+	}))
+	defer server.Close()
+
+	w, err := New(Options{
+		Name:    "waha-test",
+		RootURL: server.URL,
+		Session: "default",
+	})
+	if err != nil {
+		t.Fatalf("failed to create WAHA messenger: %v", err)
+	}
+
+	if err := w.SyncWebhook("http://localhost:9000"); err != nil {
+		t.Fatalf("SyncWebhook failed: %v", err)
+	}
+
+	if len(receivedPayload.Config.Webhooks) != 1 {
+		t.Fatalf("expected 1 webhook, got %d", len(receivedPayload.Config.Webhooks))
+	}
+
+	wh := receivedPayload.Config.Webhooks[0]
+	if wh.URL != "http://localhost:9000/api/webhooks/waha" {
+		t.Errorf("expected webhook URL 'http://localhost:9000/api/webhooks/waha', got %s", wh.URL)
+	}
+	if len(wh.Events) != 2 || wh.Events[0] != "message.ack" || wh.Events[1] != "message" {
+		t.Errorf("expected events ['message.ack', 'message'], got %v", wh.Events)
 	}
 }
