@@ -1,5 +1,3 @@
-version: "3"
-
 services:
   adminer:
     image: adminer:4.8.1-standalone
@@ -64,8 +62,26 @@ services:
     networks:
       - listmonk-dev
 
+  waha:
+    image: devlikeapro/waha:latest
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    networks:
+      - listmonk-dev
+    environment:
+      WHATSAPP_API_KEY: ${WAHA_API_KEY:-admin}
+      WAHA_PRINT_QR: "true"
+      WHATSAPP_HOOK_URL: "http://backend:9000/api/webhooks/waha"
+      WHATSAPP_HOOK_EVENTS: "message.ack,message"
+    volumes:
+      - type: volume
+        source: listmonk-dev-waha-sessions
+        target: /app/.sessions
+
 volumes:
   listmonk-dev-db:
+  listmonk-dev-waha-sessions:
 
 networks:
   listmonk-dev:
