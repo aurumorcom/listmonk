@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/jmoiron/sqlx/types"
@@ -100,6 +101,33 @@ func (s Subscriber) LastName() string {
 	}
 
 	return s.Name
+}
+
+// ResolveTimezone resolves the subscriber's timezone location using a 3-tier hierarchy:
+// 1. Contact specific attribute (`Attribs["tz"]` or `Attribs["timezone"]`)
+// 2. User-configured sequence default timezone (`seq.Timezone`)
+// 3. Fallback to UTC (`time.UTC`)
+func (s Subscriber) ResolveTimezone(seq Sequence) *time.Location {
+	if s.Attribs != nil {
+		if tzVal, ok := s.Attribs["tz"].(string); ok && strings.TrimSpace(tzVal) != "" {
+			if loc, err := time.LoadLocation(strings.TrimSpace(tzVal)); err == nil {
+				return loc
+			}
+		}
+		if tzVal, ok := s.Attribs["timezone"].(string); ok && strings.TrimSpace(tzVal) != "" {
+			if loc, err := time.LoadLocation(strings.TrimSpace(tzVal)); err == nil {
+				return loc
+			}
+		}
+	}
+
+	if strings.TrimSpace(seq.Timezone) != "" {
+		if loc, err := time.LoadLocation(strings.TrimSpace(seq.Timezone)); err == nil {
+			return loc
+		}
+	}
+
+	return time.UTC
 }
 
 // Subscription represents a list attached to a subscriber.
