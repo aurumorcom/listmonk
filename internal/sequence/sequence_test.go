@@ -1,4 +1,4 @@
-package cadence
+package sequence
 
 import (
 	"testing"
@@ -11,17 +11,17 @@ import (
 func TestEvaluateStepCondition(t *testing.T) {
 	now := time.Now()
 
-	subUnread := models.CadenceContact{
+	subUnread := models.SequenceContact{
 		LastReadAt:    null.Time{},
 		LastClickedAt: null.Time{},
 	}
 
-	subRead := models.CadenceContact{
+	subRead := models.SequenceContact{
 		LastReadAt:    null.TimeFrom(now),
 		LastClickedAt: null.Time{},
 	}
 
-	subClicked := models.CadenceContact{
+	subClicked := models.SequenceContact{
 		LastReadAt:    null.TimeFrom(now),
 		LastClickedAt: null.TimeFrom(now),
 	}
@@ -29,17 +29,17 @@ func TestEvaluateStepCondition(t *testing.T) {
 	tests := []struct {
 		name      string
 		condition string
-		sub       models.CadenceContact
+		sub       models.SequenceContact
 		expected  bool
 	}{
-		{"Always - Unread", models.CadenceConditionAlways, subUnread, true},
-		{"Always - Read", models.CadenceConditionAlways, subRead, true},
-		{"IfRead - Unread", models.CadenceConditionIfRead, subUnread, false},
-		{"IfRead - Read", models.CadenceConditionIfRead, subRead, true},
-		{"IfNotRead - Unread", models.CadenceConditionIfNotRead, subUnread, true},
-		{"IfNotRead - Read", models.CadenceConditionIfNotRead, subRead, false},
-		{"IfClicked - Unclicked", models.CadenceConditionIfClicked, subRead, false},
-		{"IfClicked - Clicked", models.CadenceConditionIfClicked, subClicked, true},
+		{"Always - Unread", models.SequenceConditionAlways, subUnread, true},
+		{"Always - Read", models.SequenceConditionAlways, subRead, true},
+		{"IfRead - Unread", models.SequenceConditionIfRead, subUnread, false},
+		{"IfRead - Read", models.SequenceConditionIfRead, subRead, true},
+		{"IfNotRead - Unread", models.SequenceConditionIfNotRead, subUnread, true},
+		{"IfNotRead - Read", models.SequenceConditionIfNotRead, subRead, false},
+		{"IfClicked - Unclicked", models.SequenceConditionIfClicked, subRead, false},
+		{"IfClicked - Clicked", models.SequenceConditionIfClicked, subClicked, true},
 	}
 
 	for _, tt := range tests {
@@ -60,10 +60,10 @@ func TestReplyListenerProcessReply(t *testing.T) {
 	}
 }
 
-func TestCadenceStepMediaIDs(t *testing.T) {
-	step := models.CadenceStep{
+func TestSequenceStepMediaIDs(t *testing.T) {
+	step := models.SequenceStep{
 		ID:         1,
-		CadenceID:  10,
+		SequenceID: 10,
 		StepNumber: 1,
 		MediaIDs:   []int64{101, 102},
 	}

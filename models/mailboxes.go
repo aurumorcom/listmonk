@@ -3,7 +3,7 @@ package models
 // Mailboxes represents a slice of Mailbox.
 type Mailboxes []Mailbox
 
-// Mailbox represents a sending email account pool for cold outreach cadences.
+// Mailbox represents a sending email account pool for cold outreach sequences.
 type Mailbox struct {
 	Base
 

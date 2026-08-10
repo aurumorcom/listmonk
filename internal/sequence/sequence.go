@@ -1,4 +1,4 @@
-package cadence
+package sequence
 
 import (
 	"context"
@@ -16,7 +16,7 @@ import (
 	null "gopkg.in/volatiletech/null.v6"
 )
 
-// Manager handles scheduled processing of cadence sequences.
+// Manager handles scheduled processing of sequences.
 type Manager struct {
 	core       *core.Core
 	messengers map[string]manager.Messenger
@@ -28,7 +28,7 @@ type Manager struct {
 	wg     sync.WaitGroup
 }
 
-// NewManager returns a new Cadence Manager.
+// NewManager returns a new Sequence Manager.
 func NewManager(c *core.Core, msgrs map[string]manager.Messenger, store media.Store, l *log.Logger) *Manager {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Manager{
@@ -59,7 +59,7 @@ func (m *Manager) Start(interval time.Duration) {
 				return
 			case <-ticker.C:
 				if err := m.ProcessBatch(); err != nil {
-					m.log.Printf("cadence scheduler error: %v", err)
+					m.log.Printf("sequence scheduler error: %v", err)
 				}
 			}
 		}
@@ -73,37 +73,37 @@ func (m *Manager) Stop() {
 }
 
 // EvaluateStepCondition evaluates whether a step condition is satisfied.
-func EvaluateStepCondition(cond string, sub models.CadenceContact) bool {
+func EvaluateStepCondition(cond string, sub models.SequenceContact) bool {
 	switch cond {
-	case models.CadenceConditionAlways:
+	case models.SequenceConditionAlways:
 		return true
-	case models.CadenceConditionIfRead:
+	case models.SequenceConditionIfRead:
 		return sub.LastReadAt.Valid
-	case models.CadenceConditionIfNotRead:
+	case models.SequenceConditionIfNotRead:
 		return !sub.LastReadAt.Valid
-	case models.CadenceConditionIfClicked:
+	case models.SequenceConditionIfClicked:
 		return sub.LastClickedAt.Valid
 	default:
 		return true
 	}
 }
 
-// ProcessBatch processes due cadence contacts.
+// ProcessBatch processes due sequence contacts.
 func (m *Manager) ProcessBatch() error {
-	subs, err := m.core.GetDueCadenceContacts(100)
+	subs, err := m.core.GetDueSequenceContacts(100)
 	if err != nil {
 		return err
 	}
 
 	for _, sub := range subs {
-		steps, err := m.core.GetCadenceSteps(sub.CadenceID)
+		steps, err := m.core.GetSequenceSteps(sub.SequenceID)
 		if err != nil {
-			m.log.Printf("error getting cadence steps for cadence %d: %v", sub.CadenceID, err)
+			m.log.Printf("error getting sequence steps for sequence %d: %v", sub.SequenceID, err)
 			continue
 		}
 
 		if len(steps) == 0 || sub.CurrentStep > len(steps) {
-			_ = m.core.UpdateCadenceContactStatus(sub.CadenceID, sub.SubscriberID, models.CadenceContactStatusFinished, sub.CurrentStep, null.Time{}, null.String{})
+			_ = m.core.UpdateSequenceContactStatus(sub.SequenceID, sub.SubscriberID, models.SequenceContactStatusFinished, sub.CurrentStep, null.Time{}, null.String{})
 			continue
 		}
 
@@ -113,10 +113,10 @@ func (m *Manager) ProcessBatch() error {
 			// Skip step if condition not met and advance to next step
 			nextStep := sub.CurrentStep + 1
 			if nextStep > len(steps) {
-				_ = m.core.UpdateCadenceContactStatus(sub.CadenceID, sub.SubscriberID, models.CadenceContactStatusFinished, nextStep, null.Time{}, null.String{})
+				_ = m.core.UpdateSequenceContactStatus(sub.SequenceID, sub.SubscriberID, models.SequenceContactStatusFinished, nextStep, null.Time{}, null.String{})
 			} else {
 				nextSend := null.TimeFrom(time.Now().Add(time.Duration(steps[nextStep-1].DelayDays) * 24 * time.Hour))
-				_ = m.core.UpdateCadenceContactStatus(sub.CadenceID, sub.SubscriberID, models.CadenceContactStatusInProgress, nextStep, nextSend, null.String{})
+				_ = m.core.UpdateSequenceContactStatus(sub.SequenceID, sub.SubscriberID, models.SequenceContactStatusInProgress, nextStep, nextSend, null.String{})
 			}
 			continue
 		}
@@ -138,7 +138,7 @@ func (m *Manager) ProcessBatch() error {
 			}
 		}
 
-		msgID := fmt.Sprintf("<cadence-%d-%d-%s@listmonk>", sub.CadenceID, step.StepNumber, uuid.Must(uuid.NewV4()).String())
+		msgID := fmt.Sprintf("<sequence-%d-%d-%s@listmonk>", sub.SequenceID, step.StepNumber, uuid.Must(uuid.NewV4()).String())
 		msg := models.Message{
 			Subscriber: contact,
 			Subject:    step.Subject,
@@ -163,21 +163,21 @@ func (m *Manager) ProcessBatch() error {
 		}
 
 		if err := msgr.Push(msg); err != nil {
-			m.log.Printf("error pushing cadence message for subscriber %d: %v", sub.SubscriberID, err)
+			m.log.Printf("error pushing sequence message for subscriber %d: %v", sub.SubscriberID, err)
 			continue
 		}
 
 		nextStep := sub.CurrentStep + 1
 		var nextSend null.Time
-		status := models.CadenceContactStatusInProgress
+		status := models.SequenceContactStatusInProgress
 
 		if nextStep > len(steps) {
-			status = models.CadenceContactStatusFinished
+			status = models.SequenceContactStatusFinished
 		} else {
 			nextSend = null.TimeFrom(time.Now().Add(time.Duration(steps[nextStep-1].DelayDays) * 24 * time.Hour))
 		}
 
-		_ = m.core.UpdateCadenceContactStatus(sub.CadenceID, sub.SubscriberID, status, nextStep, nextSend, null.StringFrom(msgID))
+		_ = m.core.UpdateSequenceContactStatus(sub.SequenceID, sub.SubscriberID, status, nextStep, nextSend, null.StringFrom(msgID))
 	}
 
 	return nil

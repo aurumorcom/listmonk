@@ -446,9 +446,9 @@ CREATE MATERIALIZED VIEW mat_list_subscriber_stats AS
     SELECT NOW() AS updated_at, 0 AS list_id, NULL AS status, COUNT(id) AS subscriber_count FROM subscribers;
 DROP INDEX IF EXISTS mat_list_subscriber_stats_idx; CREATE UNIQUE INDEX mat_list_subscriber_stats_idx ON mat_list_subscriber_stats (list_id, status);
 
--- cadences
-DROP TABLE IF EXISTS cadences CASCADE;
-CREATE TABLE cadences (
+-- sequences
+DROP TABLE IF EXISTS sequences CASCADE;
+CREATE TABLE sequences (
     id          SERIAL PRIMARY KEY,
     uuid        UUID NOT NULL DEFAULT uuid_generate_v4() UNIQUE,
     name        TEXT NOT NULL,
@@ -458,11 +458,11 @@ CREATE TABLE cadences (
     updated_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- cadence_steps
-DROP TABLE IF EXISTS cadence_steps CASCADE;
-CREATE TABLE cadence_steps (
+-- sequence_steps
+DROP TABLE IF EXISTS sequence_steps CASCADE;
+CREATE TABLE sequence_steps (
     id          SERIAL PRIMARY KEY,
-    cadence_id  INTEGER NOT NULL REFERENCES cadences(id) ON DELETE CASCADE,
+    sequence_id INTEGER NOT NULL REFERENCES sequences(id) ON DELETE CASCADE,
     step_number INTEGER NOT NULL DEFAULT 1,
     delay_days  INTEGER NOT NULL DEFAULT 0,
     messenger   TEXT NOT NULL DEFAULT 'email',
@@ -472,22 +472,22 @@ CREATE TABLE cadence_steps (
     template_id INTEGER NULL REFERENCES templates(id) ON DELETE SET NULL,
     created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-CREATE INDEX idx_cadence_steps_cadence_id ON cadence_steps(cadence_id);
+CREATE INDEX idx_sequence_steps_sequence_id ON sequence_steps(sequence_id);
 
--- cadence_step_media
-DROP TABLE IF EXISTS cadence_step_media CASCADE;
-CREATE TABLE cadence_step_media (
-    cadence_step_id INTEGER REFERENCES cadence_steps(id) ON DELETE CASCADE ON UPDATE CASCADE,
-    media_id        INTEGER NULL REFERENCES media(id) ON DELETE SET NULL ON UPDATE CASCADE,
-    filename        TEXT NOT NULL DEFAULT ''
+-- sequence_step_media
+DROP TABLE IF EXISTS sequence_step_media CASCADE;
+CREATE TABLE sequence_step_media (
+    sequence_step_id INTEGER REFERENCES sequence_steps(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    media_id         INTEGER NULL REFERENCES media(id) ON DELETE SET NULL ON UPDATE CASCADE,
+    filename         TEXT NOT NULL DEFAULT ''
 );
-DROP INDEX IF EXISTS idx_cadence_step_media_id; CREATE UNIQUE INDEX idx_cadence_step_media_id ON cadence_step_media (cadence_step_id, media_id);
-DROP INDEX IF EXISTS idx_cadence_step_media_step_id; CREATE INDEX idx_cadence_step_media_step_id ON cadence_step_media(cadence_step_id);
+DROP INDEX IF EXISTS idx_sequence_step_media_id; CREATE UNIQUE INDEX idx_sequence_step_media_id ON sequence_step_media (sequence_step_id, media_id);
+DROP INDEX IF EXISTS idx_sequence_step_media_step_id; CREATE INDEX idx_sequence_step_media_step_id ON sequence_step_media(sequence_step_id);
 
--- cadence_contacts
-DROP TABLE IF EXISTS cadence_contacts CASCADE;
-CREATE TABLE cadence_contacts (
-    cadence_id      INTEGER NOT NULL REFERENCES cadences(id) ON DELETE CASCADE,
+-- sequence_contacts
+DROP TABLE IF EXISTS sequence_contacts CASCADE;
+CREATE TABLE sequence_contacts (
+    sequence_id     INTEGER NOT NULL REFERENCES sequences(id) ON DELETE CASCADE,
     subscriber_id   INTEGER NOT NULL REFERENCES subscribers(id) ON DELETE CASCADE,
     status          TEXT NOT NULL DEFAULT 'scheduled',
     current_step    INTEGER NOT NULL DEFAULT 1,
@@ -496,9 +496,9 @@ CREATE TABLE cadence_contacts (
     last_clicked_at TIMESTAMP WITH TIME ZONE NULL,
     last_message_id TEXT NULL,
     created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    PRIMARY KEY (cadence_id, subscriber_id)
+    PRIMARY KEY (sequence_id, subscriber_id)
 );
-CREATE INDEX idx_cadence_contacts_next_send ON cadence_contacts(status, next_send_at);
+CREATE INDEX idx_sequence_contacts_next_send ON sequence_contacts(status, next_send_at);
 
 -- mailboxes
 DROP TABLE IF EXISTS mailboxes CASCADE;

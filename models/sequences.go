@@ -8,27 +8,27 @@ import (
 )
 
 const (
-	CadenceStatusActive   = "active"
-	CadenceStatusPaused   = "paused"
-	CadenceStatusArchived = "archived"
+	SequenceStatusActive   = "active"
+	SequenceStatusPaused   = "paused"
+	SequenceStatusArchived = "archived"
 
-	CadenceContactStatusScheduled  = "scheduled"
-	CadenceContactStatusInProgress = "in_progress"
-	CadenceContactStatusReplied    = "replied"
-	CadenceContactStatusFinished   = "finished"
-	CadenceContactStatusOptedOut   = "opted_out"
+	SequenceContactStatusScheduled  = "scheduled"
+	SequenceContactStatusInProgress = "in_progress"
+	SequenceContactStatusReplied    = "replied"
+	SequenceContactStatusFinished   = "finished"
+	SequenceContactStatusOptedOut   = "opted_out"
 
-	CadenceConditionAlways    = "always"
-	CadenceConditionIfRead    = "if_read"
-	CadenceConditionIfNotRead = "if_not_read"
-	CadenceConditionIfClicked = "if_clicked"
+	SequenceConditionAlways    = "always"
+	SequenceConditionIfRead    = "if_read"
+	SequenceConditionIfNotRead = "if_not_read"
+	SequenceConditionIfClicked = "if_clicked"
 )
 
-// Cadences represents a slice of Cadence.
-type Cadences []Cadence
+// Sequences represents a slice of Sequence.
+type Sequences []Sequence
 
-// Cadence represents an automated multi-step cold outreach sequence.
-type Cadence struct {
+// Sequence represents an automated multi-step cold outreach sequence.
+type Sequence struct {
 	Base
 
 	UUID       string `db:"uuid" json:"uuid"`
@@ -37,13 +37,13 @@ type Cadence struct {
 	SendWindow JSON   `db:"send_window" json:"send_window"`
 }
 
-// CadenceSteps represents a slice of CadenceStep.
-type CadenceSteps []CadenceStep
+// SequenceSteps represents a slice of SequenceStep.
+type SequenceSteps []SequenceStep
 
-// CadenceStep represents an individual step in a cadence sequence.
-type CadenceStep struct {
+// SequenceStep represents an individual step in a sequence.
+type SequenceStep struct {
 	ID         int           `db:"id" json:"id"`
-	CadenceID  int           `db:"cadence_id" json:"cadence_id"`
+	SequenceID int           `db:"sequence_id" json:"sequence_id"`
 	StepNumber int           `db:"step_number" json:"step_number"`
 	DelayDays  int           `db:"delay_days" json:"delay_days"`
 	Messenger  string        `db:"messenger" json:"messenger"`
@@ -54,12 +54,12 @@ type CadenceStep struct {
 	MediaIDs   pq.Int64Array `db:"media_ids" json:"media_ids"`
 }
 
-// CadenceContacts represents a slice of CadenceContact.
-type CadenceContacts []CadenceContact
+// SequenceContacts represents a slice of SequenceContact.
+type SequenceContacts []SequenceContact
 
-// CadenceContact tracks the state machine position of a lead/contact within a cadence.
-type CadenceContact struct {
-	CadenceID     int         `db:"cadence_id" json:"cadence_id"`
+// SequenceContact tracks the state machine position of a lead/contact within a sequence.
+type SequenceContact struct {
+	SequenceID    int         `db:"sequence_id" json:"sequence_id"`
 	SubscriberID  int         `db:"subscriber_id" json:"subscriber_id"`
 	Status        string      `db:"status" json:"status"`
 	CurrentStep   int         `db:"current_step" json:"current_step"`

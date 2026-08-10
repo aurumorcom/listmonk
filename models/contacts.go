@@ -3,7 +3,7 @@ package models
 import "strings"
 
 // Contact is a domain-driven type alias of Subscriber representing an individual recipient
-// across multi-channel outreach, cadences, and CRM contexts.
+// across multi-channel outreach, sequences, and CRM contexts.
 type Contact = Subscriber
 
 // Contacts represents a slice of Contact.
