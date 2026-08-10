@@ -21,6 +21,7 @@ import (
 	"github.com/knadh/koanf/v2"
 	"github.com/knadh/listmonk/internal/auth"
 	"github.com/knadh/listmonk/internal/messenger/email"
+	"github.com/knadh/listmonk/internal/messenger/waha"
 	"github.com/knadh/listmonk/internal/notifs"
 	"github.com/knadh/listmonk/models"
 	"github.com/labstack/echo/v4"
@@ -342,6 +343,35 @@ func (a *App) UpdateSettings(c echo.Context) error {
 	// Update the settings in the DB.
 	if err := a.core.UpdateSettings(set); err != nil {
 		return err
+	}
+
+	// Sync WAHA webhooks for any enabled WAHA messengers.
+	rootURL := set.AppRootURL
+	if rootURL == "" && a.urlCfg != nil {
+		rootURL = a.urlCfg.RootURL
+	}
+	for _, wm := range set.WAHAMessengers {
+		if wm.Enabled {
+			dur, _ := time.ParseDuration(wm.Timeout)
+			o := waha.Options{
+				Name:              wm.Name,
+				RootURL:           wm.RootURL,
+				APIKey:            wm.APIKey,
+				Session:           wm.Session,
+				PhoneAttribute:    wm.PhoneAttribute,
+				TypingDelayMs:     wm.TypingDelayMs,
+				TargetWPM:         wm.TargetWPM,
+				WPMStd:            wm.WPMStd,
+				KeyboardLayout:    wm.KeyboardLayout,
+				TypingMode:        wm.TypingMode,
+				MaxTypingDelaySec: wm.MaxTypingDelaySec,
+				MaxConns:          wm.MaxConns,
+				Timeout:           dur,
+			}
+			if w, err := waha.New(o); err == nil {
+				_ = w.SyncWebhook(rootURL)
+			}
+		}
 	}
 
 	return a.handleSettingsRestart(c)
