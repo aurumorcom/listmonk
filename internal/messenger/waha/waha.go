@@ -129,18 +129,22 @@ func (w *Waha) Push(m models.Message) error {
 	}
 
 	chatID := formatChatID(phone)
+	session := w.o.Session
+	if m.MessengerSession != "" {
+		session = m.MessengerSession
+	}
 
 	// Step 1: Simulate human typing indicator lifecycle
 	switch w.o.TypingMode {
 	case "off":
 		// No typing simulation
 	case "simple":
-		_ = w.startTyping(chatID)
+		_ = w.startTyping(chatID, session)
 		time.Sleep(time.Duration(w.o.TypingDelayMs) * time.Millisecond)
-		_ = w.stopTyping(chatID)
+		_ = w.stopTyping(chatID, session)
 	default: // "human" (Default)
 		typingDelay := calculateHumanTypingDelay(m.Body, w.o)
-		_ = w.startTyping(chatID)
+		_ = w.startTyping(chatID, session)
 
 		// Start periodic keep-alive ticker every 8 seconds for long delays
 		stopTicker := make(chan struct{})
@@ -153,7 +157,7 @@ func (w *Waha) Push(m models.Message) error {
 			for {
 				select {
 				case <-ticker.C:
-					_ = w.startTyping(chatID)
+					_ = w.startTyping(chatID, session)
 				case <-stopTicker:
 					return
 				}
@@ -164,16 +168,16 @@ func (w *Waha) Push(m models.Message) error {
 		close(stopTicker)
 		wg.Wait()
 
-		_ = w.stopTyping(chatID)
+		_ = w.stopTyping(chatID, session)
 	}
 
 	// Step 2: Convert content and dispatch payload
 	formattedText := convertToWhatsAppMarkdown(string(m.Body))
 	if len(m.Attachments) > 0 {
-		return w.sendImage(chatID, formattedText, m.Attachments[0])
+		return w.sendImage(chatID, session, formattedText, m.Attachments[0])
 	}
 
-	return w.sendText(chatID, formattedText)
+	return w.sendText(chatID, session, formattedText)
 }
 
 // Flush flushes the message queue.
@@ -189,28 +193,28 @@ func (w *Waha) Close() error {
 	return nil
 }
 
-func (w *Waha) startTyping(chatID string) error {
+func (w *Waha) startTyping(chatID, session string) error {
 	url := fmt.Sprintf("%s/api/startTyping", strings.TrimRight(w.o.RootURL, "/"))
-	req := chatRequest{Session: w.o.Session, ChatID: chatID}
+	req := chatRequest{Session: session, ChatID: chatID}
 	return w.post(url, req)
 }
 
-func (w *Waha) stopTyping(chatID string) error {
+func (w *Waha) stopTyping(chatID, session string) error {
 	url := fmt.Sprintf("%s/api/stopTyping", strings.TrimRight(w.o.RootURL, "/"))
-	req := chatRequest{Session: w.o.Session, ChatID: chatID}
+	req := chatRequest{Session: session, ChatID: chatID}
 	return w.post(url, req)
 }
 
-func (w *Waha) sendText(chatID, text string) error {
+func (w *Waha) sendText(chatID, session, text string) error {
 	url := fmt.Sprintf("%s/api/sendText", strings.TrimRight(w.o.RootURL, "/"))
-	req := sendTextRequest{Session: w.o.Session, ChatID: chatID, Text: text}
+	req := sendTextRequest{Session: session, ChatID: chatID, Text: text}
 	return w.post(url, req)
 }
 
-func (w *Waha) sendImage(chatID, caption string, att models.Attachment) error {
+func (w *Waha) sendImage(chatID, session, caption string, att models.Attachment) error {
 	url := fmt.Sprintf("%s/api/sendImage", strings.TrimRight(w.o.RootURL, "/"))
 	req := sendImageRequest{
-		Session: w.o.Session,
+		Session: session,
 		ChatID:  chatID,
 		Caption: caption,
 		File: filePayload{
