@@ -317,8 +317,10 @@ func (a *App) WAHAWebhook(c echo.Context) error {
 		Event   string `json:"event"`
 		Payload struct {
 			Ack   int    `json:"ack"`
+			From  string `json:"from"`
 			To    string `json:"to"`
 			Error string `json:"error"`
+			Body  string `json:"body"`
 		} `json:"payload"`
 	}
 
@@ -329,6 +331,8 @@ func (a *App) WAHAWebhook(c echo.Context) error {
 
 	if req.Event == "message.ack" && req.Payload.Ack == -1 {
 		a.log.Printf("WAHA delivery failure for %s: %s", req.Payload.To, req.Payload.Error)
+	} else if req.Event == "message" && req.Payload.From != "" {
+		_ = a.core.RecordSequenceReplyByPhone(req.Payload.From)
 	}
 
 	return c.NoContent(http.StatusOK)
