@@ -257,11 +257,11 @@ export default Vue.extend({
     },
 
     isDummy(pwd) {
-      return !pwd || (pwd.match(/•/g) || []).length === pwd.length;
+      return !pwd || (pwd.match(/â€¢/g) || []).length === pwd.length;
     },
 
     hasDummy(pwd) {
-      return pwd.includes('•');
+      return pwd.includes('â€¢');
     },
   },
 
