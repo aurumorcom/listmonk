@@ -15,32 +15,35 @@ const (
 	TemplateTypeCampaign       = "campaign"
 	TemplateTypeCampaignVisual = "campaign_visual"
 	TemplateTypeTx             = "tx"
+	TemplateTypePrompt         = "prompt"
 )
 
-// Template represents a reusable e-mail template.
+// Template represents a reusable e-mail or prompt template.
 type Template struct {
 	Base
 
 	Name string `db:"name" json:"name"`
-	// Subject is only for type=tx.
-	Subject    string      `db:"subject" json:"subject"`
-	Type       string      `db:"type" json:"type"`
-	Body       string      `db:"body" json:"body,omitempty"`
-	BodySource null.String `db:"body_source" json:"body_source,omitempty"`
-	IsDefault  bool        `db:"is_default" json:"is_default"`
+	// Subject is for type=tx or type=prompt.
+	Subject      string      `db:"subject" json:"subject"`
+	SystemPrompt string      `db:"system_prompt" json:"system_prompt,omitempty"`
+	Type         string      `db:"type" json:"type"`
+	Body         string      `db:"body" json:"body,omitempty"`
+	BodySource   null.String `db:"body_source" json:"body_source,omitempty"`
+	IsDefault    bool        `db:"is_default" json:"is_default"`
 
-	// Only relevant to tx (transactional) templates.
-	SubjectTpl  *txttpl.Template   `json:"-"`
-	Tpl         *template.Template `json:"-"`
-	Attachments []Attachment       `json:"-"`
+	// Only relevant to tx (transactional) and prompt templates.
+	SubjectTpl      *txttpl.Template   `json:"-"`
+	SystemPromptTpl *txttpl.Template   `json:"-"`
+	Tpl             *template.Template `json:"-"`
+	Attachments     []Attachment       `json:"-"`
 }
 
 // Compile compiles a template body and subject (only for tx templates) and
-// caches the templat references to be executed later.
+// caches the template references to be executed later.
 func (t *Template) Compile(f template.FuncMap) error {
 	tpl, err := template.New(BaseTpl).Funcs(f).Parse(t.Body)
 	if err != nil {
-		return fmt.Errorf("error compiling transactional template: %v", err)
+		return fmt.Errorf("error compiling template: %v", err)
 	}
 	t.Tpl = tpl
 
@@ -53,6 +56,15 @@ func (t *Template) Compile(f template.FuncMap) error {
 			return fmt.Errorf("error compiling subject: %v", err)
 		}
 		t.SubjectTpl = subjTpl
+	}
+
+	// If the system prompt has a template string, compile it.
+	if t.SystemPrompt != "" && hasTplExpr(t.SystemPrompt) {
+		sysTpl, err := txttpl.New(BaseTpl).Funcs(txttpl.FuncMap(f)).Parse(t.SystemPrompt)
+		if err != nil {
+			return fmt.Errorf("error compiling system prompt: %v", err)
+		}
+		t.SystemPromptTpl = sysTpl
 	}
 
 	return nil

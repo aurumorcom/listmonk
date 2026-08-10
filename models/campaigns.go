@@ -63,8 +63,11 @@ type Campaign struct {
 	// TemplateBody is joined in from templates by the next-campaigns query.
 	TemplateBody        string             `db:"template_body" json:"-"`
 	ArchiveTemplateBody string             `db:"archive_template_body" json:"-"`
+	TemplateType        string             `db:"template_type" json:"-"`
+	SystemPrompt        string             `db:"system_prompt" json:"-"`
 	Tpl                 *template.Template `json:"-"`
 	SubjectTpl          *txttpl.Template   `json:"-"`
+	SystemPromptTpl     *txttpl.Template   `json:"-"`
 	AltBodyTpl          *template.Template `json:"-"`
 
 	// HeaderTpls is holds optionally {{ templated }} campaign headers.
@@ -152,6 +155,21 @@ func (c *Campaign) CompileTemplate(f template.FuncMap) error {
 			return fmt.Errorf("error compiling subject: %v", err)
 		}
 		c.SubjectTpl = subjTpl
+	}
+
+	// If system prompt is set, compile it.
+	if c.SystemPrompt != "" && hasTplExpr(c.SystemPrompt) {
+		sysPrompt := c.SystemPrompt
+		for _, r := range regTplFuncs {
+			sysPrompt = r.regExp.ReplaceAllString(sysPrompt, r.replace)
+		}
+
+		var txtFuncs map[string]any = f
+		sysTpl, err := txttpl.New(ContentTpl).Funcs(txtFuncs).Parse(sysPrompt)
+		if err != nil {
+			return fmt.Errorf("error compiling system prompt: %v", err)
+		}
+		c.SystemPromptTpl = sysTpl
 	}
 
 	// Compile the base template.
