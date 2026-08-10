@@ -78,7 +78,7 @@
             {{ props.row.email }}
           </a>
           <template v-else>
-            —
+            â€”
           </template>
         </div>
       </b-table-column>
@@ -95,7 +95,7 @@
 
       <b-table-column v-slot="props" field="last_login" :label="$t('users.lastLogin')" header-class="cy-updated_at"
         sortable>
-        {{ props.row.loggedinAt ? $utils.niceDate(props.row.loggedinAt, true) : '—' }}
+        {{ props.row.loggedinAt ? $utils.niceDate(props.row.loggedinAt, true) : 'â€”' }}
       </b-table-column>
 
       <b-table-column v-slot="props" cell-class="actions" align="right">
