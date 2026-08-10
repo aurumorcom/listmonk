@@ -1,11 +1,13 @@
 package sequence
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"log"
 	"net/textproto"
 	"sync"
+	txttpl "text/template"
 	"time"
 
 	"github.com/gofrs/uuid/v5"
@@ -18,14 +20,20 @@ import (
 
 // Manager handles scheduled processing of sequences.
 type Manager struct {
-	core       *core.Core
-	messengers map[string]manager.Messenger
-	mediaStore media.Store
-	log        *log.Logger
+	core          *core.Core
+	messengers    map[string]manager.Messenger
+	mediaStore    media.Store
+	bifrostClient *manager.BifrostClient
+	log           *log.Logger
 
 	ctx    context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
+}
+
+// SetBifrostClient sets the Bifrost AI client on the sequence manager.
+func (m *Manager) SetBifrostClient(bc *manager.BifrostClient) {
+	m.bifrostClient = bc
 }
 
 // NewManager returns a new Sequence Manager.
@@ -162,6 +170,57 @@ func (m *Manager) ProcessBatch() error {
 			Subject:    step.Subject,
 			Body:       []byte(step.Body),
 			Messenger:  msgr.Name(),
+		}
+
+		if step.TemplateID.Valid && step.TemplateID.Int > 0 {
+			tpl, err := m.core.GetTemplate(step.TemplateID.Int, false)
+			if err == nil && tpl.Type == models.TemplateTypePrompt {
+				scope := manager.ExtractTemplateScope(contact)
+
+				sysPromptStr := tpl.SystemPrompt
+				if tpl.SystemPromptTpl != nil {
+					var sb bytes.Buffer
+					if err := tpl.SystemPromptTpl.Execute(&sb, scope); err == nil {
+						sysPromptStr = sb.String()
+					}
+				} else if sysPromptStr != "" {
+					if st, err := txttpl.New("sys").Parse(sysPromptStr); err == nil {
+						var sb bytes.Buffer
+						if err := st.Execute(&sb, scope); err == nil {
+							sysPromptStr = sb.String()
+						}
+					}
+				}
+
+				userPromptStr := step.Body
+				if userPromptStr == "" {
+					userPromptStr = tpl.Body
+				}
+				if tpl.Tpl != nil {
+					var ub bytes.Buffer
+					if err := tpl.Tpl.Execute(&ub, scope); err == nil {
+						userPromptStr = ub.String()
+					}
+				} else if userPromptStr != "" {
+					if ut, err := txttpl.New("user").Parse(userPromptStr); err == nil {
+						var ub bytes.Buffer
+						if err := ut.Execute(&ub, scope); err == nil {
+							userPromptStr = ub.String()
+						}
+					}
+				}
+
+				if m.bifrostClient != nil {
+					aiBody, err := m.bifrostClient.GeneratePrompt(m.bifrostClient.TimeoutContext(), sysPromptStr, userPromptStr)
+					if err != nil {
+						m.log.Printf("Bifrost AI prompt generation failed for step %d, contact %d: %v", step.ID, contact.ID, err)
+						deferSend := null.TimeFrom(time.Now().Add(1 * time.Hour))
+						_ = m.core.UpdateSequenceContactStatus(sub.SequenceID, sub.SubscriberID, sub.Status, sub.CurrentStep, deferSend, sub.LastMessageID)
+						continue
+					}
+					msg.Body = []byte(aiBody)
+				}
+			}
 		}
 
 		if activeMailbox != nil {

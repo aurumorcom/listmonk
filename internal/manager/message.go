@@ -33,6 +33,33 @@ func (m *Manager) NewCampaignMessage(c *models.Campaign, s models.Subscriber) (C
 func (m *CampaignMessage) render() error {
 	out := bytes.Buffer{}
 
+	// If this is a Prompt template type and Bifrost client is configured, run JIT AI generation.
+	if m.pipe != nil && m.pipe.m != nil && m.pipe.m.bifrostClient != nil && m.Campaign != nil {
+		scope := ExtractTemplateScope(m.Subscriber)
+
+		sysPromptStr := m.Campaign.SystemPrompt
+		if m.Campaign.SystemPromptTpl != nil {
+			var sb bytes.Buffer
+			if err := m.Campaign.SystemPromptTpl.Execute(&sb, scope); err == nil {
+				sysPromptStr = sb.String()
+			}
+		}
+
+		var userBuf bytes.Buffer
+		if m.Campaign.Tpl != nil {
+			if err := m.Campaign.Tpl.Execute(&userBuf, scope); err == nil {
+				userPromptStr := userBuf.String()
+
+				// Run JIT generation via Bifrost SDK
+				aiBody, err := m.pipe.m.bifrostClient.GeneratePrompt(m.pipe.m.bifrostClient.TimeoutContext(), sysPromptStr, userPromptStr)
+				if err == nil && aiBody != "" {
+					m.body = []byte(aiBody)
+					return nil
+				}
+			}
+		}
+	}
+
 	// Render the subject if it's a template.
 	if m.Campaign.SubjectTpl != nil {
 		if err := m.Campaign.SubjectTpl.ExecuteTemplate(&out, models.ContentTpl, m); err != nil {

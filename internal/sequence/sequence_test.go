@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/knadh/listmonk/internal/core"
+	"github.com/knadh/listmonk/internal/manager"
 	"github.com/knadh/listmonk/models"
 	null "gopkg.in/volatiletech/null.v6"
 )
@@ -154,5 +155,19 @@ func TestAllocateSendersCapacityWeighted(t *testing.T) {
 	}
 	if counts[3] != 8 {
 		t.Errorf("expected mailbox 3 count = 8, got %d", counts[3])
+	}
+}
+
+func TestSequenceManagerSetBifrostClient(t *testing.T) {
+	mgr := &Manager{}
+	if mgr.bifrostClient != nil {
+		t.Errorf("expected initial bifrostClient to be nil")
+	}
+
+	bc := &manager.BifrostClient{}
+	mgr.SetBifrostClient(bc)
+
+	if mgr.bifrostClient != bc {
+		t.Errorf("expected bifrostClient to be set on sequence manager")
 	}
 }

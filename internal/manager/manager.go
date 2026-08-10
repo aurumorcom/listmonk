@@ -107,6 +107,8 @@ type Manager struct {
 	slidingStart time.Time
 
 	tplFuncs template.FuncMap
+
+	bifrostClient *BifrostClient
 }
 
 // CampaignMessage represents an instance of campaign message to be pushed out,
@@ -194,6 +196,16 @@ func New(cfg Config, store Store, i *i18n.I18n, l *log.Logger) *Manager {
 	m.tplFuncs = m.makeGnericFuncMap()
 
 	return m
+}
+
+// SetBifrostClient sets the Bifrost AI client on the manager.
+func (m *Manager) SetBifrostClient(bc *BifrostClient) {
+	m.bifrostClient = bc
+}
+
+// BifrostClient returns the active Bifrost AI client.
+func (m *Manager) BifrostClient() *BifrostClient {
+	return m.bifrostClient
 }
 
 // AddMessenger adds a Messenger messaging backend to the manager.
