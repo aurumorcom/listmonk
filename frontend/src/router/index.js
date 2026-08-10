@@ -96,6 +96,12 @@ const routes = [
     component: () => import('../views/Templates.vue'),
   },
   {
+    path: '/templates/analytics',
+    name: 'templateAnalytics',
+    meta: { title: 'analytics.title', group: 'campaigns' },
+    component: () => import('../views/TemplateAnalytics.vue'),
+  },
+  {
     path: '/campaigns/analytics',
     name: 'campaignAnalytics',
     meta: { title: 'analytics.title', group: 'campaigns' },
@@ -110,13 +116,19 @@ const routes = [
   {
     path: '/sequences',
     name: 'sequences',
-    meta: { title: 'Sequences', group: 'campaigns' },
+    meta: { title: 'Sequences', group: 'sequences' },
     component: () => import('../views/Sequences.vue'),
+  },
+  {
+    path: '/sequences/analytics',
+    name: 'sequenceAnalytics',
+    meta: { title: 'analytics.title', group: 'sequences' },
+    component: () => import('../views/SequenceAnalytics.vue'),
   },
   {
     path: '/sequences/:id',
     name: 'sequence',
-    meta: { title: 'Sequence', group: 'campaigns' },
+    meta: { title: 'Sequence', group: 'sequences' },
     component: () => import('../views/Sequence.vue'),
   },
   {
