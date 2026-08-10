@@ -116,7 +116,22 @@ func (a *App) EnrollSequenceSubscribers(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, a.i18n.Ts("globals.messages.invalidReq"))
 	}
 
-	if err := a.core.EnrollSequenceContacts(id, req.SubscriberIDs); err != nil {
+	if err := a.core.EnrollSequenceContacts(id, req.SubscriberIDs, req.MailboxID, req.WahaSession); err != nil {
+		return err
+	}
+	return c.JSON(http.StatusOK, okResp{true})
+}
+
+// ReassignSequenceContactSender updates the locked mailbox or WAHA session for a sequence contact.
+func (a *App) ReassignSequenceContactSender(c echo.Context) error {
+	id, _ := strconv.Atoi(c.Param("id"))
+	subID, _ := strconv.Atoi(c.Param("sub_id"))
+	var req reassignReq
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, a.i18n.Ts("globals.messages.invalidReq"))
+	}
+
+	if err := a.core.ReassignSequenceContactSender(id, subID, req.MailboxID, req.WahaSession); err != nil {
 		return err
 	}
 	return c.JSON(http.StatusOK, okResp{true})

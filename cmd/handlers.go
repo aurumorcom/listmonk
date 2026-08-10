@@ -190,6 +190,7 @@ func initHTTPHandlers(e *echo.Echo, a *App) {
 		g.GET("/api/sequences/:id/steps", pm(a.GetSequenceSteps, "campaigns:manage_all", "campaigns:manage"))
 		g.POST("/api/sequences/:id/steps", pm(a.SaveSequenceSteps, "campaigns:manage_all", "campaigns:manage"))
 		g.POST("/api/sequences/:id/enroll", pm(a.EnrollSequenceSubscribers, "campaigns:manage_all", "campaigns:manage"))
+		g.PUT("/api/sequences/:id/contacts/:sub_id/reassign", pm(a.ReassignSequenceContactSender, "campaigns:manage_all", "campaigns:manage"))
 
 		g.GET("/api/mailboxes", pm(a.GetMailboxes, "settings:maintain"))
 		g.GET("/api/mailboxes/:id", pm(hasID(a.GetMailbox), "settings:maintain"))
