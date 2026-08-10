@@ -1,13 +1,16 @@
 package main
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 	"html/template"
 	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
 
+	"github.com/knadh/listmonk/internal/manager"
 	"github.com/knadh/listmonk/models"
 	"github.com/labstack/echo/v4"
 )
@@ -81,8 +84,9 @@ func (a *App) PreviewTemplate(c echo.Context) error {
 // PreviewTemplateBody renders the HTML preview of a template given its type and body.
 func (a *App) PreviewTemplateBody(c echo.Context) error {
 	tpl := models.Template{
-		Type: c.FormValue("template_type"),
-		Body: c.FormValue("body"),
+		Type:         c.FormValue("template_type"),
+		SystemPrompt: c.FormValue("system_prompt"),
+		Body:         c.FormValue("body"),
 	}
 
 	// Body is posted with the request.
@@ -130,7 +134,7 @@ func (a *App) CreateTemplate(c echo.Context) error {
 	}
 
 	// Create the template the in the DB.
-	out, err := a.core.CreateTemplate(o.Name, o.Type, o.Subject, []byte(o.Body), o.BodySource)
+	out, err := a.core.CreateTemplate(o.Name, o.Type, o.Subject, o.SystemPrompt, []byte(o.Body), o.BodySource)
 	if err != nil {
 		return err
 	}
@@ -171,7 +175,7 @@ func (a *App) UpdateTemplate(c echo.Context) error {
 
 	// Update the template in the DB.
 	id := getID(c)
-	out, err := a.core.UpdateTemplate(id, o.Name, o.Subject, []byte(o.Body), o.BodySource)
+	out, err := a.core.UpdateTemplate(id, o.Name, o.Subject, o.SystemPrompt, []byte(o.Body), o.BodySource)
 	if err != nil {
 		return err
 	}
@@ -232,7 +236,34 @@ func (a *App) validateTemplate(o models.Template) error {
 // previewTemplate renders the HTML preview of a template.
 func (a *App) previewTemplate(tpl models.Template) ([]byte, error) {
 	var out []byte
-	if tpl.Type == models.TemplateTypeCampaign || tpl.Type == models.TemplateTypeCampaignVisual {
+	if tpl.Type == models.TemplateTypePrompt {
+		if err := tpl.Compile(a.manager.GenericTemplateFuncs()); err != nil {
+			return nil, echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		}
+		scope := manager.ExtractTemplateScope(dummySubscriber)
+		sysPromptStr := tpl.SystemPrompt
+		if tpl.SystemPromptTpl != nil {
+			var sb bytes.Buffer
+			if err := tpl.SystemPromptTpl.Execute(&sb, scope); err == nil {
+				sysPromptStr = sb.String()
+			}
+		}
+		userPromptStr := tpl.Body
+		if tpl.Tpl != nil {
+			var ub bytes.Buffer
+			if err := tpl.Tpl.Execute(&ub, scope); err == nil {
+				userPromptStr = ub.String()
+			}
+		}
+
+		if bc := a.manager.BifrostClient(); bc != nil {
+			aiBody, err := bc.GeneratePrompt(bc.TimeoutContext(), sysPromptStr, userPromptStr)
+			if err == nil && aiBody != "" {
+				return []byte(aiBody), nil
+			}
+		}
+		return []byte(fmt.Sprintf("<div style='font-family:sans-serif;padding:1em;'><h4>System Prompt:</h4><pre>%s</pre><h4>User Prompt:</h4><pre>%s</pre></div>", sysPromptStr, userPromptStr)), nil
+	} else if tpl.Type == models.TemplateTypeCampaign || tpl.Type == models.TemplateTypeCampaignVisual {
 		camp := models.Campaign{
 			UUID:         dummyUUID,
 			Name:         a.i18n.T("templates.dummyName"),

@@ -622,6 +622,29 @@ func initCampaignManager(msgrs []manager.Messenger, q *models.Queries, u *UrlCon
 		mgr.AddMessenger(m)
 	}
 
+	// Initialize Bifrost Client if configured
+	bifrostKey := ko.String("bifrost.api_key")
+	if bifrostKey == "" {
+		bifrostKey = os.Getenv("LISTMONK_BIFROST_API_KEY")
+	}
+	if bifrostKey != "" {
+		bifrostEndpoint := ko.String("bifrost.endpoint")
+		if bifrostEndpoint == "" {
+			bifrostEndpoint = os.Getenv("LISTMONK_BIFROST_ENDPOINT")
+		}
+		bifrostModel := ko.String("bifrost.model")
+		if bifrostModel == "" {
+			bifrostModel = os.Getenv("LISTMONK_BIFROST_MODEL")
+		}
+		bc := manager.NewBifrostClient(manager.BifrostConfig{
+			APIKey:   bifrostKey,
+			Endpoint: bifrostEndpoint,
+			Model:    bifrostModel,
+			Timeout:  5 * time.Second,
+		})
+		mgr.SetBifrostClient(bc)
+	}
+
 	return mgr
 }
 
