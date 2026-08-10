@@ -89,3 +89,31 @@ func TestContactCompany(t *testing.T) {
 		t.Errorf("expected empty string, got %s", company)
 	}
 }
+
+func TestTimezoneResolutionHierarchy(t *testing.T) {
+	seq := Sequence{
+		Timezone: "America/New_York",
+	}
+
+	// Case 1: Contact specific timezone takes precedence
+	c1 := Subscriber{
+		Attribs: JSON{"tz": "Asia/Tokyo"},
+	}
+	if loc := c1.ResolveTimezone(seq); loc.String() != "Asia/Tokyo" {
+		t.Errorf("expected Asia/Tokyo, got %s", loc.String())
+	}
+
+	// Case 2: Sequence default timezone used when contact tz is missing
+	c2 := Subscriber{
+		Attribs: JSON{},
+	}
+	if loc := c2.ResolveTimezone(seq); loc.String() != "America/New_York" {
+		t.Errorf("expected America/New_York, got %s", loc.String())
+	}
+
+	// Case 3: UTC fallback when both are missing
+	emptySeq := Sequence{}
+	if loc := c2.ResolveTimezone(emptySeq); loc.String() != "UTC" {
+		t.Errorf("expected UTC, got %s", loc.String())
+	}
+}
