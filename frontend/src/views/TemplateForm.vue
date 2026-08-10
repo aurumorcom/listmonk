@@ -37,6 +37,9 @@
                   <option value="tx">
                     {{ $tc('templates.typeTransactional') }}
                   </option>
+                  <option value="prompt">
+                    {{ $tc('templates.typePrompt') }}
+                  </option>
                 </b-select>
               </b-field>
             </div>
@@ -46,6 +49,15 @@
               <b-field :label="$t('templates.subject')" label-position="on-border">
                 <b-input :maxlength="200" :ref="'focus'" v-model="form.subject" name="name"
                   :placeholder="$t('templates.subject')" required />
+              </b-field>
+            </div>
+          </div>
+
+          <div class="columns" v-if="form.type === 'prompt'">
+            <div class="column is-12">
+              <b-field :label="$t('templates.systemPrompt')" label-position="on-border">
+                <b-input type="textarea" v-model="form.system_prompt" name="system_prompt"
+                  :placeholder="$t('templates.systemPrompt')" rows="3" />
               </b-field>
             </div>
           </div>
@@ -112,6 +124,7 @@ export default Vue.extend({
       form: {
         name: '',
         subject: '',
+        system_prompt: '',
         type: 'campaign',
         optin: '',
         body: null,
@@ -149,6 +162,7 @@ export default Vue.extend({
         name: this.form.name,
         type: this.form.type,
         subject: this.form.subject,
+        system_prompt: this.form.system_prompt || '',
         body: this.form.body,
         body_source: this.form.bodySource,
       };
@@ -166,6 +180,7 @@ export default Vue.extend({
         name: this.form.name,
         type: this.form.type,
         subject: this.form.subject,
+        system_prompt: this.form.system_prompt || '',
         body: this.form.body,
         body_source: this.form.bodySource,
       };
