@@ -3,6 +3,7 @@ package core
 import (
 	"database/sql"
 	"net/http"
+	"regexp"
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/knadh/listmonk/internal/media"
@@ -431,5 +432,21 @@ func (c *Core) RecordSequenceReply(email string) error {
 		SET status = 'replied'
 		WHERE subscriber_id = (SELECT id FROM subscribers WHERE email = $1 LIMIT 1)
 		  AND status IN ('scheduled', 'in_progress')`, email)
+	return err
+}
+
+// RecordSequenceReplyByPhone marks subscriber sequence status as 'replied' by phone number.
+func (c *Core) RecordSequenceReplyByPhone(phone string) error {
+	cleaned := regexp.MustCompile(`[^\d]`).ReplaceAllString(phone, "")
+	if cleaned == "" {
+		return nil
+	}
+	_, err := c.db.Exec(`UPDATE sequence_contacts
+		SET status = 'replied'
+		WHERE subscriber_id IN (
+			SELECT id FROM subscribers
+			WHERE REGEXP_REPLACE(phone, '[^\d]', '', 'g') = $1
+			   OR REGEXP_REPLACE(attribs->>'phone', '[^\d]', '', 'g') = $1
+		) AND status IN ('scheduled', 'in_progress')`, cleaned)
 	return err
 }
