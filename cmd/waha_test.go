@@ -54,28 +54,32 @@ func waitForWahaSessionWorking(wahaURL, apiKey, session string) {
 	}
 }
 
-func deleteWahaMessage(wahaURL, apiKey, session, chatId, messageId string) error {
+func deleteWahaMessage(wahaURL, apiKey, senderSession, receiverSession, senderChatId, receiverChatId, messageId string) error {
 	client := &http.Client{Timeout: 5 * time.Second}
 
-	// Step 1: Revoke/delete for everyone on WhatsApp
-	url1 := fmt.Sprintf("%s/api/%s/chats/%s/messages/%s?deleteForEveryone=true", strings.TrimRight(wahaURL, "/"), session, chatId, messageId)
-	if req1, err := http.NewRequest(http.MethodDelete, url1, nil); err == nil {
-		if apiKey != "" {
-			req1.Header.Set("X-Api-Key", apiKey)
-		}
-		if resp, err := client.Do(req1); err == nil {
-			resp.Body.Close()
+	// Step 1: Remove local message object from chat history of sender (deleteForEveryone=false)
+	if senderSession != "" && senderChatId != "" && messageId != "" {
+		url1 := fmt.Sprintf("%s/api/%s/chats/%s/messages/%s?deleteForEveryone=true", strings.TrimRight(wahaURL, "/"), senderSession, senderChatId, messageId)
+		if req1, err := http.NewRequest(http.MethodDelete, url1, nil); err == nil {
+			if apiKey != "" {
+				req1.Header.Set("X-Api-Key", apiKey)
+			}
+			if resp, err := client.Do(req1); err == nil {
+				resp.Body.Close()
+			}
 		}
 	}
 
-	// Step 2: Remove local message object from chat history (clears deleted placeholder)
-	url2 := fmt.Sprintf("%s/api/%s/chats/%s/messages/%s?deleteForEveryone=false", strings.TrimRight(wahaURL, "/"), session, chatId, messageId)
-	if req2, err := http.NewRequest(http.MethodDelete, url2, nil); err == nil {
-		if apiKey != "" {
-			req2.Header.Set("X-Api-Key", apiKey)
-		}
-		if resp, err := client.Do(req2); err == nil {
-			resp.Body.Close()
+	// Step 2: Remove local message object from chat history of receiver (deleteForEveryone=false)
+	if receiverSession != "" && receiverChatId != "" && messageId != "" {
+		url2 := fmt.Sprintf("%s/api/%s/chats/%s/messages/%s?deleteForEveryone=false", strings.TrimRight(wahaURL, "/"), receiverSession, receiverChatId, messageId)
+		if req2, err := http.NewRequest(http.MethodDelete, url2, nil); err == nil {
+			if apiKey != "" {
+				req2.Header.Set("X-Api-Key", apiKey)
+			}
+			if resp, err := client.Do(req2); err == nil {
+				resp.Body.Close()
+			}
 		}
 	}
 
@@ -238,8 +242,7 @@ func TestE2E_WAHA_DualSession_Messaging_And_Cleanup(t *testing.T) {
 	}
 
 	// Zero-Leftover Teardown Phase: Explicitly delete test message from BOTH Session A and Session B chats
-	_ = deleteWahaMessage(wahaURL, apiKey, sessionA, targetPhone, msgID)
-	_ = deleteWahaMessage(wahaURL, apiKey, sessionB, senderPhone, msgID)
+	_ = deleteWahaMessage(wahaURL, apiKey, sessionA, sessionB, targetPhone, senderPhone, msgID)
 	t.Log("Successfully performed zero-leftover teardown deletion for sent WhatsApp test messages across both sessions")
 
 	_ = wmsgr
@@ -288,7 +291,6 @@ func TestE2E_WAHA_WebhookEvents_And_ReplyAutoStop(t *testing.T) {
 	t.Log("Successfully validated WhatsApp message.ack (READ) and contact reply webhook sequence auto-stop logic")
 
 	// Teardown Deletion of any test reply messages
-	_ = deleteWahaMessage(wahaURL, apiKey, sessionA, contactPhone, "3EB0TESTREPLY5678")
-	_ = deleteWahaMessage(wahaURL, apiKey, sessionB, senderPhone, "3EB0TESTREPLY5678")
+	_ = deleteWahaMessage(wahaURL, apiKey, sessionA, sessionB, contactPhone, senderPhone, "3EB0TESTREPLY5678")
 	t.Log("Zero leftover text teardown complete for WAHA webhook event tests")
 }
