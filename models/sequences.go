@@ -22,6 +22,9 @@ const (
 	SequenceConditionIfRead    = "if_read"
 	SequenceConditionIfNotRead = "if_not_read"
 	SequenceConditionIfClicked = "if_clicked"
+
+	LoadBalanceModeRoundRobin       = "round_robin"
+	LoadBalanceModeCapacityWeighted = "capacity_weighted"
 )
 
 // Sequences represents a slice of Sequence.
@@ -31,10 +34,13 @@ type Sequences []Sequence
 type Sequence struct {
 	Base
 
-	UUID       string `db:"uuid" json:"uuid"`
-	Name       string `db:"name" json:"name"`
-	Status     string `db:"status" json:"status"`
-	SendWindow JSON   `db:"send_window" json:"send_window"`
+	UUID            string         `db:"uuid" json:"uuid"`
+	Name            string         `db:"name" json:"name"`
+	Status          string         `db:"status" json:"status"`
+	SendWindow      JSON           `db:"send_window" json:"send_window"`
+	MailboxIDs      pq.Int64Array  `db:"mailbox_ids" json:"mailbox_ids"`
+	WahaSessions    pq.StringArray `db:"waha_sessions" json:"waha_sessions"`
+	LoadBalanceMode string         `db:"load_balance_mode" json:"load_balance_mode"`
 }
 
 // SequenceSteps represents a slice of SequenceStep.
@@ -61,6 +67,8 @@ type SequenceContacts []SequenceContact
 type SequenceContact struct {
 	SequenceID    int         `db:"sequence_id" json:"sequence_id"`
 	SubscriberID  int         `db:"subscriber_id" json:"subscriber_id"`
+	MailboxID     null.Int    `db:"mailbox_id" json:"mailbox_id"`
+	WahaSession   null.String `db:"waha_session" json:"waha_session"`
 	Status        string      `db:"status" json:"status"`
 	CurrentStep   int         `db:"current_step" json:"current_step"`
 	NextSendAt    null.Time   `db:"next_send_at" json:"next_send_at"`
