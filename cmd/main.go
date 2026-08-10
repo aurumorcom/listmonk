@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -94,6 +95,10 @@ var (
 )
 
 func init() {
+	if flag.Lookup("test.v") != nil || strings.HasSuffix(os.Args[0], ".test") || strings.HasSuffix(os.Args[0], ".test.exe") {
+		return
+	}
+
 	// Initialize commandline flags.
 	initFlags(ko)
 
