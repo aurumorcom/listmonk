@@ -6,10 +6,18 @@ import (
 
 	"github.com/knadh/listmonk/models"
 	"github.com/labstack/echo/v4"
+	null "gopkg.in/volatiletech/null.v6"
 )
 
 type enrollReq struct {
-	SubscriberIDs []int `json:"subscribers"`
+	SubscriberIDs []int       `json:"subscribers"`
+	MailboxID     null.Int    `json:"mailbox_id"`
+	WahaSession   null.String `json:"waha_session"`
+}
+
+type reassignReq struct {
+	MailboxID   null.Int    `json:"mailbox_id"`
+	WahaSession null.String `json:"waha_session"`
 }
 
 type sequenceStepsReq struct {
