@@ -101,12 +101,19 @@ export default {
         status: 'active',
       },
       steps: [
-        { step_number: 1, delay_days: 0, messenger: 'email', condition: 'always', subject: '', body: '' },
+        {
+          step_number: 1,
+          delay_days: 0,
+          messenger: 'email',
+          condition: 'always',
+          subject: '',
+          body: '',
+        },
       ],
     };
   },
   mounted() {
-    const id = this.$route.params.id;
+    const { id } = this.$route.params;
     if (id && id !== 'new') {
       this.isNew = false;
       this.loadSequence(id);
@@ -136,7 +143,7 @@ export default {
       const ids = val
         .split(',')
         .map((s) => parseInt(s.trim(), 10))
-        .filter((n) => !isNaN(n));
+        .filter((n) => !Number.isNaN(n));
       this.$set(this.steps[idx], 'media_ids', ids);
     },
     removeStep(idx) {
@@ -148,7 +155,7 @@ export default {
         : this.$api.updateSequence(this.form.id, this.form);
 
       action.then((res) => {
-        const id = res.data.id;
+        const { id } = res.data;
         this.$api.saveSequenceSteps(id, { steps: this.steps }).then(() => {
           this.$router.push({ name: 'sequences' });
         });

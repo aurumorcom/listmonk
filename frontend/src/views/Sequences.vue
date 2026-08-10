@@ -60,11 +60,11 @@ export default {
       });
     },
     deleteSequence(id) {
-      if (confirm('Are you sure you want to delete this sequence?')) {
+      this.$utils.confirm('Are you sure you want to delete this sequence?', () => {
         this.$api.deleteSequence(id).then(() => {
           this.getSequences();
         });
-      }
+      });
     },
   },
 };
