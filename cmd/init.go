@@ -192,6 +192,10 @@ func initConfigFiles(files []string, ko *koanf.Koanf) {
 		lo.Printf("reading config: %s", f)
 		if err := ko.Load(file.Provider(f), toml.Parser()); err != nil {
 			if os.IsNotExist(err) {
+				if flag.Lookup("test.v") != nil || strings.HasSuffix(os.Args[0], ".test") || strings.HasSuffix(os.Args[0], ".test.exe") {
+					lo.Printf("test mode: config file %s not found, skipping", f)
+					continue
+				}
 				lo.Fatal("config file not found. If there isn't one yet, run --new-config to generate one.")
 			}
 			lo.Fatalf("error loading config from file: %v.", err)
@@ -800,6 +804,13 @@ func initWAHAMessengers(ko *koanf.Koanf) []manager.Messenger {
 		if err != nil {
 			lo.Fatalf("error initializing WAHA messenger %s: %v", name, err)
 		}
+
+		if rootURL := ko.String("app.root_url"); rootURL != "" {
+			if err := w.SyncWebhook(rootURL); err != nil {
+				lo.Printf("warning: failed to sync WAHA webhook for %s: %v", name, err)
+			}
+		}
+
 		out = append(out, w)
 
 		lo.Printf("loaded WAHA messenger: %s", name)
