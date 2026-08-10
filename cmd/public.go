@@ -579,10 +579,10 @@ func (a *App) LinkRedirect(c echo.Context) error {
 		return c.Render(e.Code, tplMessage, makeMsgTpl(a.i18n.T("public.errorTitle"), "", e.Error()))
 	}
 
-	// Also record cadence click if campUUID represents a cadence
+	// Also record sequence click if campUUID represents a sequence
 	if sub, err := a.core.GetSubscriber(0, subUUID, ""); err == nil {
-		if cad, err := a.core.GetCadence(0, campUUID); err == nil {
-			_ = a.core.RecordCadenceClick(cad.ID, sub.ID)
+		if seq, err := a.core.GetSequence(0, campUUID); err == nil {
+			_ = a.core.RecordSequenceClick(seq.ID, sub.ID)
 		}
 	}
 
@@ -612,10 +612,10 @@ func (a *App) RegisterCampaignView(c echo.Context) error {
 		if err := a.core.RegisterCampaignView(campUUID, subUUID); err != nil {
 			a.log.Printf("error registering campaign view: %s", err)
 		}
-		// Also record cadence read if campUUID represents a cadence
+		// Also record sequence read if campUUID represents a sequence
 		if sub, err := a.core.GetSubscriber(0, subUUID, ""); err == nil {
-			if cad, err := a.core.GetCadence(0, campUUID); err == nil {
-				_ = a.core.RecordCadenceRead(cad.ID, sub.ID)
+			if seq, err := a.core.GetSequence(0, campUUID); err == nil {
+				_ = a.core.RecordSequenceRead(seq.ID, sub.ID)
 			}
 		}
 	}

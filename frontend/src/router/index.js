@@ -108,6 +108,18 @@ const routes = [
     component: () => import('../views/Campaign.vue'),
   },
   {
+    path: '/sequences',
+    name: 'sequences',
+    meta: { title: 'Sequences', group: 'campaigns' },
+    component: () => import('../views/Sequences.vue'),
+  },
+  {
+    path: '/sequences/:id',
+    name: 'sequence',
+    meta: { title: 'Sequence', group: 'campaigns' },
+    component: () => import('../views/Sequence.vue'),
+  },
+  {
     path: '/user/profile',
     name: 'userProfile',
     meta: { title: 'users.profile', group: 'settings' },

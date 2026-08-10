@@ -1,9 +1,9 @@
 <template>
-  <section class="cadence">
+  <section class="sequence">
     <header class="columns page-header">
       <div class="column is-10">
         <h1 class="title is-4">
-          {{ isNew ? 'New Cadence' : form.name }}
+          {{ isNew ? 'New Sequence' : form.name }}
         </h1>
       </div>
       <div class="column has-text-right">
@@ -14,7 +14,7 @@
     </header>
 
     <div class="box">
-      <b-field label="Cadence Name">
+      <b-field label="Sequence Name">
         <b-input v-model="form.name" required placeholder="Cold Outreach Sequence" />
       </b-field>
 
@@ -91,7 +91,7 @@
 
 <script>
 export default {
-  name: 'Cadence',
+  name: 'Sequence',
   data() {
     return {
       isNew: true,
@@ -109,14 +109,14 @@ export default {
     const id = this.$route.params.id;
     if (id && id !== 'new') {
       this.isNew = false;
-      this.loadCadence(id);
+      this.loadSequence(id);
     }
   },
   methods: {
-    loadCadence(id) {
-      this.$api.getCadence(id).then((res) => {
+    loadSequence(id) {
+      this.$api.getSequence(id).then((res) => {
         this.form = res.data;
-        this.$api.getCadenceSteps(id).then((stepsRes) => {
+        this.$api.getSequenceSteps(id).then((stepsRes) => {
           this.steps = stepsRes.data.length ? stepsRes.data : this.steps;
         });
       });
@@ -144,13 +144,13 @@ export default {
     },
     save() {
       const action = this.isNew
-        ? this.$api.createCadence(this.form)
-        : this.$api.updateCadence(this.form.id, this.form);
+        ? this.$api.createSequence(this.form)
+        : this.$api.updateSequence(this.form.id, this.form);
 
       action.then((res) => {
         const id = res.data.id;
-        this.$api.saveCadenceSteps(id, { steps: this.steps }).then(() => {
-          this.$router.push({ name: 'cadences' });
+        this.$api.saveSequenceSteps(id, { steps: this.steps }).then(() => {
+          this.$router.push({ name: 'sequences' });
         });
       });
     },

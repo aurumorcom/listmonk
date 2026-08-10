@@ -607,3 +607,13 @@ export const disableTOTP = (id, data) => http.delete(
   `/api/users/${id}/twofa`,
   { data },
 );
+
+// Sequences
+export const getSequences = () => http.get('/api/sequences');
+export const getSequence = (id) => http.get(`/api/sequences/${id}`);
+export const createSequence = (data) => http.post('/api/sequences', data);
+export const updateSequence = (id, data) => http.put(`/api/sequences/${id}`, data);
+export const deleteSequence = (id) => http.delete(`/api/sequences/${id}`);
+export const getSequenceSteps = (id) => http.get(`/api/sequences/${id}/steps`);
+export const saveSequenceSteps = (id, data) => http.post(`/api/sequences/${id}/steps`, data);
+export const enrollSequenceSubscribers = (id, data) => http.post(`/api/sequences/${id}/enroll`, data);

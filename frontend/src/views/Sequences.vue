@@ -1,21 +1,21 @@
 <template>
-  <section class="cadences">
+  <section class="sequences">
     <header class="columns page-header">
       <div class="column is-10">
         <h1 class="title is-4">
-          Cadences
+          Sequences
         </h1>
       </div>
       <div class="column has-text-right">
-        <b-button :to="{ name: 'cadence', params: { id: 'new' } }" tag="router-link" type="is-primary" icon-left="plus">
-          New Cadence
+        <b-button :to="{ name: 'sequence', params: { id: 'new' } }" tag="router-link" type="is-primary" icon-left="plus">
+          New Sequence
         </b-button>
       </div>
     </header>
 
-    <b-table :data="cadences" :loading="loading" hoverable>
+    <b-table :data="sequences" :loading="loading" hoverable>
       <b-table-column v-slot="props" field="name" label="Name">
-        <router-link :to="{ name: 'cadence', params: { id: props.row.id } }">
+        <router-link :to="{ name: 'sequence', params: { id: props.row.id } }">
           <strong>{{ props.row.name }}</strong>
         </router-link>
       </b-table-column>
@@ -31,7 +31,7 @@
       </b-table-column>
 
       <b-table-column v-slot="props" label="Actions">
-        <b-button size="is-small" type="is-danger" icon-left="trash-can-outline" @click="deleteCadence(props.row.id)" />
+        <b-button size="is-small" type="is-danger" icon-left="trash-can-outline" @click="deleteSequence(props.row.id)" />
       </b-table-column>
     </b-table>
   </section>
@@ -39,30 +39,30 @@
 
 <script>
 export default {
-  name: 'Cadences',
+  name: 'Sequences',
   data() {
     return {
-      cadences: [],
+      sequences: [],
       loading: false,
     };
   },
   mounted() {
-    this.getCadences();
+    this.getSequences();
   },
   methods: {
-    getCadences() {
+    getSequences() {
       this.loading = true;
-      this.$api.getCadences().then((res) => {
-        this.cadences = res.data;
+      this.$api.getSequences().then((res) => {
+        this.sequences = res.data;
         this.loading = false;
       }).catch(() => {
         this.loading = false;
       });
     },
-    deleteCadence(id) {
-      if (confirm('Are you sure you want to delete this cadence?')) {
-        this.$api.deleteCadence(id).then(() => {
-          this.getCadences();
+    deleteSequence(id) {
+      if (confirm('Are you sure you want to delete this sequence?')) {
+        this.$api.deleteSequence(id).then(() => {
+          this.getSequences();
         });
       }
     },
