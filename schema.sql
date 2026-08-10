@@ -449,13 +449,16 @@ DROP INDEX IF EXISTS mat_list_subscriber_stats_idx; CREATE UNIQUE INDEX mat_list
 -- sequences
 DROP TABLE IF EXISTS sequences CASCADE;
 CREATE TABLE sequences (
-    id          SERIAL PRIMARY KEY,
-    uuid        UUID NOT NULL DEFAULT uuid_generate_v4() UNIQUE,
-    name        TEXT NOT NULL,
-    status      TEXT NOT NULL DEFAULT 'active',
-    send_window JSONB NOT NULL DEFAULT '{}',
-    created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    id                SERIAL PRIMARY KEY,
+    uuid              UUID NOT NULL DEFAULT uuid_generate_v4() UNIQUE,
+    name              TEXT NOT NULL,
+    status            TEXT NOT NULL DEFAULT 'active',
+    send_window       JSONB NOT NULL DEFAULT '{}',
+    mailbox_ids       INTEGER[] NOT NULL DEFAULT '{}',
+    waha_sessions     TEXT[] NOT NULL DEFAULT '{}',
+    load_balance_mode TEXT NOT NULL DEFAULT 'round_robin',
+    created_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- sequence_steps
@@ -489,6 +492,8 @@ DROP TABLE IF EXISTS sequence_contacts CASCADE;
 CREATE TABLE sequence_contacts (
     sequence_id     INTEGER NOT NULL REFERENCES sequences(id) ON DELETE CASCADE,
     subscriber_id   INTEGER NOT NULL REFERENCES subscribers(id) ON DELETE CASCADE,
+    mailbox_id      INTEGER NULL REFERENCES mailboxes(id) ON DELETE SET NULL,
+    waha_session    TEXT NULL,
     status          TEXT NOT NULL DEFAULT 'scheduled',
     current_step    INTEGER NOT NULL DEFAULT 1,
     next_send_at    TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -499,6 +504,7 @@ CREATE TABLE sequence_contacts (
     PRIMARY KEY (sequence_id, subscriber_id)
 );
 CREATE INDEX idx_sequence_contacts_next_send ON sequence_contacts(status, next_send_at);
+CREATE INDEX idx_sequence_contacts_sender ON sequence_contacts(sequence_id, mailbox_id, waha_session);
 
 -- mailboxes
 DROP TABLE IF EXISTS mailboxes CASCADE;
