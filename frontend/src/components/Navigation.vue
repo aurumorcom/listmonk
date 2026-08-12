@@ -30,9 +30,9 @@
       <b-menu-item v-if="$can('subscribers:get_all', 'subscribers:get')" :to="{ name: 'contacts' }" tag="router-link"
         :active="activeItem.contacts" data-cy="all-contacts" icon="account-box-outline"
         :label="$t('menu.allContacts')" />
-      <b-menu-item v-if="$can('subscribers:import')" :to="{ name: 'import' }" tag="router-link"
-        :active="activeItem.import" data-cy="import-contacts" icon="file-upload-outline" :label="$t('menu.import')" />
-      <b-menu-item v-if="$can('bounces:get')" :to="{ name: 'bounces' }" tag="router-link" :active="activeItem.bounces"
+      <b-menu-item v-if="$can('subscribers:import')" :to="{ name: 'importContacts' }" tag="router-link"
+        :active="activeItem.importContacts" data-cy="import-contacts" icon="file-upload-outline" :label="$t('menu.import')" />
+      <b-menu-item v-if="$can('bounces:get')" :to="{ name: 'bouncesContacts' }" tag="router-link" :active="activeItem.bouncesContacts"
         data-cy="bounces-contacts" icon="email-bounce" :label="$t('globals.terms.bounces')" />
     </b-menu-item><!-- contacts -->
 
@@ -44,11 +44,14 @@
         :label="$t('menu.allSequences')" />
       <b-menu-item v-if="$can('campaigns:manage')" :to="{ name: 'sequence', params: { id: 'new' } }" tag="router-link"
         :active="activeItem.sequence" data-cy="new-sequence" icon="plus" :label="$t('menu.newSequence')" />
-      <b-menu-item v-if="$can('media:*')" :to="{ name: 'media' }" tag="router-link" :active="activeItem.media"
+      <b-menu-item v-if="$can('media:*')" :to="{ name: 'sequenceMedia' }" tag="router-link" :active="activeItem.sequenceMedia"
         data-cy="sequence-media" icon="image-outline" :label="$t('menu.media')" />
-      <b-menu-item v-if="$can('templates:get')" :to="{ name: 'templates' }" tag="router-link"
-        :active="activeItem.templates" data-cy="sequence-templates" icon="file-image-outline"
+      <b-menu-item v-if="$can('templates:get')" :to="{ name: 'sequenceTemplates' }" tag="router-link"
+        :active="activeItem.sequenceTemplates" data-cy="sequence-templates" icon="file-image-outline"
         :label="$t('globals.terms.templates')" />
+      <b-menu-item v-if="$can('campaigns:get')" :to="{ name: 'sequenceSchedules' }" tag="router-link"
+        :active="activeItem.sequenceSchedules" data-cy="sequence-schedules" icon="calendar-clock"
+        :label="$t('globals.terms.schedules')" />
       <b-menu-item v-if="$can('campaigns:get_analytics')" :to="{ name: 'sequenceAnalytics' }" tag="router-link"
         :active="activeItem.sequenceAnalytics" data-cy="sequence-analytics" icon="chart-bar"
         :label="$t('globals.terms.analytics')" />
