@@ -3,14 +3,17 @@ package sequence
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/textproto"
+	"strings"
 	"sync"
 	txttpl "text/template"
 	"time"
 
 	"github.com/gofrs/uuid/v5"
+	"github.com/knadh/listmonk/internal/auth"
 	"github.com/knadh/listmonk/internal/core"
 	"github.com/knadh/listmonk/internal/manager"
 	"github.com/knadh/listmonk/internal/media"
@@ -111,7 +114,7 @@ func (m *Manager) ProcessBatch() error {
 		}
 
 		if len(steps) == 0 || sub.CurrentStep > len(steps) {
-			_ = m.core.UpdateSequenceContactStatus(sub.SequenceID, sub.SubscriberID, models.SequenceContactStatusFinished, sub.CurrentStep, null.Time{}, null.String{})
+			_ = m.core.UpdateSequenceContactStatus(sub.SequenceID, sub.SubscriberID, models.SequenceContactStatusFinished, sub.CurrentStep, null.Time{}, null.String{}, sub.LastThreadMsgID)
 			continue
 		}
 
@@ -121,10 +124,10 @@ func (m *Manager) ProcessBatch() error {
 			// Skip step if condition not met and advance to next step
 			nextStep := sub.CurrentStep + 1
 			if nextStep > len(steps) {
-				_ = m.core.UpdateSequenceContactStatus(sub.SequenceID, sub.SubscriberID, models.SequenceContactStatusFinished, nextStep, null.Time{}, null.String{})
+				_ = m.core.UpdateSequenceContactStatus(sub.SequenceID, sub.SubscriberID, models.SequenceContactStatusFinished, nextStep, null.Time{}, null.String{}, sub.LastThreadMsgID)
 			} else {
 				nextSend := null.TimeFrom(time.Now().Add(time.Duration(steps[nextStep-1].DelayDays) * 24 * time.Hour))
-				_ = m.core.UpdateSequenceContactStatus(sub.SequenceID, sub.SubscriberID, models.SequenceContactStatusInProgress, nextStep, nextSend, null.String{})
+				_ = m.core.UpdateSequenceContactStatus(sub.SequenceID, sub.SubscriberID, models.SequenceContactStatusInProgress, nextStep, nextSend, null.String{}, sub.LastThreadMsgID)
 			}
 			continue
 		}
@@ -146,20 +149,20 @@ func (m *Manager) ProcessBatch() error {
 			}
 		}
 
-		var activeMailbox *models.Mailbox
+		var activeEmail *models.Email
 		if step.Messenger == "email" || msgr.Name() == "email" {
-			if sub.MailboxID.Valid {
-				mb, err := m.core.GetMailbox(sub.MailboxID.Int)
+			if sub.EmailID.Valid {
+				mb, err := m.core.GetEmail(sub.EmailID.Int)
 				if err != nil {
-					m.log.Printf("error resolving assigned mailbox %d for contact %d: %v", sub.MailboxID.Int, sub.SubscriberID, err)
+					m.log.Printf("error resolving assigned email account %d for contact %d: %v", sub.EmailID.Int, sub.SubscriberID, err)
 				} else {
-					if mb.SentToday >= mb.DailyLimit {
-						m.log.Printf("mailbox %d (%s) reached daily limit (%d/%d), deferring sequence step for contact %d", mb.ID, mb.Email, mb.SentToday, mb.DailyLimit, sub.SubscriberID)
+					if mb.EmailsPerDay > 0 && mb.EmailsToday >= mb.EmailsPerDay {
+						m.log.Printf("email account %d (%s) reached daily limit (%d/%d), deferring sequence step for contact %d", mb.ID, mb.Email, mb.EmailsToday, mb.EmailsPerDay, sub.SubscriberID)
 						deferSend := null.TimeFrom(time.Now().Add(24 * time.Hour))
-						_ = m.core.UpdateSequenceContactStatus(sub.SequenceID, sub.SubscriberID, sub.Status, sub.CurrentStep, deferSend, sub.LastMessageID)
+						_ = m.core.UpdateSequenceContactStatus(sub.SequenceID, sub.SubscriberID, sub.Status, sub.CurrentStep, deferSend, sub.LastMessageID, sub.LastThreadMsgID)
 						continue
 					}
-					activeMailbox = mb
+					activeEmail = mb
 				}
 			}
 		}
@@ -196,7 +199,12 @@ func (m *Manager) ProcessBatch() error {
 				if userPromptStr == "" {
 					userPromptStr = tpl.Body
 				}
-				if tpl.Tpl != nil {
+				if tpl.UserPromptTpl != nil {
+					var ub bytes.Buffer
+					if err := tpl.UserPromptTpl.Execute(&ub, scope); err == nil {
+						userPromptStr = ub.String()
+					}
+				} else if tpl.Tpl != nil {
 					var ub bytes.Buffer
 					if err := tpl.Tpl.Execute(&ub, scope); err == nil {
 						userPromptStr = ub.String()
@@ -215,16 +223,50 @@ func (m *Manager) ProcessBatch() error {
 					if err != nil {
 						m.log.Printf("Bifrost AI prompt generation failed for step %d, contact %d: %v", step.ID, contact.ID, err)
 						deferSend := null.TimeFrom(time.Now().Add(1 * time.Hour))
-						_ = m.core.UpdateSequenceContactStatus(sub.SequenceID, sub.SubscriberID, sub.Status, sub.CurrentStep, deferSend, sub.LastMessageID)
+						_ = m.core.UpdateSequenceContactStatus(sub.SequenceID, sub.SubscriberID, sub.Status, sub.CurrentStep, deferSend, sub.LastMessageID, sub.LastThreadMsgID)
 						continue
 					}
-					msg.Body = []byte(aiBody)
+
+					cleanBody := manager.CleanJSONResponse(aiBody)
+					if step.Messenger == "waha" || msgr.Name() == "waha" {
+						var msgOut manager.MessageStructuredOutput
+						if err := json.Unmarshal([]byte(cleanBody), &msgOut); err == nil && msgOut.Message != "" {
+							msg.Body = []byte(msgOut.Message)
+						} else {
+							msg.Body = []byte(aiBody)
+						}
+					} else {
+						var emailOut manager.EmailStructuredOutput
+						if err := json.Unmarshal([]byte(cleanBody), &emailOut); err == nil && emailOut.Content != "" {
+							if emailOut.Subject != "" {
+								msg.Subject = emailOut.Subject
+							}
+							finalContent := emailOut.Content
+							var assignedUser *auth.User
+							if activeEmail != nil && activeEmail.UserID.Valid {
+								if u, err := m.core.GetUser(activeEmail.UserID.Int, "", ""); err == nil {
+									assignedUser = &u
+								}
+							}
+							sig := manager.ResolveSignatureAdvanced(manager.SignatureOpts{
+								Subscriber: contact,
+								Email:      activeEmail,
+								User:       assignedUser,
+							})
+							if sig != "" {
+								finalContent = fmt.Sprintf("%s<br/><br/>%s", finalContent, sig)
+							}
+							msg.Body = []byte(finalContent)
+						} else {
+							msg.Body = []byte(aiBody)
+						}
+					}
 				}
 			}
 		}
 
-		if activeMailbox != nil {
-			msg.From = activeMailbox.Email
+		if activeEmail != nil {
+			msg.From = activeEmail.Email
 		}
 
 		if (step.Messenger == "waha" || msgr.Name() == "waha") && sub.WahaSession.Valid {
@@ -240,8 +282,32 @@ func (m *Manager) ProcessBatch() error {
 			}
 		}
 
-		// Threading headers if previous step message exists
-		if sub.LastMessageID.Valid {
+		// Threading headers resolution based on email_type and last_thread_msg_id
+		nextLastThreadMsgID := sub.LastThreadMsgID
+		if step.Messenger == "email" || msgr.Name() == "email" {
+			if step.StepNumber == 1 {
+				// Email 1 starts initial thread root
+				nextLastThreadMsgID = null.StringFrom(msgID)
+			} else if strings.EqualFold(step.EmailType, models.EmailTypeNewThread) || step.EmailType == "New Thread" {
+				// Email step is explicit "New Thread": start clean thread without In-Reply-To
+				nextLastThreadMsgID = null.StringFrom(msgID)
+			} else {
+				// Email step is "Reply" or default: reply to the last new thread root
+				replyToMsgID := sub.LastThreadMsgID.String
+				if replyToMsgID == "" {
+					replyToMsgID = sub.LastMessageID.String
+				}
+				if replyToMsgID != "" {
+					msg.Headers = make(textproto.MIMEHeader)
+					msg.Headers.Set("In-Reply-To", replyToMsgID)
+					msg.Headers.Set("References", replyToMsgID)
+				}
+				if !nextLastThreadMsgID.Valid && replyToMsgID != "" {
+					nextLastThreadMsgID = null.StringFrom(replyToMsgID)
+				}
+			}
+		} else if sub.LastMessageID.Valid {
+			// Non-email messengers fallback
 			msg.Headers = make(textproto.MIMEHeader)
 			msg.Headers.Set("In-Reply-To", sub.LastMessageID.String)
 			msg.Headers.Set("References", sub.LastMessageID.String)
@@ -252,8 +318,10 @@ func (m *Manager) ProcessBatch() error {
 			continue
 		}
 
-		if activeMailbox != nil {
-			_ = m.core.IncrementMailboxSent(activeMailbox.ID)
+		_ = m.core.RecordSequenceStepHistory(sub.SubscriberID, step.StepNumber, step.Messenger, msg.Subject, string(msg.Body))
+
+		if activeEmail != nil {
+			_ = m.core.IncrementEmailSent(activeEmail.ID)
 		}
 
 		nextStep := sub.CurrentStep + 1
@@ -266,7 +334,7 @@ func (m *Manager) ProcessBatch() error {
 			nextSend = null.TimeFrom(time.Now().Add(time.Duration(steps[nextStep-1].DelayDays) * 24 * time.Hour))
 		}
 
-		_ = m.core.UpdateSequenceContactStatus(sub.SequenceID, sub.SubscriberID, status, nextStep, nextSend, null.StringFrom(msgID))
+		_ = m.core.UpdateSequenceContactStatus(sub.SequenceID, sub.SubscriberID, status, nextStep, nextSend, null.StringFrom(msgID), nextLastThreadMsgID)
 	}
 
 	return nil

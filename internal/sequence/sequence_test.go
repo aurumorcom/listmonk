@@ -132,13 +132,13 @@ func TestAllocateSendersCapacityWeighted(t *testing.T) {
 		subIDs = append(subIDs, i)
 	}
 
-	mailboxes := []models.Mailbox{
-		{Base: models.Base{ID: 1}, DailyLimit: 100, SentToday: 90}, // Remaining: 10
-		{Base: models.Base{ID: 2}, DailyLimit: 100, SentToday: 50}, // Remaining: 50
-		{Base: models.Base{ID: 3}, DailyLimit: 100, SentToday: 60}, // Remaining: 40
+	emails := []models.Email{
+		{Base: models.Base{ID: 1}, EmailsPerDay: 100, EmailsToday: 90}, // Remaining: 10
+		{Base: models.Base{ID: 2}, EmailsPerDay: 100, EmailsToday: 50}, // Remaining: 50
+		{Base: models.Base{ID: 3}, EmailsPerDay: 100, EmailsToday: 60}, // Remaining: 40
 	}
 
-	alloc := core.AllocateSendersCapacityWeighted(subIDs, mailboxes)
+	alloc := core.AllocateSendersCapacityWeighted(subIDs, emails)
 
 	counts := make(map[int]int)
 	for _, mbID := range alloc {
