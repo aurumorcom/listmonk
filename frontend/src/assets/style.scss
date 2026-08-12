@@ -712,7 +712,7 @@ body.is-noscroll {
     color: $color;
     background: lighten($color, 47);
   }
-  &.public, &.running, &.list, &.campaign, &.user, &.primary {
+  &.public, &.running, &.active, &.list, &.campaign, &.user, &.primary {
     $color: $primary;
     color: lighten($color, 20%);
     background: #e6f7ff;

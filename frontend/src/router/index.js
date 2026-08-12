@@ -171,7 +171,7 @@ const routes = [
     path: '/sequences/:sequenceId/steps/:stepId',
     name: 'sequenceStepCampaign',
     meta: { title: 'Step Campaign Setup', group: 'sequences' },
-    component: () => import('../views/Campaign.vue'),
+    component: () => import('../views/SequenceStep.vue'),
   },
   {
     path: '/user/profile',
