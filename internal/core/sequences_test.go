@@ -80,7 +80,7 @@ func TestCalculatePacedScheduleTimestamps(t *testing.T) {
 		StartTime:          "09:00",
 		EndTime:            "17:00",
 		MinIntervalSeconds: 60,
-		JitterSeconds:      0, // Zero jitter for deterministic unit test
+		JitterSeconds:      -1, // Disabled jitter for deterministic test
 	}
 
 	start := time.Date(2025, time.March, 10, 9, 0, 0, 0, tokyoLoc)
@@ -94,5 +94,30 @@ func TestCalculatePacedScheduleTimestamps(t *testing.T) {
 	diff := timestamps[1].Sub(timestamps[0]).Seconds()
 	if diff != 5760 {
 		t.Errorf("expected 5760s gap between timestamps, got %f", diff)
+	}
+}
+
+func TestCalculativeAutoPacingJitter(t *testing.T) {
+	tokyoLoc, err := time.LoadLocation("Asia/Tokyo")
+	if err != nil {
+		t.Fatalf("failed loading Asia/Tokyo location: %v", err)
+	}
+
+	sched := models.SequenceSchedule{
+		Enabled:       true,
+		StartTime:     "09:00",
+		EndTime:       "17:00",
+		JitterSeconds: 0, // Unconfigured -> Auto-calculated
+	}
+
+	start := time.Date(2025, time.March, 10, 9, 0, 0, 0, tokyoLoc)
+	timestamps := CalculatePacedScheduleTimestamps(sched, tokyoLoc, start, 10)
+
+	if len(timestamps) != 10 {
+		t.Fatalf("expected 10 timestamps, got %d", len(timestamps))
+	}
+	// Verify timestamps are generated properly
+	if timestamps[0].IsZero() {
+		t.Errorf("expected non-zero first timestamp")
 	}
 }
