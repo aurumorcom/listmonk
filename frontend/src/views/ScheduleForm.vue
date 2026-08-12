@@ -1,128 +1,117 @@
 <template>
-  <section class="schedule-form">
-    <header class="columns page-header">
-      <div class="column is-6">
-        <p v-if="!isNew" class="tags">
-          <b-tag class="is-primary">SCHEDULE</b-tag>
-          <span class="has-text-grey-light is-size-7">
-            ID: {{ form.id }}
-            UUID: {{ form.uuid }}
-          </span>
+  <form @submit.prevent="onSubmit">
+    <div class="modal-card content" style="width: auto">
+      <header class="modal-card-head">
+        <p v-if="isEditing" class="has-text-grey-light is-size-7">
+          {{ $t('globals.fields.id') }}: <copy-text :text="`${form.id || (data && data.id) || ''}`" />
         </p>
-        <h4 class="title is-4">
-          {{ isNew ? 'New Schedule' : form.name }}
+        <h4 v-if="isEditing">
+          {{ form.name }}
         </h4>
-      </div>
+        <h4 v-else>
+          New Schedule
+        </h4>
+      </header>
 
-      <div class="column is-6 has-text-right">
-        <div class="buttons is-right">
-          <b-button v-if="!isNew" type="is-danger is-light" icon-left="trash-can-outline" @click="confirmDelete">
-            Delete
-          </b-button>
-          <b-button type="is-primary" icon-left="content-save-outline" :loading="loading" @click="save" data-cy="btn-save">
-            <span class="has-kbd">Save Schedule <span class="kbd">Ctrl+S</span></span>
-          </b-button>
-        </div>
-      </div>
-    </header>
+      <section expanded class="modal-card-body">
+        <b-loading :active="loading" :is-full-page="false" />
 
-    <b-loading :active="loading" />
+        <b-field label="Name" label-position="on-border">
+          <b-input v-model="form.name" required placeholder="Normal Business Hours - IST" />
+        </b-field>
 
-    <section class="wrap">
-      <div class="columns">
-        <!-- Main Form Column (7) -->
-        <div class="column is-7">
-          <b-field label="Name:" label-position="on-border">
-            <b-input v-model="form.name" required placeholder="Normal Business Hours - IST" />
+        <b-field label="Time Zone" label-position="on-border">
+          <b-autocomplete
+            v-model="form.timezone"
+            :data="filteredTimezones"
+            placeholder="India Standard Time (e.g. Asia/Kolkata or UTC)..."
+            open-on-focus
+            clearable
+            expanded
+            @select="opt => form.timezone = opt || 'UTC'"
+          >
+            <template #empty>No timezones found</template>
+          </b-autocomplete>
+        </b-field>
+
+        <div class="box mt-4">
+          <b-field>
+            <b-checkbox v-model="form.use_contact_timezone">
+              Use the contact's local time zone instead of the schedule's time zone, if available.
+            </b-checkbox>
           </b-field>
-
-          <b-field label="Time Zone:" label-position="on-border">
-            <b-autocomplete
-              v-model="form.timezone"
-              :data="filteredTimezones"
-              placeholder="India Standard Time (e.g. Asia/Kolkata or UTC)..."
-              open-on-focus
-              clearable
-              expanded
-              @select="opt => form.timezone = opt || 'UTC'"
-            >
-              <template #empty>No timezones found</template>
-            </b-autocomplete>
+          <b-field class="mt-3">
+            <b-checkbox v-model="form.skip_holidays">
+              Skip national holidays (Labor Day, Independence Day, Thanksgiving, Christmas, New Year's Day)
+            </b-checkbox>
           </b-field>
-
-          <div class="box mt-4">
-            <b-field>
-              <b-checkbox v-model="form.use_contact_timezone">
-                Use the contact's local time zone instead of the schedule's time zone, if the contact contains location data.
-              </b-checkbox>
-            </b-field>
-            <b-field class="mt-3">
-              <b-checkbox v-model="form.skip_holidays">
-                Skip the following national holidays: Skip the following national holidays: Labor Day, Independence Day, Memorial Day, Thanksgiving, Christmas Eve, Christmas, New Year's Day
-              </b-checkbox>
-            </b-field>
-          </div>
-
-          <!-- Sending Windows per day -->
-          <h5 class="title is-5 mt-5 mb-3">Sending Windows</h5>
-          <div v-for="day in daysOfWeek" :key="day.key" class="card mb-3 p-4">
-            <div class="level mb-2">
-              <div class="level-left">
-                <strong>{{ day.label }}:</strong>
-              </div>
-              <div class="level-right buttons">
-                <b-button size="is-small" icon-left="plus" type="is-warning" style="background-color: #e2e822; color: #000;" @click="addTimeBlock(day.key)">
-                  Add Time Block
-                </b-button>
-                <b-button size="is-small" type="is-light" @click="clearDayBlocks(day.key)">
-                  Clear
-                </b-button>
-              </div>
-            </div>
-
-            <div v-if="form.sending_windows[day.key] && form.sending_windows[day.key].length">
-              <div v-for="(block, bIdx) in form.sending_windows[day.key]" :key="bIdx" class="columns is-mobile is-vcentered mb-1">
-                <div class="column is-5">
-                  <b-field label="Start Time" label-position="on-border">
-                    <b-input v-model="block.start" type="time" placeholder="08:00" />
-                  </b-field>
-                </div>
-                <div class="column is-5">
-                  <b-field label="End Time" label-position="on-border">
-                    <b-input v-model="block.end" type="time" placeholder="17:00" />
-                  </b-field>
-                </div>
-                <div class="column is-2">
-                  <b-button type="is-danger is-text" icon-left="close" @click="removeTimeBlock(day.key, bIdx)" />
-                </div>
-              </div>
-            </div>
-            <p v-else class="is-size-7 has-text-grey italic">No sending window set</p>
-          </div>
         </div>
 
-        <!-- Side Overview Panel (4) -->
-        <div class="column is-4 is-offset-1">
-          <br />
-          <div class="box">
-            <h3 class="title is-size-6">Schedule Overview</h3>
-            <p class="is-size-7 mb-2"><strong>Time Zone:</strong> {{ form.timezone || 'UTC' }}</p>
-            <p class="is-size-7 mb-2"><strong>Contact Local TZ:</strong> {{ form.use_contact_timezone ? 'Enabled' : 'Disabled' }}</p>
-            <p class="is-size-7 mb-2"><strong>Skip Holidays:</strong> {{ form.skip_holidays ? 'Yes' : 'No' }}</p>
-            <p class="is-size-7 mb-2"><strong>Active Days:</strong> {{ activeDaysCount }}/7 days</p>
+        <!-- Sending Windows per day (Single From/To per day) -->
+        <h5 class="title is-5 mt-5 mb-3">Sending Windows</h5>
+        <div class="box">
+          <div v-for="day in daysOfWeek" :key="day.key" class="columns is-mobile is-vcentered mb-2">
+            <div class="column is-3">
+              <strong>{{ day.label }}:</strong>
+            </div>
+            <div class="column is-4">
+              <b-field label="From" label-position="on-border">
+                <b-input v-model="dayTimes[day.key].start" type="time" placeholder="08:00" />
+              </b-field>
+            </div>
+            <div class="column is-4">
+              <b-field label="To" label-position="on-border">
+                <b-input v-model="dayTimes[day.key].end" type="time" placeholder="17:00" />
+              </b-field>
+            </div>
+            <div class="column is-1 has-text-centered">
+              <b-button
+                type="is-light"
+                size="is-small"
+                icon-left="close"
+                title="Clear day sequence"
+                @click="clearDay(day.key)"
+              />
+            </div>
           </div>
         </div>
-      </div>
-    </section>
-  </section>
+      </section>
+
+      <footer class="modal-card-foot has-text-right">
+        <b-button @click="cancel">
+          {{ $t('globals.buttons.close') }}
+        </b-button>
+        <b-button v-if="isEditing" type="is-danger is-light" icon-left="trash-can-outline" @click="confirmDelete" class="mr-auto">
+          {{ $t('globals.buttons.delete') }}
+        </b-button>
+        <b-button native-type="submit" type="is-primary" icon-left="content-save-outline" :loading="loading" data-cy="btn-save">
+          {{ $t('globals.buttons.save') }}
+        </b-button>
+      </footer>
+    </div>
+  </form>
 </template>
 
 <script>
+import CopyText from '../components/CopyText.vue';
+
 export default {
   name: 'ScheduleForm',
+  components: {
+    CopyText,
+  },
+  props: {
+    data: {
+      type: Object,
+      default: () => null,
+    },
+    isEditing: {
+      type: Boolean,
+      default: false,
+    },
+  },
   data() {
     return {
-      isNew: true,
       loading: false,
       daysOfWeek: [
         { key: 'mon', label: 'Monday' },
@@ -136,19 +125,19 @@ export default {
       form: {
         id: null,
         uuid: '',
-        name: 'Normal Business Hours - IST',
-        timezone: 'Asia/Kolkata',
+        name: 'Normal Business Hours',
+        timezone: 'UTC',
         use_contact_timezone: true,
         skip_holidays: true,
-        sending_windows: {
-          mon: [{ start: '08:00', end: '17:00' }],
-          tue: [{ start: '08:00', end: '17:00' }],
-          wed: [{ start: '08:00', end: '17:00' }],
-          thu: [{ start: '08:00', end: '17:00' }],
-          fri: [{ start: '08:00', end: '17:00' }],
-          sat: [],
-          sun: [],
-        },
+      },
+      dayTimes: {
+        mon: { start: '08:00', end: '17:00' },
+        tue: { start: '08:00', end: '17:00' },
+        wed: { start: '08:00', end: '17:00' },
+        thu: { start: '08:00', end: '17:00' },
+        fri: { start: '08:00', end: '17:00' },
+        sat: { start: '', end: '' },
+        sun: { start: '', end: '' },
       },
     };
   },
@@ -160,86 +149,87 @@ export default {
       const q = (this.form.timezone || '').toLowerCase();
       return this.allTimezones.filter((tz) => tz.toLowerCase().includes(q));
     },
-    activeDaysCount() {
-      let count = 0;
-      this.daysOfWeek.forEach((d) => {
-        if (this.form.sending_windows[d.key] && this.form.sending_windows[d.key].length > 0) {
-          count += 1;
-        }
-      });
-      return count;
-    },
   },
   mounted() {
-    window.addEventListener('keydown', this.onKeyboardShortcut);
-    const { id } = this.$route.params;
-    if (id && id !== 'new') {
-      this.isNew = false;
-      this.loadSchedule(id);
+    if (this.$route && this.$route.params && this.$route.params.id) {
+      const id = parseInt(this.$route.params.id, 10);
+      this.loading = true;
+      this.$api.getSchedule(id).then((data) => {
+        this.initForm(data);
+        this.loading = false;
+      }).catch(() => {
+        this.loading = false;
+      });
+    } else {
+      this.initForm(this.data);
     }
   },
-  beforeDestroy() {
-    window.removeEventListener('keydown', this.onKeyboardShortcut);
-  },
   methods: {
-    onKeyboardShortcut(e) {
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        e.preventDefault();
-        this.save();
+    initForm(inputData) {
+      if (inputData && Object.keys(inputData).length > 0) {
+        this.form = {
+          id: inputData.id || null,
+          uuid: inputData.uuid || '',
+          name: inputData.name || 'Normal Business Hours',
+          timezone: inputData.timezone || 'UTC',
+          use_contact_timezone: inputData.use_contact_timezone !== undefined ? inputData.use_contact_timezone : true,
+          skip_holidays: inputData.skip_holidays !== undefined ? inputData.skip_holidays : true,
+        };
+
+        if (inputData.sending_windows && typeof inputData.sending_windows === 'object') {
+          const sw = inputData.sending_windows;
+          this.daysOfWeek.forEach((d) => {
+            const blocks = sw[d.key];
+            if (Array.isArray(blocks) && blocks.length > 0 && blocks[0].start && blocks[0].end) {
+              this.dayTimes[d.key].start = blocks[0].start;
+              this.dayTimes[d.key].end = blocks[0].end;
+            } else {
+              this.dayTimes[d.key].start = '';
+              this.dayTimes[d.key].end = '';
+            }
+          });
+        }
       }
     },
-    loadSchedule(id) {
+    clearDay(dayKey) {
+      this.dayTimes[dayKey].start = '';
+      this.dayTimes[dayKey].end = '';
+    },
+    cancel() {
+      this.$emit('finished');
+      if (this.$parent && typeof this.$parent.close === 'function') {
+        this.$parent.close();
+      } else if (this.$route && this.$route.name === 'sequenceScheduleForm') {
+        this.$router.push({ name: 'sequenceSchedules' });
+      }
+    },
+    onSubmit() {
       this.loading = true;
-      this.$api
-        .getSchedule(id)
-        .then((res) => {
-          const data = res.data || res;
-          this.form = {
-            ...this.form,
-            ...data,
-          };
-          if (!this.form.sending_windows || typeof this.form.sending_windows !== 'object') {
-            this.form.sending_windows = {
-              mon: [{ start: '08:00', end: '17:00' }],
-              tue: [{ start: '08:00', end: '17:00' }],
-              wed: [{ start: '08:00', end: '17:00' }],
-              thu: [{ start: '08:00', end: '17:00' }],
-              fri: [{ start: '08:00', end: '17:00' }],
-              sat: [],
-              sun: [],
-            };
-          }
-          this.loading = false;
-        })
-        .catch(() => {
-          this.loading = false;
-        });
-    },
-    addTimeBlock(dayKey) {
-      if (!this.form.sending_windows[dayKey]) {
-        this.$set(this.form.sending_windows, dayKey, []);
-      }
-      this.form.sending_windows[dayKey].push({ start: '08:00', end: '17:00' });
-    },
-    removeTimeBlock(dayKey, index) {
-      if (this.form.sending_windows[dayKey]) {
-        this.form.sending_windows[dayKey].splice(index, 1);
-      }
-    },
-    clearDayBlocks(dayKey) {
-      this.$set(this.form.sending_windows, dayKey, []);
-    },
-    save() {
-      this.loading = true;
-      const action = this.isNew
-        ? this.$api.createSchedule(this.form)
-        : this.$api.updateSchedule(this.form.id, this.form);
+
+      const sendingWindows = {};
+      this.daysOfWeek.forEach((d) => {
+        const t = this.dayTimes[d.key];
+        if (t.start && t.end) {
+          sendingWindows[d.key] = { start: t.start, end: t.end };
+        } else {
+          sendingWindows[d.key] = {};
+        }
+      });
+
+      const payload = {
+        ...this.form,
+        sending_windows: sendingWindows,
+      };
+
+      const action = this.isEditing && this.form.id
+        ? this.$api.updateSchedule(this.form.id, payload)
+        : this.$api.createSchedule(payload);
 
       action
         .then(() => {
           this.loading = false;
-          this.$utils.toast('Schedule saved successfully');
-          this.$router.push({ name: 'sequenceSchedules' });
+          this.$utils.toast(this.isEditing ? 'Schedule updated successfully' : 'Schedule created successfully');
+          this.cancel();
         })
         .catch(() => {
           this.loading = false;
@@ -251,8 +241,9 @@ export default {
         this.$api
           .deleteSchedule(this.form.id)
           .then(() => {
+            this.loading = false;
             this.$utils.toast('Schedule deleted');
-            this.$router.push({ name: 'sequenceSchedules' });
+            this.cancel();
           })
           .catch(() => {
             this.loading = false;

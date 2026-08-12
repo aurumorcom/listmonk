@@ -3,12 +3,12 @@
     <header class="columns page-header">
       <div class="column is-6">
         <p v-if="!isNew" class="tags">
-          <b-tag :class="form.status">
-            {{ form.status.toUpperCase() }}
+          <b-tag :class="form.status === 'active' ? 'running' : form.status">
+            {{ $t(`campaigns.status.${form.status === 'active' ? 'running' : form.status}`) }}
           </b-tag>
           <span class="has-text-grey-light is-size-7">
             ID: {{ form.id }}
-            UUID: {{ form.uuid }}
+            <span v-if="form.uuid" class="ml-2">UUID: {{ form.uuid }}</span>
           </span>
         </p>
         <h4 class="title is-4">
@@ -16,10 +16,18 @@
         </h4>
       </div>
 
-      <div class="column is-6 has-text-right">
+      <div class="column is-6 has-text-right" v-if="!isNew">
         <div class="buttons is-right">
-          <b-button @click="() => save()" type="is-primary" icon-left="content-save-outline" :loading="loading" data-cy="btn-save" aria-keyshortcuts="ctrl+s">
+          <b-button @click="() => save('save')" type="is-primary" icon-left="content-save-outline" :loading="loading" data-cy="btn-save" aria-keyshortcuts="ctrl+s">
             <span class="has-kbd">Save Changes <span class="kbd">Ctrl+S</span></span>
+          </b-button>
+          <b-button v-if="form.status === 'paused' || form.status === 'draft'"
+            @click="toggleStatus('active')" type="is-primary" icon-left="rocket-launch-outline"
+            :loading="loading" data-cy="btn-start">
+            Start Sequence
+          </b-button>
+          <b-button v-else-if="form.status === 'active'" @click="toggleStatus('paused')" type="is-primary" icon-left="pause-circle-outline" :loading="loading" data-cy="btn-pause">
+            Pause Sequence
           </b-button>
         </div>
       </div>
@@ -33,74 +41,44 @@
         <section class="wrap">
           <div class="columns">
             <div class="column is-7">
-              <b-field label="Sequence Name" label-position="on-border">
-                <b-input v-model="form.name" required placeholder="Cold Outreach Sequence" :maxlength="200" />
-              </b-field>
+              <form @submit.prevent="onFormSubmit">
+                <b-field label="Name" label-position="on-border">
+                  <b-input v-model="form.name" required placeholder="Name" :maxlength="200" />
+                </b-field>
 
-              <div class="columns">
-                <div class="column is-6">
-                  <b-field label="Status" label-position="on-border">
-                    <b-select v-model="form.status" expanded>
-                      <option value="active">Active</option>
-                      <option value="paused">Paused</option>
-                      <option value="archived">Archived</option>
-                    </b-select>
-                  </b-field>
-                </div>
-                <div class="column is-6">
-                  <b-field label="Default Sequence Timezone" label-position="on-border" message="Fallback timezone if contact has no tz attribute">
-                    <b-autocomplete
-                      v-model="form.timezone"
-                      :data="filteredTimezones"
-                      placeholder="e.g. America/Denver or UTC"
-                      open-on-focus
-                      clearable
-                      expanded
-                      @select="option => form.timezone = option || 'UTC'">
-                      <template #empty>No timezones found</template>
-                    </b-autocomplete>
-                  </b-field>
-                </div>
-              </div>
-
-              <hr />
-
-              <!-- Scheduling Section (Apollo Parity) -->
-              <div class="card p-4 mb-4">
-                <h5 class="title is-5 mb-3">Scheduling</h5>
                 <b-field label="Schedule *" label-position="on-border">
-                  <b-select v-model="form.schedule_id" expanded placeholder="Select a schedule...">
+                  <b-select v-model="form.schedule_id" expanded placeholder="Select a schedule..." required>
                     <option v-for="s in schedules" :key="s.id" :value="s.id">
                       {{ s.name }}
                     </option>
                   </b-select>
                 </b-field>
 
-                <div v-if="selectedSchedule" class="content mt-3 p-3 has-background-light rounded">
-                  <div v-for="day in daysOfWeek" :key="day.key" class="columns is-mobile is-marginless py-1">
-                    <div class="column is-4 py-0">
-                      <strong>{{ day.label }}:</strong>
-                    </div>
-                    <div class="column is-8 py-0">
-                      <span v-if="getScheduleDayWindowText(selectedSchedule, day.key)">
-                        {{ getScheduleDayWindowText(selectedSchedule, day.key) }}
-                      </span>
-                      <span v-else class="has-text-grey italic">No sending window set</span>
-                    </div>
-                  </div>
+                <b-field label="Tags" label-position="on-border">
+                  <b-taginput v-model="form.tags" name="tags" ellipsis icon="tag-outline" placeholder="Tags" />
+                </b-field>
 
-                  <div class="buttons mt-4">
-                    <b-button icon-left="pencil-outline" @click="editSelectedSchedule">Edit schedule</b-button>
-                    <b-button icon-left="plus" type="is-light" @click="createNewSchedule">+ Create new schedule</b-button>
-                  </div>
+                <div>
+                  <p class="has-text-right">
+                    <a href="#" @click.prevent="onShowHeaders" data-cy="btn-headers">
+                      <b-icon icon="plus" />Set custom headers
+                    </a>
+                  </p>
+                  <b-field v-if="form.headersStr !== '[]' || isHeadersVisible" label-position="on-border"
+                    :message="$t('campaigns.customHeadersHelp')">
+                    <b-input v-model="form.headersStr" name="headers" type="textarea"
+                      placeholder='[{"X-Custom": "value"}, {"X-Custom2": "value"}]' />
+                  </b-field>
                 </div>
-              </div>
 
-              <b-field v-if="isNew" class="mt-4">
-                <b-button type="is-primary" :loading="loading" @click="onContinue" data-cy="btn-continue">
-                  Continue
-                </b-button>
-              </b-field>
+                <hr />
+
+                <b-field v-if="isNew" class="mt-4">
+                  <b-button native-type="submit" type="is-primary" :loading="loading" data-cy="btn-continue">
+                    Continue
+                  </b-button>
+                </b-field>
+              </form>
             </div>
 
             <!-- Side Information Box (Matching Campaign.vue) -->
@@ -110,9 +88,10 @@
                 <h3 class="title is-size-6">
                   Sequence Overview
                 </h3>
-                <p class="is-size-7 mb-2"><strong>Timezone:</strong> {{ form.timezone || 'UTC' }}</p>
-                <p class="is-size-7 mb-2"><strong>Schedule:</strong> {{ form.send_schedule.enabled ? `${form.send_schedule.start_time} - ${form.send_schedule.end_time}` : '24/7' }}</p>
-                <p class="is-size-7 mb-2"><strong>Active Days:</strong> {{ form.send_schedule.enabled ? form.send_schedule.days.join(', ').toUpperCase() : 'All' }}</p>
+                <p class="is-size-7 mb-2"><strong>Timezone:</strong> {{ selectedSchedule ? (selectedSchedule.timezone || 'UTC') : 'UTC' }}</p>
+                <p class="is-size-7 mb-2"><strong>Schedule:</strong> {{ selectedSchedule ? selectedSchedule.name : 'None selected' }}</p>
+                <p class="is-size-7 mb-2"><strong>Contact TZ Override:</strong> {{ selectedSchedule && selectedSchedule.use_contact_timezone ? 'Enabled' : 'Disabled' }}</p>
+                <p class="is-size-7 mb-2"><strong>Skip Holidays:</strong> {{ selectedSchedule && selectedSchedule.skip_holidays ? 'Yes' : 'No' }}</p>
                 <p class="is-size-7 mb-2"><strong>Pacing:</strong> Fully Calculative (Auto)</p>
               </div>
             </div>
@@ -149,54 +128,101 @@
               </div>
             </template>
 
-            <!-- Column 1: Step # & Condition -->
-            <b-table-column v-slot="props" label="Step & Condition" width="18%">
+            <!-- Column 1: Status -->
+            <b-table-column v-slot="props" cell-class="status" field="status" :label="$t('globals.fields.status')" width="10%" header-class="cy-status">
               <div>
-                <b-tag type="is-primary" class="mr-2">Step {{ props.index + 1 }}</b-tag>
-                <b-tag :type="getConditionTagType(props.row.condition)">
-                  {{ formatCondition(props.row.condition) }}
-                </b-tag>
+                <p>
+                  <a href="#" @click.prevent="toggleStepActive(props.index)">
+                    <b-tag :class="isStepActive(props.row) ? 'finished' : 'is-light'">
+                      {{ isStepActive(props.row) ? 'Active' : 'Inactive' }}
+                    </b-tag>
+                  </a>
+                </p>
               </div>
             </b-table-column>
 
-            <!-- Column 2: Subject & Content Snippet -->
-            <b-table-column v-slot="props" label="Subject Line & Content" width="30%">
+            <!-- Column 2: Name -->
+            <b-table-column v-slot="props" field="name" :label="$t('globals.fields.name')" width="25%" header-class="cy-name">
               <div>
                 <p>
                   <a href="#" @click.prevent="openEditStepCampaign(props.row, props.index)">
-                    <strong>{{ props.row.subject || '(No Subject Line)' }}</strong>
+                    Step {{ props.row.step_number || (props.index + 1) }}{{ props.row.name ? `: ${props.row.name}` : '' }}
+                    <copy-text :text="props.row.name || `Step ${props.row.step_number || (props.index + 1)}`" hide-text />
                   </a>
-                  <copy-text :text="props.row.subject" hide-text />
                 </p>
-                <p class="is-size-7 has-text-grey" v-if="props.row.body">
-                  {{ props.row.body.substring(0, 80) }}{{ props.row.body.length > 80 ? '...' : '' }}
+                <p class="is-size-7 has-text-grey" v-if="props.row.subject">
+                  <copy-text :text="props.row.subject" />
                 </p>
               </div>
             </b-table-column>
 
-            <!-- Column 3: Messenger Channel & Delay -->
-            <b-table-column v-slot="props" label="Channel & Delay" width="18%">
-              <div>
-                <b-tag type="is-info is-light" class="mr-2">
-                  {{ props.row.messenger === 'whatsapp' || props.row.messenger === 'waha' ? 'WhatsApp' : 'Email' }}
-                </b-tag>
-                <b-tag type="is-light">
-                  {{ props.row.delay_days === 0 ? 'Immediate' : `${props.row.delay_days}d delay` }}
-                </b-tag>
+            <!-- Column 3: Condition (Formatted exactly like Lists column in Campaigns.vue) -->
+            <b-table-column v-slot="props" cell-class="lists" field="condition" label="Condition" width="15%" header-class="cy-condition">
+              <ul>
+                <li>
+                  <a href="#" @click.prevent="openEditStepCampaign(props.row, props.index)">
+                    {{ formatCondition(props.row.condition) }}
+                  </a>
+                </li>
+              </ul>
+            </b-table-column>
+
+            <!-- Column 3: Timestamps -->
+            <b-table-column v-slot="props" field="created_at" :label="$t('campaigns.timestamps')" width="22%" header-class="cy-timestamp">
+              <div class="fields timestamps">
+                <p>
+                  <label for="#">{{ $t('globals.fields.createdAt') }}</label>
+                  <span>{{ $utils.niceDate(props.row.created_at || props.row.createdAt || form.created_at || new Date(), true) }}</span>
+                </p>
+                <p v-if="props.row.updated_at || props.row.updatedAt">
+                  <label for="#">Updated</label>
+                  <span>{{ $utils.niceDate(props.row.updated_at || props.row.updatedAt, true) }}</span>
+                </p>
               </div>
             </b-table-column>
 
-            <!-- Column 4: Timestamps / Schedule -->
-            <b-table-column v-slot="props" label="Schedule Window" width="14%">
-              <span class="is-size-7 has-text-grey">
-                <b-icon icon="alarm" size="is-small" />
-                {{ props.row.delay_days === 0 ? 'Send Immediately' : `Wait ${props.row.delay_days} day(s)` }}
-              </span>
+            <!-- Column 4: Stats -->
+            <b-table-column v-slot="props" field="stats" :label="$t('campaigns.stats')" width="18%">
+              <div class="fields stats">
+                <p>
+                  <label for="#">{{ $t('campaigns.views') }}</label>
+                  <span>{{ $utils.formatNumber(props.row.views || 0) }}</span>
+                </p>
+                <p>
+                  <label for="#">{{ $t('campaigns.clicks') }}</label>
+                  <span>{{ $utils.formatNumber(props.row.clicks || 0) }}</span>
+                </p>
+                <p>
+                  <label for="#">{{ $t('campaigns.sent') }}</label>
+                  <span>
+                    {{ $utils.formatNumber(props.row.sent || 0) }} /
+                    {{ $utils.formatNumber(props.row.to_send || props.row.total || 0) }}
+                  </span>
+                </p>
+                <p>
+                  <label for="#">{{ $t('globals.terms.bounces') }}</label>
+                  <span>
+                    <router-link :to="{ name: 'bounces', query: { sequence_id: form.id, step_id: props.row.id || props.row.step_number } }">
+                      {{ $utils.formatNumber(props.row.bounces || 0) }}
+                    </router-link>
+                  </span>
+                </p>
+              </div>
             </b-table-column>
 
             <!-- Column 5: Actions -->
             <b-table-column v-slot="props" cell-class="actions" width="20%" align="right">
               <div>
+                <a href="#" @click.prevent="toggleStepActive(props.index)" aria-label="Toggle Step Active/Inactive">
+                  <b-tooltip :label="isStepActive(props.row) ? 'Inactivate Step' : 'Activate Step'" type="is-dark">
+                    <b-icon :icon="isStepActive(props.row) ? 'pause-circle-outline' : 'rocket-launch-outline'" size="is-small" />
+                  </b-tooltip>
+                </a>
+                <router-link :to="{ name: 'sequenceAnalytics', query: { sequence_id: form.id, step_id: props.row.id || props.row.step_number } }">
+                  <b-tooltip label="Step Analytics" type="is-dark">
+                    <b-icon icon="chart-bar" size="is-small" />
+                  </b-tooltip>
+                </router-link>
                 <a href="#" @click.prevent="moveStepUp(props.index)" v-if="props.index > 0" aria-label="Move Up">
                   <b-tooltip label="Move Up" type="is-dark">
                     <b-icon icon="arrow-up" size="is-small" />
@@ -283,6 +309,7 @@ export default {
       isNew: true,
       activeTab: 'sequence',
       loading: false,
+      isHeadersVisible: false,
       schedules: [],
       daysOfWeek: [
         { key: 'mon', label: 'Monday' },
@@ -304,14 +331,9 @@ export default {
         name: '',
         status: 'active',
         schedule_id: null,
-        timezone: 'UTC',
+        tags: [],
+        headersStr: '[]',
         load_balance_mode: 'round_robin',
-        send_schedule: {
-          enabled: true,
-          start_time: '09:00',
-          end_time: '17:00',
-          days: ['mon', 'tue', 'wed', 'thu', 'fri'],
-        },
         email_ids: [],
         waha_sessions: [],
         attribsStr: '{}',
@@ -347,35 +369,40 @@ export default {
     window.removeEventListener('keydown', this.onKeyboardShortcut);
   },
   methods: {
+    isStepActive(step) {
+      if (step.status === 'inactive' || step.is_disabled || step.enabled === false) {
+        return false;
+      }
+      return true;
+    },
+    toggleStepActive(idx) {
+      const step = this.steps[idx];
+      const active = this.isStepActive(step);
+      const newStatus = active ? 'inactive' : 'active';
+      this.$set(this.steps[idx], 'status', newStatus);
+      this.$set(this.steps[idx], 'enabled', !active);
+      this.$set(this.steps[idx], 'is_disabled', active);
+      this.saveStepsToBackend();
+      this.$utils.toast(`Step #${idx + 1} marked as ${newStatus}`);
+    },
+    formatStatus(status) {
+      if (!status) return 'Finished';
+      const key = `campaigns.status.${status}`;
+      if (this.$te && this.$te(key)) {
+        return this.$t(key);
+      }
+      return status.charAt(0).toUpperCase() + status.slice(1);
+    },
     loadSchedules() {
       this.$api.getSchedules().then((res) => {
-        this.schedules = res.data || [];
+        this.schedules = Array.isArray(res) ? res : (res.data || []);
         if (!this.form.schedule_id && this.schedules.length > 0) {
           this.form.schedule_id = this.schedules[0].id;
         }
       });
     },
-    getScheduleDayWindowText(sched, dayKey) {
-      if (!sched || !sched.sending_windows) return '';
-      let windows = sched.sending_windows;
-      if (typeof windows === 'string') {
-        try {
-          windows = JSON.parse(windows);
-        } catch (e) {
-          return '';
-        }
-      }
-      const blocks = windows[dayKey];
-      if (!blocks || !blocks.length) return '';
-      return blocks.map((b) => `${b.start}–${b.end}`).join(' | ');
-    },
-    editSelectedSchedule() {
-      if (this.form.schedule_id) {
-        this.$router.push({ name: 'sequenceScheduleForm', params: { id: this.form.schedule_id } });
-      }
-    },
-    createNewSchedule() {
-      this.$router.push({ name: 'sequenceScheduleForm', params: { id: 'new' } });
+    onShowHeaders() {
+      this.isHeadersVisible = true;
     },
     formatCondition(cond) {
       const map = {
@@ -401,23 +428,23 @@ export default {
     onKeyboardShortcut(e) {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
-        this.save();
+        this.save('save');
       }
     },
     loadSequence(id) {
       this.loading = true;
       this.$api.getSequence(id).then((res) => {
-        this.form = { ...this.form, ...res.data };
-        if (!this.form.send_schedule || typeof this.form.send_schedule !== 'object') {
-          this.form.send_schedule = {
-            enabled: true,
-            start_time: '09:00',
-            end_time: '17:00',
-            days: ['mon', 'tue', 'wed', 'thu', 'fri'],
-          };
+        const d = res.data || res;
+        this.form = { ...this.form, ...d };
+        if (typeof this.form.tags === 'string') {
+          this.form.tags = this.form.tags ? this.form.tags.split(',') : [];
+        }
+        if (!this.form.headersStr) {
+          this.form.headersStr = '[]';
         }
         this.$api.getSequenceSteps(id).then((stepsRes) => {
-          this.steps = stepsRes.data.length ? stepsRes.data : this.steps;
+          const stepList = Array.isArray(stepsRes) ? stepsRes : (stepsRes.data || []);
+          this.steps = stepList.length ? stepList : this.steps;
           this.loading = false;
         }).catch(() => {
           this.loading = false;
@@ -493,6 +520,17 @@ export default {
         this.$utils.toast('Step configuration saved.');
       });
     },
+    toggleStatus(newStatus) {
+      this.form.status = newStatus;
+      this.save('save');
+    },
+    onFormSubmit() {
+      if (this.isNew) {
+        this.save('continue');
+      } else {
+        this.save('save');
+      }
+    },
     save(mode = 'save') {
       this.loading = true;
       const action = this.isNew
@@ -524,21 +562,11 @@ export default {
         this.loading = false;
       });
     },
-    onContinue() {
-      this.save('continue');
-    },
   },
   computed: {
     selectedSchedule() {
       if (!this.form.schedule_id) return null;
       return this.schedules.find((s) => s.id === this.form.schedule_id) || null;
-    },
-    allTimezones() {
-      return this.$utils ? this.$utils.getTimezones() : ['UTC'];
-    },
-    filteredTimezones() {
-      const q = (this.form.timezone || '').toLowerCase();
-      return this.allTimezones.filter((tz) => tz.toLowerCase().includes(q));
     },
   },
 };

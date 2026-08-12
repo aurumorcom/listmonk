@@ -55,77 +55,75 @@
       </template>
 
       <!-- Column 1: Status -->
-      <b-table-column v-slot="props" cell-class="status" field="status" :label="$t('globals.fields.status')" width="12%" sortable>
+      <b-table-column v-slot="props" cell-class="status" field="status" :label="$t('globals.fields.status')" width="10%" sortable header-class="cy-status">
         <div>
           <p>
             <router-link :to="{ name: 'sequence', params: { id: props.row.id } }">
-              <b-tag :class="props.row.status === 'active' ? 'is-success' : 'is-light'">
-                {{ (props.row.status || 'active').toUpperCase() }}
+              <b-tag :class="props.row.status === 'active' ? 'running' : props.row.status">
+                {{ $t(`campaigns.status.${props.row.status === 'active' ? 'running' : props.row.status}`) }}
               </b-tag>
               <span class="spinner is-tiny" v-if="isRunning(props.row.id)">
                 <b-loading :is-full-page="false" active />
               </span>
             </router-link>
           </p>
-          <p v-if="props.row.send_schedule && props.row.send_schedule.enabled">
-            <span class="is-size-7 has-text-grey scheduled">
-              <b-icon icon="alarm" size="is-small" />
-              {{ props.row.send_schedule.start_time || '09:00' }} - {{ props.row.send_schedule.end_time || '17:00' }}
-            </span>
-          </p>
         </div>
       </b-table-column>
 
       <!-- Column 2: Name -->
-      <b-table-column v-slot="props" field="name" :label="$t('globals.fields.name')" width="25%" sortable>
+      <b-table-column v-slot="props" field="name" :label="$t('globals.fields.name')" width="25%" sortable header-class="cy-name">
         <div>
           <p>
             <router-link :to="{ name: 'sequence', params: { id: props.row.id } }">
-              <strong>{{ props.row.name }}</strong>
+              {{ props.row.name }}
               <copy-text :text="props.row.name" hide-text />
             </router-link>
           </p>
-          <p class="is-size-7 has-text-grey">
-            Timezone: {{ props.row.timezone || 'UTC' }}
+          <p class="is-size-7 has-text-grey" v-if="props.row.tags && props.row.tags.length">
+            <b-taglist>
+              <b-tag class="is-small" v-for="t in props.row.tags" :key="t">
+                {{ t }}
+              </b-tag>
+            </b-taglist>
           </p>
         </div>
       </b-table-column>
 
-      <!-- Column 3: Senders / Lists -->
-      <b-table-column v-slot="props" cell-class="lists" label="Senders Pool" width="15%">
-        <div>
-          <b-taglist v-if="(props.row.email_ids && props.row.email_ids.length) || (props.row.mailbox_ids && props.row.mailbox_ids.length)">
-            <b-tag type="is-info is-light" v-for="mb in (props.row.email_ids || props.row.mailbox_ids)" :key="'mb-' + mb">
-              Email #{{ mb }}
-            </b-tag>
-          </b-taglist>
-          <b-taglist v-if="props.row.waha_sessions && props.row.waha_sessions.length">
-            <b-tag type="is-success is-light" v-for="ws in props.row.waha_sessions" :key="'ws-' + ws">
-              WhatsApp: {{ ws }}
-            </b-tag>
-          </b-taglist>
-          <span
-            v-if="(!props.row.email_ids || !props.row.email_ids.length)
-              && (!props.row.mailbox_ids || !props.row.mailbox_ids.length)
-              && (!props.row.waha_sessions || !props.row.waha_sessions.length)"
-            class="has-text-grey is-size-7">
-            Default Pool
-          </span>
-        </div>
+      <!-- Column 3: Schedule (Replacing Lists) -->
+      <b-table-column v-slot="props" cell-class="lists" field="schedule" label="Schedule" width="15%">
+        <ul>
+          <li>
+            <router-link :to="{ name: 'sequenceSchedules' }">
+              {{ getScheduleName(props.row.schedule_id) }}
+            </router-link>
+          </li>
+        </ul>
       </b-table-column>
 
       <!-- Column 4: Timestamps -->
-      <b-table-column v-slot="props" field="created_at" label="Timestamps" width="18%" sortable>
-        <div class="fields timestamps">
+      <b-table-column v-slot="props" field="created_at" :label="$t('campaigns.timestamps')" width="19%" sortable header-class="cy-timestamp">
+        <div class="fields timestamps" :set="stats = getSequenceStats(props.row)">
           <p>
             <label for="#">{{ $t('globals.fields.createdAt') }}</label>
-            <span>{{ $utils ? $utils.niceDate(props.row.created_at, true) : new Date(props.row.created_at).toLocaleDateString() }}</span>
+            <span>{{ $utils.niceDate(props.row.created_at || props.row.createdAt, true) }}</span>
+          </p>
+          <p v-if="stats.started_at || stats.startedAt">
+            <label for="#">{{ $t('campaigns.startedAt') }}</label>
+            <span>{{ $utils.niceDate(stats.started_at || stats.startedAt, true) }}</span>
+          </p>
+          <p v-if="stats.ended_at || stats.endedAt || props.row.status === 'finished'">
+            <label for="#">{{ $t('campaigns.ended') }}</label>
+            <span>{{ $utils.niceDate(stats.ended_at || stats.endedAt || props.row.updated_at, true) }}</span>
+          </p>
+          <p v-if="(stats.started_at || stats.startedAt) && (stats.ended_at || stats.endedAt)" class="is-capitalized">
+            <label for="#"><b-icon icon="alarm" size="is-small" /></label>
+            <span>{{ $utils.duration(stats.started_at || stats.startedAt, stats.ended_at || stats.endedAt) }}</span>
           </p>
         </div>
       </b-table-column>
 
       <!-- Column 5: Stats -->
-      <b-table-column v-slot="props" field="stats" label="Stats" width="15%">
+      <b-table-column v-slot="props" field="stats" :label="$t('campaigns.stats')" width="15%">
         <div class="fields stats" :set="stats = getSequenceStats(props.row)">
           <p>
             <label for="#">{{ $t('campaigns.views') }}</label>
@@ -136,9 +134,10 @@
             <span>{{ $utils.formatNumber(stats.clicks || 0) }}</span>
           </p>
           <p>
-            <label for="#">Sent</label>
+            <label for="#">{{ $t('campaigns.sent') }}</label>
             <span>
-              {{ $utils.formatNumber(stats.sent || 0) }}
+              {{ $utils.formatNumber(stats.sent || 0) }} /
+              {{ $utils.formatNumber(stats.to_send || stats.toSend || stats.total || 0) }}
             </span>
           </p>
           <p>
@@ -232,6 +231,7 @@ export default {
   data() {
     return {
       sequences: [],
+      schedules: [],
       loading: false,
       searchQuery: '',
       perPage: 20,
@@ -263,12 +263,31 @@ export default {
   },
   mounted() {
     this.getSequences();
+    this.getSchedules();
     this.pollStats();
   },
   destroyed() {
     clearInterval(this.pollID);
   },
   methods: {
+    formatStatus(status) {
+      if (!status || status === 'active') return 'Running';
+      const key = `campaigns.status.${status}`;
+      if (this.$te && this.$te(key)) {
+        return this.$t(key);
+      }
+      return status.charAt(0).toUpperCase() + status.slice(1);
+    },
+    getSchedules() {
+      this.$api.getSchedules().then((res) => {
+        this.schedules = Array.isArray(res) ? res : (res.data || []);
+      }).catch(() => {});
+    },
+    getScheduleName(id) {
+      if (!id) return 'Default Schedule';
+      const s = this.schedules.find((item) => item.id === id);
+      return s ? s.name : `Schedule #${id}`;
+    },
     getSequences() {
       this.loading = true;
       this.$api.getSequences().then((res) => {
@@ -317,7 +336,12 @@ export default {
       this.previewItem = null;
     },
     changeSequenceStatus(seq, status) {
-      this.$api.updateSequence(seq.id, { ...seq, status }).then(() => {
+      this.$api.updateSequence(seq.id, {
+        ...seq,
+        status,
+        email_ids: seq.email_ids || seq.mailbox_ids || [],
+        waha_sessions: seq.waha_sessions || [],
+      }).then(() => {
         this.$utils.toast(`Sequence status updated to ${status}`);
         this.getSequences();
       });

@@ -1,13 +1,9 @@
 <template>
   <section class="analytics content relative">
     <h1 class="title is-4">
-      Sequence Analytics
+      {{ $t('analytics.title') }}
     </h1>
-    <p class="has-text-grey">
-      Performance metrics, funnel conversion, and time-series activity for cold outreach sequences.
-    </p>
-
-    <div v-if="serverConfig && serverConfig.privacy && (serverConfig.privacy.disable_tracking || !serverConfig.privacy.individual_tracking)"
+    <div v-if="serverConfig.privacy.disable_tracking || !serverConfig.privacy.individual_tracking"
       class="notification is-info">
       <template v-if="serverConfig.privacy.disable_tracking">
         {{ $t('analytics.trackingDisabled') }}
@@ -18,14 +14,13 @@
     </div>
     <hr />
 
-    <!-- Search / Filter Form matching Campaign Analytics -->
     <form @submit.prevent="onSubmit">
       <div class="columns">
         <div class="column is-6">
           <b-field label="Sequences" label-position="on-border">
-            <b-taginput v-model="form.sequences" :data="queriedSequences" name="sequences" ellipsis icon="tag-outline"
-              placeholder="Select sequences..." autocomplete :allow-new="false" :open-on-focus="true"
-              :before-adding="isSequenceSelected" @typing="querySequences" @focus="querySequences" field="name"
+            <b-taginput v-model="form.items" :data="queriedItems" name="items" ellipsis icon="tag-outline"
+              placeholder="Select sequences or steps..." autocomplete :allow-new="false" :open-on-focus="true"
+              :before-adding="isItemSelected" @typing="queryItems" @focus="queryItems" field="name"
               :loading="isSearchLoading" />
           </b-field>
         </div>
@@ -48,60 +43,24 @@
         </div>
 
         <div class="column is-1">
-          <b-button native-type="submit" type="is-primary" icon-left="magnify" data-cy="btn-search" />
+          <b-button native-type="submit" type="is-primary" icon-left="magnify" :disabled="form.items.length === 0"
+            data-cy="btn-search" />
         </div>
       </div>
     </form>
 
-    <!-- Sequence-Specific Top Metric Summary Cards -->
-    <div class="columns mt-4">
-      <div class="column is-3">
-        <div class="box">
-          <p class="heading">Active Contacts</p>
-          <p class="title is-4">{{ $utils ? $utils.niceNumber(stats.activeContacts) : stats.activeContacts }}</p>
-        </div>
-      </div>
-      <div class="column is-3">
-        <div class="box">
-          <p class="heading">Step Completions</p>
-          <p class="title is-4">{{ $utils ? $utils.niceNumber(stats.stepCompletions) : stats.stepCompletions }}</p>
-        </div>
-      </div>
-      <div class="column is-3">
-        <div class="box">
-          <p class="heading">Reply Rate</p>
-          <p class="title is-4">{{ stats.replyRate }}%</p>
-        </div>
-      </div>
-      <div class="column is-3">
-        <div class="box">
-          <p class="heading">Conversion Rate</p>
-          <p class="title is-4">{{ stats.conversionRate }}%</p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Step Conversion Funnel Section -->
-    <section class="charts mt-4">
-      <div class="box">
-        <h4 class="subtitle is-5">Step Conversion Funnel</h4>
-        <chart type="bar" v-if="!loading" :data="funnelChartData" />
-      </div>
-    </section>
-
-    <!-- Time Series Activity Charts (Views, Clicks, Bounces, Links) from Campaign Analytics -->
     <section class="charts mt-5">
-      <div class="chart" v-for="(v, k) in timeCharts" :key="k">
+      <div class="chart" v-for="(v, k) in charts" :key="k">
         <div class="columns">
           <div class="column is-9">
             <b-loading v-if="v.loading" :active="v.loading" :is-full-page="false" />
             <h4>
               {{ v.name }}
-              <span v-if="v.type !== 'bar' && counts[k] !== undefined" class="has-text-grey-light">({{ $utils ? $utils.niceNumber(counts[k]) : counts[k] }})</span>
+              <span v-if="v.type !== 'bar'" class="has-text-grey-light">({{ $utils.niceNumber(counts[k]) }})</span>
             </h4>
             <chart :type="v.type" v-if="!v.loading" :data="v.data" :on-click="v.onClick" />
           </div>
-          <div class="column is-2 donut-container" v-if="v.donutData">
+          <div class="column is-2 donut-container">
             <chart type="donut" v-if="!v.loading" :data="v.donutData" />
           </div>
         </div>
@@ -119,7 +78,7 @@ import { colors } from '../constants';
 
 const chartColorRed = '#ee7d5b';
 const chartColors = [
-  colors ? colors.primary : '#22c55e',
+  colors.primary,
   '#FFB50D',
   '#41AC9C',
   chartColorRed,
@@ -134,17 +93,12 @@ export default Vue.extend({
   components: {
     Chart,
   },
+
   data() {
     return {
-      loading: true,
       isSearchLoading: false,
-      queriedSequences: [],
-      stats: {
-        activeContacts: 0,
-        stepCompletions: 0,
-        replyRate: '0.0',
-        conversionRate: '0.0',
-      },
+      queriedItems: [],
+
       counts: {
         views: 0,
         clicks: 0,
@@ -152,40 +106,37 @@ export default Vue.extend({
         links: 0,
       },
       urls: [],
-      funnelChartData: {
-        labels: [],
-        datasets: [
-          { name: 'Contacts Reached', values: [] },
-          { name: 'Replies', values: [] },
-        ],
-      },
-      timeCharts: {
+      charts: {
         views: {
-          name: 'Views',
+          name: this.$t('campaigns.views'),
           type: 'line',
           data: null,
           fn: this.$api.getCampaignViewCounts,
-          chartFn: this.makeLineCharts,
+          chartFn: this.makeCharts,
           loading: false,
         },
+
         clicks: {
-          name: 'Clicks',
+          name: this.$t('campaigns.clicks'),
           type: 'line',
           data: null,
           fn: this.$api.getCampaignClickCounts,
-          chartFn: this.makeLineCharts,
+          chartFn: this.makeCharts,
           loading: false,
         },
+
         bounces: {
-          name: 'Bounces',
+          name: this.$t('globals.terms.bounces'),
           type: 'line',
           data: null,
           fn: this.$api.getCampaignBounceCounts,
-          chartFn: this.makeLineCharts,
+          chartFn: this.makeCharts,
+          donutColor: chartColorRed,
           loading: false,
         },
+
         links: {
-          name: 'Links Clicked',
+          name: this.$t('analytics.links'),
           type: 'bar',
           data: null,
           loading: false,
@@ -194,16 +145,207 @@ export default Vue.extend({
           onClick: this.onLinkClick,
         },
       },
+
       form: {
-        sequences: [],
+        items: [],
         from: null,
         to: null,
       },
     };
   },
+
+  methods: {
+    onFromDateChange() {
+      if (this.form.from > this.form.to) {
+        this.form.to = dayjs(this.form.from).add(7, 'day').toDate();
+      }
+    },
+
+    onToDateChange() {
+      if (this.form.from > this.form.to) {
+        this.form.from = dayjs(this.form.to).add(-7, 'day').toDate();
+      }
+    },
+
+    formatDateTime(s) {
+      return dayjs(s).format('YYYY-MM-DD HH:mm');
+    },
+
+    isItemSelected(item) {
+      return !this.form.items.find((i) => i.id === item.id && i.isStep === item.isStep);
+    },
+
+    makeLinksChart(typ, items, data) {
+      const labels = data.map((l) => {
+        try {
+          this.urls.push(l.url);
+          const u = new URL(l.url);
+          if (l.url.length > 80) {
+            return `${u.hostname}${u.pathname.substr(0, 50)}..`;
+          }
+          return u.hostname + u.pathname;
+        } catch {
+          return l.url;
+        }
+      });
+
+      const out = {
+        labels,
+        datasets: [
+          {
+            data: data.map((l) => l.count),
+            backgroundColor: chartColors,
+          }],
+      };
+
+      return { points: out, donut: null };
+    },
+
+    makeCharts(typ, items, data) {
+      const itemMap = items.reduce((obj, i) => {
+        const out = { ...obj };
+        const key = `${i.isStep ? 'step' : 'seq'}_${i.id}`;
+        out[key] = i;
+        return out;
+      }, {});
+      const keys = Object.keys(itemMap);
+
+      const lines = keys.map((k, n) => {
+        const targetItem = itemMap[k];
+        const points = data.filter((item) => (item.campaignId === targetItem.id || item.sequenceId === targetItem.id || item.stepId === targetItem.id));
+
+        return {
+          label: targetItem.name,
+          data: points.map((item) => ({ x: this.formatDateTime(item.timestamp), y: item.count })),
+          borderColor: chartColors[n % chartColors.length],
+          borderWidth: 2,
+          pointHoverBorderWidth: 5,
+          pointBorderWidth: 0.5,
+        };
+      });
+
+      const labels = [];
+      const points = keys.map((k) => {
+        const targetItem = itemMap[k];
+        labels.push(targetItem.name);
+        const sum = data.reduce((a, item) => (item.campaignId === targetItem.id || item.sequenceId === targetItem.id || item.stepId === targetItem.id ? a + item.count : a), 0);
+        return sum;
+      });
+
+      const donut = {
+        labels,
+        datasets: [{
+          data: points, backgroundColor: chartColors, borderWidth: 6,
+        }],
+      };
+      return { points: { datasets: lines }, donut };
+    },
+
+    onSubmit() {
+      const seqIds = this.form.items.filter((i) => !i.isStep).map((i) => i.id);
+      const stepIds = this.form.items.filter((i) => i.isStep).map((i) => i.id);
+      this.$router.push({
+        query: {
+          id: seqIds.length > 0 ? seqIds : undefined,
+          step_id: stepIds.length > 0 ? stepIds : undefined,
+          from: dayjs(this.form.from).unix(),
+          to: dayjs(this.form.to).unix(),
+        },
+      });
+      this.loadAllCharts();
+    },
+
+    queryItems(q) {
+      this.isSearchLoading = true;
+      const selectedSeqs = this.form.items.filter((i) => !i.isStep);
+
+      this.$api.getSequences().then((res) => {
+        const seqList = Array.isArray(res) ? res : (res.data || []);
+        const matchingSeqs = seqList
+          .filter((s) => !q || (s.name && s.name.toLowerCase().includes(q.toLowerCase())))
+          .map((s) => ({
+            id: s.id,
+            name: `#${s.id}: ${s.name}`,
+            isStep: false,
+          }));
+
+        // Rule: Only show step suggestions AFTER selecting exactly 1 sequence!
+        // If 0 sequences are selected or 2+ sequences are selected, show ONLY sequence options.
+        if (selectedSeqs.length === 1) {
+          const targetSeqId = selectedSeqs[0].id;
+          this.$api.getSequenceSteps(targetSeqId).then((stepsRes) => {
+            this.isSearchLoading = false;
+            const stepList = Array.isArray(stepsRes) ? stepsRes : (stepsRes.data || []);
+            const matchingSteps = stepList
+              .map((st, idx) => {
+                const sNum = st.step_number || (idx + 1);
+                const sName = `Step ${sNum}${st.subject ? `: ${st.subject}` : ''} (Seq #${targetSeqId})`;
+                return {
+                  id: st.id || sNum,
+                  sequence_id: targetSeqId,
+                  name: sName,
+                  isStep: true,
+                };
+              })
+              .filter((st) => !q || st.name.toLowerCase().includes(q.toLowerCase()));
+
+            this.queriedItems = [...matchingSeqs, ...matchingSteps];
+          }).catch(() => {
+            this.queriedItems = matchingSeqs;
+            this.isSearchLoading = false;
+          });
+        } else {
+          this.queriedItems = matchingSeqs;
+          this.isSearchLoading = false;
+        }
+      }).catch(() => {
+        this.isSearchLoading = false;
+      });
+    },
+
+    loadAllCharts() {
+      if (this.form.items.length === 0) return;
+      Object.keys(this.charts).forEach((k) => {
+        this.charts[k].data = null;
+        this.charts[k].donutData = null;
+        this.getData(k, this.form.items);
+      });
+    },
+
+    getData(typ, items) {
+      if (!items || items.length === 0) return;
+      this.charts[typ].loading = true;
+
+      const ids = items.map((i) => i.id);
+      this.charts[typ].fn({
+        id: ids,
+        from: this.form.from,
+        to: this.form.to,
+      }).then((data) => {
+        const list = Array.isArray(data) ? data : (data.data || []);
+        this.counts[typ] = list.reduce((sum, d) => sum + (d.count || 0), 0);
+
+        const { points, donut } = this.charts[typ].chartFn(typ, items, list);
+        this.charts[typ].data = points;
+        this.charts[typ].donutData = donut;
+        this.charts[typ].loading = false;
+      }).catch(() => {
+        this.charts[typ].loading = false;
+      });
+    },
+
+    onLinkClick(e) {
+      const bars = e.chart.getElementsAtEventForMode(e, 'nearest', { intersect: true }, true);
+      if (bars.length > 0 && this.urls[bars[0].index]) {
+        window.open(this.urls[bars[0].index], '_blank', 'noopener noreferrer');
+      }
+    },
+  },
+
   computed: {
     ...mapState(['serverConfig']),
   },
+
   created() {
     const now = dayjs().set('hour', 23).set('minute', 59).set('seconds', 0);
     const weekAgo = now.subtract(7, 'day').set('hour', 0).set('minute', 0);
@@ -212,187 +354,46 @@ export default Vue.extend({
     this.form.from = from.toDate();
     this.form.to = to.toDate();
   },
-  mounted() {
-    this.fetchSequenceKPIs();
 
-    const ids = this.$utils ? this.$utils.parseQueryIDs(this.$route.query.id) : [];
-    if (ids.length > 0) {
+  mounted() {
+    const seqIDs = this.$utils.parseQueryIDs(this.$route.query.id || this.$route.query.sequence_id);
+    const stepIDs = this.$utils.parseQueryIDs(this.$route.query.step_id);
+
+    const promises = [];
+    seqIDs.forEach((id) => {
+      promises.push(this.$api.getSequence(id).then((res) => {
+        const seq = res.data || res;
+        return { id: seq.id, name: `#${seq.id}: ${seq.name}`, isStep: false };
+      }));
+    });
+
+    if (seqIDs.length === 1 && stepIDs.length > 0) {
+      const seqId = seqIDs[0];
+      stepIDs.forEach((stId) => {
+        promises.push(Promise.resolve({
+          id: stId,
+          sequence_id: seqId,
+          name: `Step #${stId} (Seq #${seqId})`,
+          isStep: true,
+        }));
+      });
+    }
+
+    if (promises.length > 0) {
       this.isSearchLoading = true;
-      Promise.allSettled(ids.map((id) => this.$api.getSequence(id))).then((res) => {
-        res.forEach((d) => {
-          if (d.status === 'fulfilled' && d.value) {
-            const seq = d.value.data || d.value;
-            seq.name = `#${seq.id}: ${seq.name}`;
-            this.form.sequences.push(seq);
+      Promise.allSettled(promises).then((results) => {
+        results.forEach((r) => {
+          if (r.status === 'fulfilled' && r.value) {
+            this.form.items.push(r.value);
           }
         });
-        this.isSearchLoading = false;
-        this.loadTimeSeriesCharts();
+
+        this.$nextTick(() => {
+          this.isSearchLoading = false;
+          this.loadAllCharts();
+        });
       });
-    } else {
-      this.loadTimeSeriesCharts();
     }
-  },
-  methods: {
-    onFromDateChange() {
-      if (this.form.from > this.form.to) {
-        this.form.to = dayjs(this.form.from).add(7, 'day').toDate();
-      }
-    },
-    onToDateChange() {
-      if (this.form.from > this.form.to) {
-        this.form.from = dayjs(this.form.to).add(-7, 'day').toDate();
-      }
-    },
-    formatDateTime(s) {
-      return dayjs(s).format('YYYY-MM-DD HH:mm');
-    },
-    isSequenceSelected(seq) {
-      return !this.form.sequences.find(({ id }) => id === seq.id);
-    },
-    querySequences(q) {
-      this.isSearchLoading = true;
-      this.$api.getSequences().then((res) => {
-        this.isSearchLoading = false;
-        const list = res.data || res || [];
-        this.queriedSequences = list
-          .filter((s) => !q || (s.name && s.name.toLowerCase().includes(q.toLowerCase())))
-          .map((s) => ({ ...s, name: `#${s.id}: ${s.name}` }));
-      }).catch(() => {
-        this.isSearchLoading = false;
-      });
-    },
-    onSubmit() {
-      this.$router.push({
-        query: {
-          id: this.form.sequences.map((s) => s.id),
-          from: dayjs(this.form.from).unix(),
-          to: dayjs(this.form.to).unix(),
-        },
-      });
-      this.fetchSequenceKPIs();
-      this.loadTimeSeriesCharts();
-    },
-    fetchSequenceKPIs() {
-      this.loading = true;
-      this.$api.getSequenceAnalytics().then((res) => {
-        const d = res.data || res || {};
-        this.stats = {
-          activeContacts: d.active_contacts || 0,
-          stepCompletions: d.step_completions || 0,
-          replyRate: (d.reply_rate || 0).toFixed(1),
-          conversionRate: (d.conversion_rate || 0).toFixed(1),
-        };
-
-        const funnel = d.funnel || [];
-        if (funnel.length > 0) {
-          const labels = [];
-          const reachedVals = [];
-          const repliedVals = [];
-          funnel.forEach((f) => {
-            labels.push(`Step ${f.step_number}${f.subject ? `: ${f.subject}` : ''}`);
-            reachedVals.push(f.reached || 0);
-            repliedVals.push(f.replied || 0);
-          });
-          this.funnelChartData = {
-            labels,
-            datasets: [
-              { name: 'Contacts Reached', values: reachedVals },
-              { name: 'Replies', values: repliedVals },
-            ],
-          };
-        } else {
-          this.funnelChartData = {
-            labels: ['No Sequence Steps Configured'],
-            datasets: [
-              { name: 'Contacts Reached', values: [0] },
-              { name: 'Replies', values: [0] },
-            ],
-          };
-        }
-        this.loading = false;
-      }).catch(() => {
-        this.loading = false;
-      });
-    },
-    loadTimeSeriesCharts() {
-      const selectedIDs = this.form.sequences.map((s) => s.id);
-      Object.keys(this.timeCharts).forEach((k) => {
-        this.timeCharts[k].data = null;
-        this.timeCharts[k].donutData = null;
-        this.fetchTimeSeriesData(k, selectedIDs);
-      });
-    },
-    fetchTimeSeriesData(typ, ids) {
-      if (!this.timeCharts[typ].fn) return;
-      this.timeCharts[typ].loading = true;
-      this.timeCharts[typ].fn({
-        id: ids,
-        from: this.form.from,
-        to: this.form.to,
-      }).then((data) => {
-        const list = data || [];
-        this.counts[typ] = list.reduce((sum, d) => sum + (d.count || 0), 0);
-        const { points, donut } = this.timeCharts[typ].chartFn(typ, this.form.sequences, list);
-        this.timeCharts[typ].data = points;
-        this.timeCharts[typ].donutData = donut;
-        this.timeCharts[typ].loading = false;
-      }).catch(() => {
-        this.timeCharts[typ].loading = false;
-      });
-    },
-    makeLineCharts(typ, sequences, data) {
-      const seqMap = sequences.reduce((obj, s) => ({ ...obj, [s.id]: s }), {});
-      const seqIDs = Object.keys(seqMap);
-      const lines = seqIDs.map((id, n) => {
-        const sId = parseInt(id, 10);
-        const points = data.filter((item) => item.campaignId === sId || item.sequenceId === sId);
-        return {
-          label: seqMap[id].name,
-          data: points.map((item) => ({ x: this.formatDateTime(item.timestamp), y: item.count })),
-          borderColor: chartColors[n % chartColors.length],
-          borderWidth: 2,
-        };
-      });
-
-      const labels = [];
-      const points = seqIDs.map((id) => {
-        labels.push(seqMap[id].name);
-        const sId = parseInt(id, 10);
-        return data.reduce((a, item) => (item.campaignId === sId || item.sequenceId === sId ? a + item.count : a), 0);
-      });
-
-      const donut = {
-        labels,
-        datasets: [{ data: points, backgroundColor: chartColors, borderWidth: 6 }],
-      };
-      return { points: { datasets: lines }, donut };
-    },
-    makeLinksChart(typ, sequences, data) {
-      const labels = (data || []).map((l) => {
-        try {
-          this.urls.push(l.url);
-          const u = new URL(l.url);
-          return u.hostname + u.pathname;
-        } catch {
-          return l.url;
-        }
-      });
-      const out = {
-        labels,
-        datasets: [
-          { data: (data || []).map((l) => l.count), backgroundColor: chartColors },
-        ],
-      };
-      return { points: out, donut: null };
-    },
-    onLinkClick(e) {
-      if (!e || !e.chart) return;
-      const bars = e.chart.getElementsAtEventForMode(e, 'nearest', { intersect: true }, true);
-      if (bars.length > 0 && this.urls[bars[0].index]) {
-        window.open(this.urls[bars[0].index], '_blank', 'noopener noreferrer');
-      }
-    },
   },
 });
 </script>

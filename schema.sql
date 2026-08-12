@@ -503,17 +503,17 @@ CREATE TABLE sequences (
 -- sequence_steps
 DROP TABLE IF EXISTS sequence_steps CASCADE;
 CREATE TABLE sequence_steps (
-    id          SERIAL PRIMARY KEY,
-    sequence_id INTEGER NOT NULL REFERENCES sequences(id) ON DELETE CASCADE,
-    step_number INTEGER NOT NULL DEFAULT 1,
-    delay_days  INTEGER NOT NULL DEFAULT 0,
-    messenger   TEXT NOT NULL DEFAULT 'email',
-    condition   TEXT NOT NULL DEFAULT 'always',
-    subject     TEXT NOT NULL DEFAULT '',
-    body        TEXT NOT NULL DEFAULT '',
-    email_type  TEXT NOT NULL DEFAULT '',
-    template_id INTEGER NULL REFERENCES templates(id) ON DELETE SET NULL,
-    created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    id            SERIAL PRIMARY KEY,
+    sequence_id   INTEGER NOT NULL REFERENCES sequences(id) ON DELETE CASCADE,
+    step_number   INTEGER NOT NULL DEFAULT 1,
+    delay_seconds INTEGER NOT NULL DEFAULT 0,
+    messenger     TEXT NOT NULL DEFAULT 'email',
+    condition     TEXT NOT NULL DEFAULT 'always',
+    subject       TEXT NOT NULL DEFAULT '',
+    body          TEXT NOT NULL DEFAULT '',
+    email_type    TEXT NOT NULL DEFAULT '',
+    template_id   INTEGER NULL REFERENCES templates(id) ON DELETE SET NULL,
+    created_at    TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 CREATE INDEX idx_sequence_steps_sequence_id ON sequence_steps(sequence_id);
 
