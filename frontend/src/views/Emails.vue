@@ -89,8 +89,7 @@ export default {
   methods: {
     getEmails() {
       this.loading = true;
-      const fn = this.$api.getEmails || this.$api.getMailboxes;
-      fn().then((res) => {
+      this.$api.getEmails().then((res) => {
         this.emails = res.data;
         this.loading = false;
       });
@@ -121,14 +120,12 @@ export default {
     },
     saveEmail() {
       if (this.isEditing) {
-        const fn = this.$api.updateEmail || this.$api.updateMailbox;
-        fn(this.form.id, this.form).then(() => {
+        this.$api.updateEmail(this.form.id, this.form).then(() => {
           this.showModal = false;
           this.getEmails();
         });
       } else {
-        const fn = this.$api.createEmail || this.$api.createMailbox;
-        fn(this.form).then(() => {
+        this.$api.createEmail(this.form).then(() => {
           this.showModal = false;
           this.getEmails();
         });
@@ -136,8 +133,7 @@ export default {
     },
     deleteEmail(id) {
       this.$utils.confirm('Delete email account?', () => {
-        const fn = this.$api.deleteEmail || this.$api.deleteMailbox;
-        fn(id).then(() => {
+        this.$api.deleteEmail(id).then(() => {
           this.getEmails();
         });
       });
