@@ -60,6 +60,21 @@ func TestReplyListenerProcessReply(t *testing.T) {
 	if err := l.ProcessReply(""); err != nil {
 		t.Errorf("expected nil error for empty email, got %v", err)
 	}
+
+	// Test Layer 1 Fast-Path Opt-Out Regex
+	if !reOptOut.MatchString("STOP") || !reOptOut.MatchString("unsubscribe") {
+		t.Errorf("expected reOptOut to match 'STOP' and 'unsubscribe'")
+	}
+
+	// Test Layer 1 Fast-Path Interested Regex
+	if !reInterested.MatchString("yes, let's talk") || !reInterested.MatchString("interested") {
+		t.Errorf("expected reInterested to match 'yes, let's talk' and 'interested'")
+	}
+
+	// Test Layer 1 Fast-Path OOO Regex
+	if !reOOO.MatchString("I am currently out of office until Monday") {
+		t.Errorf("expected reOOO to match 'out of office'")
+	}
 }
 
 func TestSequenceStepMediaIDs(t *testing.T) {
