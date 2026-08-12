@@ -84,6 +84,7 @@ type Settings struct {
 
 	SMTP []struct {
 		Name          string              `json:"name"`
+		User          string              `json:"user"`
 		UUID          string              `json:"uuid"`
 		Enabled       bool                `json:"enabled"`
 		Host          string              `json:"host"`
@@ -193,5 +194,6 @@ type WAHAMessenger struct {
 	MessagesPerDay    int      `json:"messages_per_day"`
 	MessagesPerHour   int      `json:"messages_per_hour"`
 	UserID            null.Int `json:"user_id"`
+	User              string   `json:"user"`
 	Signature         string   `json:"signature"`
 }

@@ -242,6 +242,31 @@ export default Vue.extend({
           d.smtp[i].strEmailHeaders = JSON.stringify(d.smtp[i].email_headers, null, 4);
         }
 
+        // Ensure waha_messengers exists and has default item if empty
+        if (!d.waha_messengers || !Array.isArray(d.waha_messengers) || d.waha_messengers.length === 0) {
+          d.waha_messengers = [
+            {
+              enabled: true,
+              user: '',
+              root_url: 'http://waha:3000',
+              api_key: '',
+              session: 'default',
+              phone_attribute: 'phone',
+              signature: '',
+              max_conns: 10,
+              max_msg_retries: 2,
+              timeout: '10s',
+              typing_mode: 'human',
+              target_wpm: 60,
+              wpm_std: 10,
+              keyboard_layout: 'qwerty',
+              max_typing_delay_sec: 30,
+              messages_per_day: 0,
+              messages_per_hour: 0,
+            },
+          ];
+        }
+
         // Domain blocklist array to multi-line string.
         d['privacy.domain_blocklist'] = d['privacy.domain_blocklist'].join('\n');
         d['privacy.domain_allowlist'] = d['privacy.domain_allowlist'].join('\n');
