@@ -196,7 +196,7 @@
                 <b-field v-if="item.email_headers.length > 0 || item.showHeaders" label-position="on-border"
                   :message="$t('settings.smtp.customHeadersHelp')">
                   <b-input v-model="item.strEmailHeaders" name="email_headers" type="textarea"
-                    placeholder='[{"X-Custom": "value"}]' />
+                    placeholder="[{&quot;X-Custom&quot;: &quot;value&quot;}]" />
                 </b-field>
               </div>
             </div>

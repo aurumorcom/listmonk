@@ -62,7 +62,7 @@
               <b-icon icon="pencil-outline" size="is-small" />
             </b-tooltip>
           </router-link>
-          <a href="#" @click.prevent="deleteSchedule(props.row.id)">
+          <a href="#" @click.prevent="deleteSchedule(props.row.id)" aria-label="Delete Schedule">
             <b-tooltip label="Delete Schedule" type="is-dark">
               <b-icon icon="trash-can-outline" size="is-small" />
             </b-tooltip>

@@ -104,7 +104,11 @@
               WhatsApp: {{ ws }}
             </b-tag>
           </b-taglist>
-          <span v-if="(!props.row.email_ids || !props.row.email_ids.length) && (!props.row.mailbox_ids || !props.row.mailbox_ids.length) && (!props.row.waha_sessions || !props.row.waha_sessions.length)" class="has-text-grey is-size-7">
+          <span
+            v-if="(!props.row.email_ids || !props.row.email_ids.length)
+              && (!props.row.mailbox_ids || !props.row.mailbox_ids.length)
+              && (!props.row.waha_sessions || !props.row.waha_sessions.length)"
+            class="has-text-grey is-size-7">
             Default Pool
           </span>
         </div>
