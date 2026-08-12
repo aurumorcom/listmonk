@@ -94,8 +94,8 @@
       <!-- Column 3: Senders / Lists -->
       <b-table-column v-slot="props" cell-class="lists" label="Senders Pool" width="15%">
         <div>
-          <b-taglist v-if="props.row.mailbox_ids && props.row.mailbox_ids.length">
-            <b-tag type="is-info is-light" v-for="mb in props.row.mailbox_ids" :key="'mb-' + mb">
+          <b-taglist v-if="(props.row.email_ids && props.row.email_ids.length) || (props.row.mailbox_ids && props.row.mailbox_ids.length)">
+            <b-tag type="is-info is-light" v-for="mb in (props.row.email_ids || props.row.mailbox_ids)" :key="'mb-' + mb">
               Email #{{ mb }}
             </b-tag>
           </b-taglist>
@@ -104,7 +104,7 @@
               WhatsApp: {{ ws }}
             </b-tag>
           </b-taglist>
-          <span v-if="(!props.row.mailbox_ids || !props.row.mailbox_ids.length) && (!props.row.waha_sessions || !props.row.waha_sessions.length)" class="has-text-grey is-size-7">
+          <span v-if="(!props.row.email_ids || !props.row.email_ids.length) && (!props.row.mailbox_ids || !props.row.mailbox_ids.length) && (!props.row.waha_sessions || !props.row.waha_sessions.length)" class="has-text-grey is-size-7">
             Default Pool
           </span>
         </div>
@@ -325,7 +325,7 @@ export default {
         timezone: seq.timezone || 'UTC',
         send_schedule: seq.send_schedule,
         load_balance_mode: seq.load_balance_mode,
-        mailbox_ids: seq.mailbox_ids || [],
+        email_ids: seq.email_ids || seq.mailbox_ids || [],
         waha_sessions: seq.waha_sessions || [],
       };
       this.$api.createSequence(cloned).then((res) => {

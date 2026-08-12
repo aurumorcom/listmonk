@@ -238,7 +238,7 @@
           <div class="columns">
             <div class="column is-7">
               <b-field label="Email Accounts Pool" label-position="on-border">
-                <b-taginput v-model="selectedMailboxes" :data="availableMailboxes" field="name" placeholder="Select Emails" autocomplete />
+                <b-taginput v-model="selectedEmails" :data="availableEmails" field="name" placeholder="Select Emails" autocomplete />
               </b-field>
 
               <b-field label="WAHA WhatsApp Sessions Pool" label-position="on-border">
@@ -293,8 +293,8 @@ export default {
         { key: 'sat', label: 'Saturday' },
         { key: 'sun', label: 'Sunday' },
       ],
-      selectedMailboxes: [],
-      availableMailboxes: [],
+      selectedEmails: [],
+      availableEmails: [],
       selectedWahaSessions: [],
       availableWahaSessions: [],
       checkedSteps: [],
@@ -312,7 +312,7 @@ export default {
           end_time: '17:00',
           days: ['mon', 'tue', 'wed', 'thu', 'fri'],
         },
-        mailbox_ids: [],
+        email_ids: [],
         waha_sessions: [],
         attribsStr: '{}',
       },
