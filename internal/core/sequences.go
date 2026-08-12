@@ -520,6 +520,73 @@ func (c *Core) RecordSequenceReplyByPhone(phone string) error {
 	return err
 }
 
+// CancelSequenceContactForOptOut cancels active sequence contacts and unsubscribes the subscriber upon explicit opt-out.
+func (c *Core) CancelSequenceContactForOptOut(identifier string, isPhone bool) error {
+	if identifier == "" {
+		return nil
+	}
+
+	if isPhone {
+		cleaned := regexp.MustCompile(`[^\d]`).ReplaceAllString(identifier, "")
+		if cleaned == "" {
+			return nil
+		}
+		_, err := c.db.Exec(`UPDATE sequence_contacts
+			SET status = 'cancelled'
+			WHERE subscriber_id IN (
+				SELECT id FROM subscribers
+				WHERE REGEXP_REPLACE(phone, '[^\d]', '', 'g') = $1
+				   OR REGEXP_REPLACE(attribs->>'phone', '[^\d]', '', 'g') = $1
+			) AND status IN ('scheduled', 'in_progress')`, cleaned)
+		if err != nil {
+			return err
+		}
+		// Also mark subscriber status as unsubscribed
+		_, err = c.db.Exec(`UPDATE subscribers SET status = 'unsubscribed'
+			WHERE REGEXP_REPLACE(phone, '[^\d]', '', 'g') = $1
+			   OR REGEXP_REPLACE(attribs->>'phone', '[^\d]', '', 'g') = $1`, cleaned)
+		return err
+	}
+
+	_, err := c.db.Exec(`UPDATE sequence_contacts
+		SET status = 'cancelled'
+		WHERE subscriber_id = (SELECT id FROM subscribers WHERE email = $1 LIMIT 1)
+		  AND status IN ('scheduled', 'in_progress')`, identifier)
+	if err != nil {
+		return err
+	}
+	_, err = c.db.Exec(`UPDATE subscribers SET status = 'unsubscribed' WHERE email = $1`, identifier)
+	return err
+}
+
+// DeferSequenceContactOOO defers active sequence contacts to a future return date for Out-Of-Office replies.
+func (c *Core) DeferSequenceContactOOO(identifier string, isPhone bool, returnDate time.Time) error {
+	if identifier == "" {
+		return nil
+	}
+
+	if isPhone {
+		cleaned := regexp.MustCompile(`[^\d]`).ReplaceAllString(identifier, "")
+		if cleaned == "" {
+			return nil
+		}
+		_, err := c.db.Exec(`UPDATE sequence_contacts
+			SET next_send_at = $2, status = 'in_progress'
+			WHERE subscriber_id IN (
+				SELECT id FROM subscribers
+				WHERE REGEXP_REPLACE(phone, '[^\d]', '', 'g') = $1
+				   OR REGEXP_REPLACE(attribs->>'phone', '[^\d]', '', 'g') = $1
+			) AND status IN ('scheduled', 'in_progress')`, cleaned, returnDate)
+		return err
+	}
+
+	_, err := c.db.Exec(`UPDATE sequence_contacts
+		SET next_send_at = $2, status = 'in_progress'
+		WHERE subscriber_id = (SELECT id FROM subscribers WHERE email = $1 LIMIT 1)
+		  AND status IN ('scheduled', 'in_progress')`, identifier, returnDate)
+	return err
+}
+
 // RecordSequenceStepHistory appends a step execution record to a subscriber's sequence_history attribute.
 func (c *Core) RecordSequenceStepHistory(subID int, stepNumber int, messenger, subject, body string) error {
 	historyRecord := map[string]any{
