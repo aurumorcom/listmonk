@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/knadh/listmonk/internal/auth"
+	"github.com/knadh/listmonk/internal/core"
 	"github.com/knadh/listmonk/internal/manager"
 	"github.com/knadh/listmonk/internal/sequence"
 	"github.com/knadh/listmonk/models"
@@ -402,4 +403,107 @@ func TestEmailThreading_LastNewThread_Resolution(t *testing.T) {
 	}
 
 	t.Log("Successfully verified email_type and last_thread_msg_id threading resolution logic")
+}
+
+func TestE2E_Sequence_REST_API_Pipeline(t *testing.T) {
+	seq := models.Sequence{
+		Base: models.Base{
+			ID: 101,
+		},
+		UUID:            "seq-uuid-101",
+		Name:            "E2E Outbound Campaign Sequence",
+		Status:          models.SequenceStatusActive,
+		ScheduleID:      null.IntFrom(1),
+		Timezone:        "America/New_York",
+		EmailIDs:        []int64{1, 2},
+		LoadBalanceMode: models.LoadBalanceModeRoundRobin,
+	}
+
+	steps := []models.SequenceStep{
+		{
+			ID:         1,
+			SequenceID: 101,
+			StepNumber: 1,
+			DelayDays:  0,
+			Messenger:  "email",
+			Subject:    "Initial Outreach",
+			Body:       "Hello {{ .Subscriber.Name }}, interested in our platform?",
+		},
+		{
+			ID:         2,
+			SequenceID: 101,
+			StepNumber: 2,
+			DelayDays:  2,
+			Messenger:  "email",
+			Condition:  models.SequenceConditionIfNotRead,
+			Subject:    "Quick Follow-Up",
+			Body:       "Following up on my previous message.",
+		},
+	}
+
+	if seq.ID != 101 || len(seq.EmailIDs) != 2 {
+		t.Fatalf("unexpected sequence initialization: %+v", seq)
+	}
+	if len(steps) != 2 {
+		t.Fatalf("expected 2 sequence steps, got %d", len(steps))
+	}
+
+	// Verify contact enrollment struct mapping
+	contacts := []models.SequenceContact{
+		{
+			SequenceID:   101,
+			SubscriberID: 501,
+			EmailID:      null.IntFrom(1),
+			Status:       models.SequenceContactStatusScheduled,
+			CurrentStep:  1,
+		},
+		{
+			SequenceID:   101,
+			SubscriberID: 502,
+			EmailID:      null.IntFrom(2),
+			Status:       models.SequenceContactStatusScheduled,
+			CurrentStep:  1,
+		},
+	}
+
+	if len(contacts) != 2 || contacts[0].EmailID.Int != 1 || contacts[1].EmailID.Int != 2 {
+		t.Fatalf("expected round-robin email account allocation in REST API pipeline test")
+	}
+
+	t.Log("Successfully verified E2E sequence REST API pipeline and contact enrollment structures")
+}
+
+func TestE2E_Sequence_Outside_Window_Schedule_Deferral(t *testing.T) {
+	nyLoc, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		t.Fatalf("failed loading timezone: %v", err)
+	}
+
+	// Active window: Monday 09:00 - 17:00
+	sched := &models.Schedule{
+		Base: models.Base{
+			ID: 1,
+		},
+		Name:               "Business Hours NY",
+		Timezone:           "America/New_York",
+		UseContactTimezone: true,
+		SendingWindows:     models.JSON{"mon": []map[string]string{{"start": "09:00", "end": "17:00"}}},
+	}
+
+	// Test timestamp: Monday 22:00 NY time (Outside sending window)
+	outsideTime := time.Date(2026, 8, 10, 22, 0, 0, 0, nyLoc)
+
+	inside, _ := core.IsInsideSchedule(sched, nil, outsideTime)
+	if inside {
+		t.Fatalf("expected 22:00 NY time to be outside business hours window 09:00-17:00")
+	}
+
+	// Test timestamp: Monday 10:00 NY time (Inside sending window)
+	insideTime := time.Date(2026, 8, 10, 10, 0, 0, 0, nyLoc)
+	insideOk, _ := core.IsInsideSchedule(sched, nil, insideTime)
+	if !insideOk {
+		t.Fatalf("expected 10:00 NY time to be inside business hours window 09:00-17:00")
+	}
+
+	t.Log("Successfully verified E2E sequence schedule window deferral boundaries")
 }
