@@ -202,7 +202,7 @@ func (c *Core) GetStepAttachments(store media.Store, mediaIDs []int64) ([]models
 	return atts, nil
 }
 
-// AllocateSendersRoundRobinInt distributes subscriber IDs round-robin across an integer pool (e.g. mailbox IDs).
+// AllocateSendersRoundRobinInt distributes subscriber IDs round-robin across an integer pool (e.g. email account IDs).
 func AllocateSendersRoundRobinInt(subIDs []int, pool []int64) map[int]null.Int {
 	alloc := make(map[int]null.Int, len(subIDs))
 	if len(pool) == 0 {
@@ -266,7 +266,7 @@ func AllocateSendersCapacityWeighted(subIDs []int, emails []models.Email) map[in
 	}
 
 	if totalRemaining == 0 || len(active) == 0 {
-		// Fallback to round-robin if no mailbox has remaining capacity
+		// Fallback to round-robin if no email account has remaining capacity
 		var pool []int64
 		for _, m := range emails {
 			pool = append(pool, int64(m.ID))
