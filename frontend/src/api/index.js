@@ -608,8 +608,16 @@ export const disableTOTP = (id, data) => http.delete(
   { data },
 );
 
+// Schedules
+export const getSchedules = () => http.get('/api/schedules');
+export const getSchedule = (id) => http.get(`/api/schedules/${id}`);
+export const createSchedule = (data) => http.post('/api/schedules', data);
+export const updateSchedule = (id, data) => http.put(`/api/schedules/${id}`, data);
+export const deleteSchedule = (id) => http.delete(`/api/schedules/${id}`);
+
 // Sequences
 export const getSequences = () => http.get('/api/sequences');
+export const getSequenceAnalytics = () => http.get('/api/sequences/analytics');
 export const getSequence = (id) => http.get(`/api/sequences/${id}`);
 export const createSequence = (data) => http.post('/api/sequences', data);
 export const updateSequence = (id, data) => http.put(`/api/sequences/${id}`, data);
