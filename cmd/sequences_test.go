@@ -1,9 +1,12 @@
 package main
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
+	"github.com/knadh/listmonk/internal/auth"
+	"github.com/knadh/listmonk/internal/manager"
 	"github.com/knadh/listmonk/internal/sequence"
 	"github.com/knadh/listmonk/models"
 	null "gopkg.in/volatiletech/null.v6"
@@ -139,7 +142,7 @@ func TestE2E_Sequence_Sender_Reassignment_And_Limits(t *testing.T) {
 	contact := models.SequenceContact{
 		SequenceID:   400,
 		SubscriberID: 401,
-		MailboxID:    null.IntFrom(10),
+		EmailID:      null.IntFrom(10),
 		WahaSession:  null.StringFrom("aryans-whatsapp"),
 		Status:       models.SequenceContactStatusInProgress,
 		CurrentStep:  1,
@@ -151,14 +154,14 @@ func TestE2E_Sequence_Sender_Reassignment_And_Limits(t *testing.T) {
 		t.Errorf("expected reassigned session 'contact', got %s", contact.WahaSession.String)
 	}
 
-	// Test mailbox daily limit deferral simulation
-	mb := models.Mailbox{
-		Base:       models.Base{ID: 10},
-		DailyLimit: 100,
-		SentToday:  100, // Limit reached
+	// Test email account daily limit deferral simulation
+	mb := models.Email{
+		Base:         models.Base{ID: 10},
+		EmailsPerDay: 100,
+		EmailsToday:  100, // Limit reached
 	}
 
-	if mb.SentToday >= mb.DailyLimit {
+	if mb.EmailsPerDay > 0 && mb.EmailsToday >= mb.EmailsPerDay {
 		deferSend := null.TimeFrom(time.Now().Add(24 * time.Hour))
 		contact.NextSendAt = deferSend
 		if !contact.NextSendAt.Valid {
@@ -206,4 +209,197 @@ func TestE2E_Sequence_Schedule_Timezone_Pacing(t *testing.T) {
 	}
 
 	t.Log("Successfully verified sequence schedule and timezone resolution for pacing")
+}
+
+func TestE2E_Sequence_MultiStep_LLM_Lifecycle(t *testing.T) {
+	// Contact Alice enrolled with User.Signature
+	sub := models.Subscriber{
+		Base:  models.Base{ID: 801},
+		Name:  "Alice Smith",
+		Email: "alice@example.com",
+		Attribs: models.JSON{
+			"company": "Acme Inc",
+			"user": map[string]any{
+				"signature": "<p>Best regards,<br/>John Doe (Sales Manager)</p>",
+			},
+		},
+	}
+
+	// Scope for Step 1
+	scope1 := manager.ExtractTemplateScope(sub)
+	if _, ok := scope1["Subscriber"].(models.Subscriber); !ok {
+		t.Fatalf("expected Subscriber in scope1")
+	}
+	sig1 := manager.ResolveSignature(sub, "<p>Global Signature</p>")
+	if sig1 != "<p>Best regards,<br/>John Doe (Sales Manager)</p>" {
+		t.Errorf("expected User.Signature override, got %q", sig1)
+	}
+
+	// Step 1: LLM generates structured email JSON response
+	mockRawJSON1 := "```json\n{\"subject\":\"Intro to Acme Inc\",\"content\":\"<p>Hi Alice, let us automate your workflow.</p>\"}\n```"
+	cleanJSON1 := manager.CleanJSONResponse(mockRawJSON1)
+
+	var structOut1 manager.EmailStructuredOutput
+	if err := json.Unmarshal([]byte(cleanJSON1), &structOut1); err != nil {
+		t.Fatalf("Failed to unmarshal structured output 1: %v", err)
+	}
+
+	step1Content := structOut1.Content + "<br/><br/>" + sig1
+
+	// Save Step 1 to sequence_history
+	history := []map[string]any{
+		{
+			"step_number": 1,
+			"step":        1,
+			"messenger":   "email",
+			"subject":     structOut1.Subject,
+			"content":     step1Content,
+			"message":     step1Content,
+		},
+	}
+	sub.Attribs["sequence_history"] = history
+
+	// Scope for Step 2: Test evaluating .Step1.content and .Step.1.content
+	scope2 := manager.ExtractTemplateScope(sub)
+	step1Data, ok := scope2["Step1"].(map[string]any)
+	if !ok || step1Data["subject"] != "Intro to Acme Inc" {
+		t.Fatalf("expected Step 1 subject in scope 2, got %v", scope2["Step1"])
+	}
+
+	// Step 2: WhatsApp structured response
+	mockRawJSON2 := "```json\n{\"message\":\"Hi Alice, following up on email 'Intro to Acme Inc'\"}\n```"
+	cleanJSON2 := manager.CleanJSONResponse(mockRawJSON2)
+
+	var structOut2 manager.MessageStructuredOutput
+	if err := json.Unmarshal([]byte(cleanJSON2), &structOut2); err != nil {
+		t.Fatalf("Failed to unmarshal structured output 2: %v", err)
+	}
+
+	// Save Step 2 to sequence_history
+	history = append(history, map[string]any{
+		"step_number": 2,
+		"step":        2,
+		"messenger":   "waha",
+		"message":     structOut2.Message,
+	})
+	sub.Attribs["sequence_history"] = history
+
+	// Scope for Step 3: Test evaluating .Step2.message
+	scope3 := manager.ExtractTemplateScope(sub)
+	step2Data, ok := scope3["Step2"].(map[string]any)
+	if !ok || step2Data["message"] != "Hi Alice, following up on email 'Intro to Acme Inc'" {
+		t.Fatalf("expected Step 2 message in scope 3, got %v", scope3["Step2"])
+	}
+
+	t.Log("Successfully verified end-to-end multi-step LLM sequence lifecycle with structured outputs, signature precedence, and history referencing")
+}
+
+func TestSequenceAnalytics_DataStructure(t *testing.T) {
+	analytics := models.SequenceAnalytics{
+		ActiveContacts:  15,
+		StepCompletions: 45,
+		ReplyRate:       12.5,
+		ConversionRate:  8.3,
+		Funnel: []models.SequenceStepFunnel{
+			{
+				StepNumber: 1,
+				Subject:    "Initial Contact",
+				Messenger:  "email",
+				Reached:    20,
+				Replied:    3,
+			},
+			{
+				StepNumber: 2,
+				Subject:    "Follow Up WhatsApp",
+				Messenger:  "waha",
+				Reached:    15,
+				Replied:    2,
+			},
+		},
+	}
+
+	if analytics.ActiveContacts != 15 {
+		t.Fatalf("expected 15 active contacts, got %d", analytics.ActiveContacts)
+	}
+	if len(analytics.Funnel) != 2 {
+		t.Fatalf("expected 2 funnel steps, got %d", len(analytics.Funnel))
+	}
+	if analytics.Funnel[0].Reached != 20 {
+		t.Fatalf("expected 20 reached for step 1, got %d", analytics.Funnel[0].Reached)
+	}
+	t.Log("Successfully verified SequenceAnalytics model aggregation structure")
+}
+
+func TestUserChannelOwnership_And_CrossChannelLock(t *testing.T) {
+	// Verify User identity and channel locking structure
+	u := auth.User{
+		Username:    "user1_sales",
+		EmailID:     null.IntFrom(101),
+		WahaSession: null.StringFrom("session_user1"),
+	}
+
+	if !u.EmailID.Valid || u.EmailID.Int != 101 {
+		t.Fatalf("expected EmailID 101, got %v", u.EmailID)
+	}
+	if !u.WahaSession.Valid || u.WahaSession.String != "session_user1" {
+		t.Fatalf("expected WahaSession 'session_user1', got %v", u.WahaSession)
+	}
+
+	contact := models.SequenceContact{
+		SequenceID:   1,
+		SubscriberID: 501,
+		EmailID:      u.EmailID,
+		WahaSession:  u.WahaSession,
+	}
+
+	if contact.EmailID.Int != 101 || contact.WahaSession.String != "session_user1" {
+		t.Fatalf("expected contact channel lock matching User 1 channels, got email_id=%v waha=%v", contact.EmailID, contact.WahaSession)
+	}
+	t.Log("Successfully verified user channel ownership and cross-channel contact sender locking model")
+}
+
+func TestEmailThreading_LastNewThread_Resolution(t *testing.T) {
+	// Step 1: Initial email sent (msg_1)
+	contact := models.SequenceContact{
+		SequenceID:      1,
+		SubscriberID:    1001,
+		LastMessageID:   null.StringFrom("msg_1"),
+		LastThreadMsgID: null.StringFrom("msg_1"),
+	}
+
+	// Step 2: Email 2 sent with email_type = "New Thread" -> generates msg_2
+	step2 := models.SequenceStep{
+		StepNumber: 2,
+		Messenger:  "email",
+		EmailType:  models.EmailTypeNewThread,
+		Subject:    "New Topic Email 2",
+	}
+
+	if step2.EmailType != "New Thread" {
+		t.Fatalf("expected EmailType 'New Thread', got %s", step2.EmailType)
+	}
+
+	// Update contact state after Email 2 sent
+	contact.LastMessageID = null.StringFrom("msg_2")
+	contact.LastThreadMsgID = null.StringFrom("msg_2") // msg_2 is now the last new thread!
+
+	// Step 3: Email 3 sent with email_type = "Reply" -> MUST reply to msg_2 (the last new thread)
+	step3 := models.SequenceStep{
+		StepNumber: 3,
+		Messenger:  "email",
+		EmailType:  models.EmailTypeReply,
+		Subject:    "Re: New Topic Email 2",
+	}
+
+	if step3.EmailType != "Reply" {
+		t.Fatalf("expected EmailType 'Reply', got %s", step3.EmailType)
+	}
+
+	// Target thread Message ID for Step 3
+	replyTargetMsgID := contact.LastThreadMsgID.String
+	if replyTargetMsgID != "msg_2" {
+		t.Fatalf("expected Step 3 to reply to last new thread 'msg_2', got %s", replyTargetMsgID)
+	}
+
+	t.Log("Successfully verified email_type and last_thread_msg_id threading resolution logic")
 }

@@ -8,59 +8,59 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// GetMailboxes returns all sending mailboxes.
-func (a *App) GetMailboxes(c echo.Context) error {
-	mbs, err := a.core.GetMailboxes()
+// GetEmails returns all sending email accounts.
+func (a *App) GetEmails(c echo.Context) error {
+	mbs, err := a.core.GetEmails()
 	if err != nil {
 		return err
 	}
 	return c.JSON(http.StatusOK, okResp{mbs})
 }
 
-// GetMailbox returns a single mailbox by ID.
-func (a *App) GetMailbox(c echo.Context) error {
+// GetEmail returns a single email account by ID.
+func (a *App) GetEmail(c echo.Context) error {
 	id, _ := strconv.Atoi(c.Param("id"))
-	mb, err := a.core.GetMailbox(id)
+	mb, err := a.core.GetEmail(id)
 	if err != nil {
 		return err
 	}
 	return c.JSON(http.StatusOK, okResp{mb})
 }
 
-// CreateMailbox creates a new sending mailbox.
-func (a *App) CreateMailbox(c echo.Context) error {
-	var req models.Mailbox
+// CreateEmail creates a new sending email account.
+func (a *App) CreateEmail(c echo.Context) error {
+	var req models.Email
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, a.i18n.Ts("globals.messages.invalidReq"))
 	}
 
-	mb, err := a.core.CreateMailbox(req)
+	mb, err := a.core.CreateEmail(req)
 	if err != nil {
 		return err
 	}
 	return c.JSON(http.StatusOK, okResp{mb})
 }
 
-// UpdateMailbox updates an existing mailbox.
-func (a *App) UpdateMailbox(c echo.Context) error {
+// UpdateEmail updates an existing email account.
+func (a *App) UpdateEmail(c echo.Context) error {
 	id, _ := strconv.Atoi(c.Param("id"))
-	var req models.Mailbox
+	var req models.Email
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, a.i18n.Ts("globals.messages.invalidReq"))
 	}
 	req.ID = id
 
-	mb, err := a.core.UpdateMailbox(req)
+	mb, err := a.core.UpdateEmail(req)
 	if err != nil {
 		return err
 	}
 	return c.JSON(http.StatusOK, okResp{mb})
 }
 
-// DeleteMailbox deletes a mailbox.
-func (a *App) DeleteMailbox(c echo.Context) error {
+// DeleteEmail deletes an email account.
+func (a *App) DeleteEmail(c echo.Context) error {
 	id, _ := strconv.Atoi(c.Param("id"))
-	if err := a.core.DeleteMailbox(id); err != nil {
+	if err := a.core.DeleteEmail(id); err != nil {
 		return err
 	}
 	return c.JSON(http.StatusOK, okResp{true})

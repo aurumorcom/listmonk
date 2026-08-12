@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
@@ -72,8 +73,19 @@ func (a *App) PreviewTemplate(c echo.Context) error {
 		return err
 	}
 
+	subID, _ := strconv.Atoi(c.FormValue("subscriber_id"))
+	if subID == 0 {
+		subID, _ = strconv.Atoi(c.QueryParam("subscriber_id"))
+	}
+	sub := dummySubscriber
+	if subID > 0 {
+		if s, err := a.core.GetSubscriber(subID, "", ""); err == nil {
+			sub = s
+		}
+	}
+
 	// Render the template.
-	out, err := a.previewTemplate(tpl)
+	out, err := a.previewTemplate(tpl, sub)
 	if err != nil {
 		return err
 	}
@@ -99,8 +111,16 @@ func (a *App) PreviewTemplateBody(c echo.Context) error {
 			a.i18n.Ts("templates.placeholderHelp", "placeholder", tplTag))
 	}
 
+	subID, _ := strconv.Atoi(c.FormValue("subscriber_id"))
+	sub := dummySubscriber
+	if subID > 0 {
+		if s, err := a.core.GetSubscriber(subID, "", ""); err == nil {
+			sub = s
+		}
+	}
+
 	// Render the template.
-	out, err := a.previewTemplate(tpl)
+	out, err := a.previewTemplate(tpl, sub)
 	if err != nil {
 		return err
 	}
@@ -233,14 +253,14 @@ func (a *App) validateTemplate(o models.Template) error {
 	return nil
 }
 
-// previewTemplate renders the HTML preview of a template.
-func (a *App) previewTemplate(tpl models.Template) ([]byte, error) {
+// previewTemplate renders the HTML preview of a template with contact context and signature precedence.
+func (a *App) previewTemplate(tpl models.Template, sub models.Subscriber) ([]byte, error) {
 	var out []byte
 	if tpl.Type == models.TemplateTypePrompt {
 		if err := tpl.Compile(a.manager.GenericTemplateFuncs()); err != nil {
 			return nil, echo.NewHTTPError(http.StatusBadRequest, err.Error())
 		}
-		scope := manager.ExtractTemplateScope(dummySubscriber)
+		scope := manager.ExtractTemplateScope(sub)
 		sysPromptStr := tpl.SystemPrompt
 		if tpl.SystemPromptTpl != nil {
 			var sb bytes.Buffer
@@ -249,7 +269,12 @@ func (a *App) previewTemplate(tpl models.Template) ([]byte, error) {
 			}
 		}
 		userPromptStr := tpl.Body
-		if tpl.Tpl != nil {
+		if tpl.UserPromptTpl != nil {
+			var ub bytes.Buffer
+			if err := tpl.UserPromptTpl.Execute(&ub, scope); err == nil {
+				userPromptStr = ub.String()
+			}
+		} else if tpl.Tpl != nil {
 			var ub bytes.Buffer
 			if err := tpl.Tpl.Execute(&ub, scope); err == nil {
 				userPromptStr = ub.String()
@@ -259,10 +284,40 @@ func (a *App) previewTemplate(tpl models.Template) ([]byte, error) {
 		if bc := a.manager.BifrostClient(); bc != nil {
 			aiBody, err := bc.GeneratePrompt(bc.TimeoutContext(), sysPromptStr, userPromptStr)
 			if err == nil && aiBody != "" {
-				return []byte(aiBody), nil
+				cleanBody := manager.CleanJSONResponse(aiBody)
+				var emailOut manager.EmailStructuredOutput
+				if err := json.Unmarshal([]byte(cleanBody), &emailOut); err == nil && emailOut.Content != "" {
+					finalContent := emailOut.Content
+					var globalSig string
+					if st, err := a.core.GetSettings(); err == nil {
+						globalSig = st.AppGlobalSignature
+					}
+					sig := manager.ResolveSignatureAdvanced(manager.SignatureOpts{
+						Subscriber: sub,
+						GlobalSig:  globalSig,
+					})
+					if sig != "" {
+						finalContent = fmt.Sprintf("%s<br/><br/>%s", finalContent, sig)
+					}
+					return []byte(fmt.Sprintf("<!DOCTYPE html><html><body style='font-family: sans-serif; line-height: 1.6; padding: 1em;'>%s</body></html>", finalContent)), nil
+				}
+				return []byte(fmt.Sprintf("<!DOCTYPE html><html><body style='font-family: sans-serif; line-height: 1.6; padding: 1em;'>%s</body></html>", aiBody)), nil
 			}
 		}
-		return []byte(fmt.Sprintf("<div style='font-family:sans-serif;padding:1em;'><h4>System Prompt:</h4><pre>%s</pre><h4>User Prompt:</h4><pre>%s</pre></div>", sysPromptStr, userPromptStr)), nil
+
+		var globalSig string
+		if st, err := a.core.GetSettings(); err == nil {
+			globalSig = st.AppGlobalSignature
+		}
+		sig := manager.ResolveSignatureAdvanced(manager.SignatureOpts{
+			Subscriber: sub,
+			GlobalSig:  globalSig,
+		})
+		renderedBody := userPromptStr
+		if sig != "" {
+			renderedBody = fmt.Sprintf("%s<br/><br/>%s", renderedBody, sig)
+		}
+		return []byte(fmt.Sprintf("<!DOCTYPE html><html><body style='font-family: sans-serif; line-height: 1.6; padding: 1em;'>%s</body></html>", renderedBody)), nil
 	} else if tpl.Type == models.TemplateTypeCampaign || tpl.Type == models.TemplateTypeCampaignVisual {
 		camp := models.Campaign{
 			UUID:         dummyUUID,
@@ -279,7 +334,7 @@ func (a *App) previewTemplate(tpl models.Template) ([]byte, error) {
 		}
 
 		// Render the message body.
-		msg, err := a.manager.NewCampaignMessage(&camp, dummySubscriber)
+		msg, err := a.manager.NewCampaignMessage(&camp, sub)
 		if err != nil {
 			return nil, echo.NewHTTPError(http.StatusBadRequest,
 				a.i18n.Ts("templates.errorRendering", "error", err.Error()))
@@ -296,11 +351,55 @@ func (a *App) previewTemplate(tpl models.Template) ([]byte, error) {
 		}
 
 		// Render the message.
-		if err := m.Render(dummySubscriber, &tpl, a.manager.GenericTemplateFuncs()); err != nil {
+		if err := m.Render(sub, &tpl, a.manager.GenericTemplateFuncs()); err != nil {
 			return nil, echo.NewHTTPError(http.StatusBadRequest, err.Error())
 		}
 		out = m.Body
 	}
 
 	return out, nil
+}
+
+type templateTestReq struct {
+	SubscriberID int    `json:"subscriber_id"`
+	TestEmail    string `json:"test_email"`
+	TestPhone    string `json:"test_phone"`
+}
+
+// TestTemplate handles sending a test email or message using a contact's context.
+func (a *App) TestTemplate(c echo.Context) error {
+	id := getID(c)
+	tpl, err := a.core.GetTemplate(id, false)
+	if err != nil {
+		return err
+	}
+
+	var req templateTestReq
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, a.i18n.Ts("globals.messages.invalidReq"))
+	}
+
+	sub := dummySubscriber
+	if req.SubscriberID > 0 {
+		if s, err := a.core.GetSubscriber(req.SubscriberID, "", ""); err == nil {
+			sub = s
+		}
+	}
+
+	out, err := a.previewTemplate(tpl, sub)
+	if err != nil {
+		return err
+	}
+
+	// Dispatch test message
+	if req.TestEmail != "" {
+		_ = a.emailMsgr.Push(models.Message{
+			From:    a.cfg.FromEmail,
+			To:      []string{req.TestEmail},
+			Subject: tpl.Subject,
+			Body:    out,
+		})
+	}
+
+	return c.JSON(http.StatusOK, okResp{true})
 }

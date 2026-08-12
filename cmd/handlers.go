@@ -183,6 +183,7 @@ func initHTTPHandlers(e *echo.Echo, a *App) {
 		g.DELETE("/api/campaigns/:id", pm(hasID(a.DeleteCampaign), "campaigns:manage_all", "campaigns:manage"))
 
 		g.GET("/api/sequences", pm(a.GetSequences, "campaigns:manage_all", "campaigns:manage"))
+		g.GET("/api/sequences/analytics", pm(a.GetSequenceAnalytics, "campaigns:get_analytics", "campaigns:get"))
 		g.GET("/api/sequences/:id", pm(a.GetSequence, "campaigns:manage_all", "campaigns:manage"))
 		g.POST("/api/sequences", pm(a.CreateSequence, "campaigns:manage_all", "campaigns:manage"))
 		g.PUT("/api/sequences/:id", pm(a.UpdateSequence, "campaigns:manage_all", "campaigns:manage"))
@@ -192,11 +193,11 @@ func initHTTPHandlers(e *echo.Echo, a *App) {
 		g.POST("/api/sequences/:id/enroll", pm(a.EnrollSequenceSubscribers, "campaigns:manage_all", "campaigns:manage"))
 		g.PUT("/api/sequences/:id/contacts/:sub_id/reassign", pm(a.ReassignSequenceContactSender, "campaigns:manage_all", "campaigns:manage"))
 
-		g.GET("/api/mailboxes", pm(a.GetMailboxes, "settings:maintain"))
-		g.GET("/api/mailboxes/:id", pm(hasID(a.GetMailbox), "settings:maintain"))
-		g.POST("/api/mailboxes", pm(a.CreateMailbox, "settings:maintain"))
-		g.PUT("/api/mailboxes/:id", pm(hasID(a.UpdateMailbox), "settings:maintain"))
-		g.DELETE("/api/mailboxes/:id", pm(hasID(a.DeleteMailbox), "settings:maintain"))
+		g.GET("/api/schedules", pm(a.GetSchedules, "campaigns:manage_all", "campaigns:manage"))
+		g.GET("/api/schedules/:id", pm(a.GetSchedule, "campaigns:manage_all", "campaigns:manage"))
+		g.POST("/api/schedules", pm(a.CreateSchedule, "campaigns:manage_all", "campaigns:manage"))
+		g.PUT("/api/schedules/:id", pm(a.UpdateSchedule, "campaigns:manage_all", "campaigns:manage"))
+		g.DELETE("/api/schedules/:id", pm(a.DeleteSchedule, "campaigns:manage_all", "campaigns:manage"))
 
 		g.GET("/api/media", pm(a.GetAllMedia, "media:get"))
 		g.GET("/api/media/:id", pm(hasID(a.GetMedia), "media:get"))
@@ -207,6 +208,7 @@ func initHTTPHandlers(e *echo.Echo, a *App) {
 		g.GET("/api/templates/:id", pm(hasID(a.GetTemplate), "templates:get"))
 		g.GET("/api/templates/:id/preview", pm(hasID(a.PreviewTemplate), "templates:get"))
 		g.POST("/api/templates/preview", pm(a.PreviewTemplateBody, "templates:get"))
+		g.POST("/api/templates/:id/test", pm(hasID(a.TestTemplate), "templates:get"))
 		g.POST("/api/templates", pm(a.CreateTemplate, "templates:manage"))
 		g.PUT("/api/templates/:id", pm(hasID(a.UpdateTemplate), "templates:manage"))
 		g.PUT("/api/templates/:id/default", pm(hasID(a.TemplateSetDefault), "templates:manage"))

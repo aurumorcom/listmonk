@@ -10,13 +10,14 @@ import (
 )
 
 type enrollReq struct {
-	SubscriberIDs []int       `json:"subscribers"`
-	MailboxID     null.Int    `json:"mailbox_id"`
-	WahaSession   null.String `json:"waha_session"`
+	SubscriberIDs []int          `json:"subscribers"`
+	EmailID       null.Int       `json:"email_id"`
+	WahaSession   null.String    `json:"waha_session"`
+	User          map[string]any `json:"user"`
 }
 
 type reassignReq struct {
-	MailboxID   null.Int    `json:"mailbox_id"`
+	EmailID     null.Int    `json:"email_id"`
 	WahaSession null.String `json:"waha_session"`
 }
 
@@ -116,13 +117,13 @@ func (a *App) EnrollSequenceSubscribers(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, a.i18n.Ts("globals.messages.invalidReq"))
 	}
 
-	if err := a.core.EnrollSequenceContacts(id, req.SubscriberIDs, req.MailboxID, req.WahaSession); err != nil {
+	if err := a.core.EnrollSequenceContacts(id, req.SubscriberIDs, req.EmailID, req.WahaSession, req.User); err != nil {
 		return err
 	}
 	return c.JSON(http.StatusOK, okResp{true})
 }
 
-// ReassignSequenceContactSender updates the locked mailbox or WAHA session for a sequence contact.
+// ReassignSequenceContactSender updates the locked email account or WAHA session for a sequence contact.
 func (a *App) ReassignSequenceContactSender(c echo.Context) error {
 	id, _ := strconv.Atoi(c.Param("id"))
 	subID, _ := strconv.Atoi(c.Param("sub_id"))
@@ -131,8 +132,17 @@ func (a *App) ReassignSequenceContactSender(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, a.i18n.Ts("globals.messages.invalidReq"))
 	}
 
-	if err := a.core.ReassignSequenceContactSender(id, subID, req.MailboxID, req.WahaSession); err != nil {
+	if err := a.core.ReassignSequenceContactSender(id, subID, req.EmailID, req.WahaSession); err != nil {
 		return err
 	}
 	return c.JSON(http.StatusOK, okResp{true})
+}
+
+// GetSequenceAnalytics returns sequence analytics metrics.
+func (a *App) GetSequenceAnalytics(c echo.Context) error {
+	stats, err := a.core.GetSequenceAnalytics()
+	if err != nil {
+		return err
+	}
+	return c.JSON(http.StatusOK, okResp{stats})
 }
