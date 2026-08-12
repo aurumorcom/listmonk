@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/knadh/listmonk/internal/auth"
 	"github.com/knadh/listmonk/models"
 )
 
@@ -44,6 +45,146 @@ func TestExtractTemplateScope(t *testing.T) {
 	userMap, ok := scope["User"].(map[string]any)
 	if !ok || userMap["name"] != "Alice Sender" {
 		t.Errorf("expected User name 'Alice Sender', got %v", scope["User"])
+	}
+}
+
+func TestCleanJSONResponse(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"```json\n{\"subject\":\"Hello\",\"content\":\"World\"}\n```", "{\"subject\":\"Hello\",\"content\":\"World\"}"},
+		{"```JSON\n{\"message\":\"Hi\"}\n```", "{\"message\":\"Hi\"}"},
+		{"```\n{\"content\":\"Plain\"}\n```", "{\"content\":\"Plain\"}"},
+		{"{\"subject\":\"Direct\"}", "{\"subject\":\"Direct\"}"},
+	}
+
+	for _, tt := range tests {
+		got := CleanJSONResponse(tt.input)
+		if got != tt.expected {
+			t.Errorf("CleanJSONResponse(%q) = %q, expected %q", tt.input, got, tt.expected)
+		}
+	}
+}
+
+func TestResolveSignature(t *testing.T) {
+	// Test Case 1: Sequence/Enrollment Signature (Tier 1) overrides all
+	sub1 := models.Subscriber{
+		Attribs: models.JSON{
+			"sequence_signature": "<p>Sequence Sig</p>",
+		},
+	}
+	email1 := &models.Email{Signature: "<p>Email Sig</p>"}
+	user1 := &auth.User{Signature: "<p>User Sig</p>"}
+	sig1 := ResolveSignatureAdvanced(SignatureOpts{
+		Subscriber: sub1,
+		Email:      email1,
+		User:       user1,
+		GlobalSig:  "<p>Global Sig</p>",
+	})
+	if sig1 != "<p>Sequence Sig</p>" {
+		t.Errorf("expected Tier 1 Sequence Sig, got %q", sig1)
+	}
+
+	// Test Case 2: Email Channel Signature (Tier 2) overrides User Sig & Global Sig
+	sub2 := models.Subscriber{Attribs: models.JSON{}}
+	email2 := &models.Email{Signature: "<p>Email Sig</p>"}
+	user2 := &auth.User{Signature: "<p>User Sig</p>"}
+	sig2 := ResolveSignatureAdvanced(SignatureOpts{
+		Subscriber: sub2,
+		Email:      email2,
+		User:       user2,
+		GlobalSig:  "<p>Global Sig</p>",
+	})
+	if sig2 != "<p>Email Sig</p>" {
+		t.Errorf("expected Tier 2 Email Sig, got %q", sig2)
+	}
+
+	// Test Case 3: WhatsApp Messenger Signature (Tier 2) overrides User Sig & Global Sig
+	waha3 := &models.WAHAMessenger{Signature: "<p>WhatsApp Sig</p>"}
+	sig3 := ResolveSignatureAdvanced(SignatureOpts{
+		Subscriber:    sub2,
+		WAHAMessenger: waha3,
+		User:          user2,
+		GlobalSig:     "<p>Global Sig</p>",
+	})
+	if sig3 != "<p>WhatsApp Sig</p>" {
+		t.Errorf("expected Tier 2 WhatsApp Sig, got %q", sig3)
+	}
+
+	// Test Case 4: User Signature (Tier 3) overrides Global Sig when no Tier 1 or Tier 2
+	user4 := &auth.User{Signature: "<p>User Sig</p>"}
+	sig4 := ResolveSignatureAdvanced(SignatureOpts{
+		Subscriber: sub2,
+		User:       user4,
+		GlobalSig:  "<p>Global Sig</p>",
+	})
+	if sig4 != "<p>User Sig</p>" {
+		t.Errorf("expected Tier 3 User Sig, got %q", sig4)
+	}
+
+	// Test Case 5: Fallback to Global Sig when Tiers 1-3 empty
+	sig5 := ResolveSignatureAdvanced(SignatureOpts{
+		Subscriber: sub2,
+		GlobalSig:  "<p>Global Sig</p>",
+	})
+	if sig5 != "<p>Global Sig</p>" {
+		t.Errorf("expected Global Sig fallback, got %q", sig5)
+	}
+}
+
+func TestExtractTemplateScope_MultiPatternStepHistory(t *testing.T) {
+	history := []map[string]any{
+		{
+			"step_number": 1,
+			"messenger":   "email",
+			"subject":     "Intro Subject",
+			"content":     "Intro Body",
+		},
+		{
+			"step_number": 2,
+			"messenger":   "waha",
+			"message":     "WhatsApp Message Text",
+		},
+	}
+
+	sub := models.Subscriber{
+		Base: models.Base{ID: 202},
+		Attribs: models.JSON{
+			"sequence_history": history,
+		},
+	}
+
+	scope := ExtractTemplateScope(sub)
+
+	// Pattern 1: scope["Steps"]["Step1"]
+	stepsMap, ok := scope["Steps"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected scope[\"Steps\"] map")
+	}
+	step1Obj, ok := stepsMap["Step1"].(map[string]any)
+	if !ok || step1Obj["subject"] != "Intro Subject" {
+		t.Errorf("Pattern 1 (.Steps.Step1.subject) failed: got %v", step1Obj)
+	}
+
+	// Pattern 2: scope["Step1"]
+	topStep1, ok := scope["Step1"].(map[string]any)
+	if !ok || topStep1["content"] != "Intro Body" {
+		t.Errorf("Pattern 2 (.Step1.content) failed: got %v", topStep1)
+	}
+
+	// Pattern 3: scope["Step"]["1"] and scope["Step"]["2"]
+	stepIndexed, ok := scope["Step"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected scope[\"Step\"] map")
+	}
+	step1Idx, ok := stepIndexed["1"].(map[string]any)
+	if !ok || step1Idx["subject"] != "Intro Subject" {
+		t.Errorf("Pattern 3 (.Step.1.subject) failed: got %v", step1Idx)
+	}
+	step2Idx, ok := stepIndexed["2"].(map[string]any)
+	if !ok || step2Idx["message"] != "WhatsApp Message Text" {
+		t.Errorf("Pattern 3 (.Step.2.message) failed: got %v", step2Idx)
 	}
 }
 

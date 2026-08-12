@@ -2,6 +2,7 @@ package manager
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 
 	"github.com/knadh/listmonk/models"
@@ -53,6 +54,23 @@ func (m *CampaignMessage) render() error {
 				// Run JIT generation via Bifrost SDK
 				aiBody, err := m.pipe.m.bifrostClient.GeneratePrompt(m.pipe.m.bifrostClient.TimeoutContext(), sysPromptStr, userPromptStr)
 				if err == nil && aiBody != "" {
+					cleanBody := CleanJSONResponse(aiBody)
+					var structOut EmailStructuredOutput
+					if err := json.Unmarshal([]byte(cleanBody), &structOut); err == nil && structOut.Content != "" {
+						if structOut.Subject != "" {
+							m.subject = structOut.Subject
+						}
+						finalContent := structOut.Content
+						sig := ResolveSignatureAdvanced(SignatureOpts{
+							Subscriber: m.Subscriber,
+						})
+						if sig != "" {
+							finalContent = fmt.Sprintf("%s<br/><br/>%s", finalContent, sig)
+						}
+						m.body = []byte(finalContent)
+						return nil
+					}
+
 					m.body = []byte(aiBody)
 					return nil
 				}
