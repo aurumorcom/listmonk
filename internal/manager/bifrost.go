@@ -51,6 +51,13 @@ type MessageStructuredOutput struct {
 	Message string `json:"message"`
 }
 
+// ReplyIntentResult represents structured intent classification output from LLM analysis.
+type ReplyIntentResult struct {
+	Intent     string `json:"intent"`      // "opt_out", "interested", "out_of_office", "other"
+	Reason     string `json:"reason"`      // Explanation
+	ReturnDate string `json:"return_date"` // ISO 8601 UTC string if OOO, else ""
+}
+
 // BifrostRequest is the payload sent to the Bifrost AI endpoint.
 type BifrostRequest struct {
 	Model          string                 `json:"model"`
@@ -313,4 +320,79 @@ func ResolveSignature(sub models.Subscriber, globalSig string) string {
 		Subscriber: sub,
 		GlobalSig:  globalSig,
 	})
+}
+
+// ClassifyReplyIntent classifies an incoming message body into intent categories ("opt_out", "interested", "out_of_office", "other").
+func (b *BifrostClient) ClassifyReplyIntent(ctx context.Context, messageBody string, nowStr string) (*ReplyIntentResult, error) {
+	if b == nil || b.cfg.APIKey == "" {
+		return nil, fmt.Errorf("bifrost client is not configured")
+	}
+
+	systemPrompt := fmt.Sprintf(`You are an AI assistant analyzing incoming email/WhatsApp replies for sales outreach sequences.
+Analyze the recipient's message and determine their intent.
+Today's date and time is %s.
+
+Rules for intent classification:
+- "opt_out": Recipient requests to stop receiving messages, unsubscribe, remove email, or expresses explicit unwillingness (e.g., "STOP", "Unsubscribe", "Take me off your list", "Don't email me").
+- "interested": Recipient expresses interest, asks for pricing, requests a call/demo, or asks a follow-up question.
+- "out_of_office": Recipient is away, on vacation, or an automatic out-of-office reply. If a return date is stated, extract it into return_date as ISO 8601 UTC timestamp.
+- "other": Generic replies or unclassified text.
+
+Output JSON conforming to the requested schema.`, nowStr)
+
+	respFormat := &BifrostResponseFormat{
+		Type: "json_object",
+	}
+
+	raw, err := b.GeneratePromptWithFormat(ctx, systemPrompt, messageBody, respFormat)
+	if err != nil {
+		return nil, err
+	}
+
+	clean := CleanJSONResponse(raw)
+	var res ReplyIntentResult
+	if err := json.Unmarshal([]byte(clean), &res); err != nil {
+		return nil, fmt.Errorf("error unmarshaling reply intent response: %w", err)
+	}
+
+	return &res, nil
+}
+
+// ExtractOOOReturnDate parses an Out-Of-Office message text and extracts the exact return timestamp if present.
+func (b *BifrostClient) ExtractOOOReturnDate(ctx context.Context, messageBody string, nowStr string) (time.Time, error) {
+	if b == nil || b.cfg.APIKey == "" {
+		return time.Time{}, fmt.Errorf("bifrost client is not configured")
+	}
+
+	systemPrompt := fmt.Sprintf(`You are an AI assistant parsing Out-Of-Office auto-reply messages.
+Your goal is to extract the date the recipient will return to work. Today's date is %s.
+Return JSON in format: {"return_date": "YYYY-MM-DDTHH:MM:SSZ"} if a date is mentioned, or {"return_date": ""} if no clear return date is stated.`, nowStr)
+
+	respFormat := &BifrostResponseFormat{
+		Type: "json_object",
+	}
+
+	raw, err := b.GeneratePromptWithFormat(ctx, systemPrompt, messageBody, respFormat)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	clean := CleanJSONResponse(raw)
+	var res struct {
+		ReturnDate string `json:"return_date"`
+	}
+	if err := json.Unmarshal([]byte(clean), &res); err != nil || res.ReturnDate == "" {
+		return time.Time{}, fmt.Errorf("no return date parsed")
+	}
+
+	t, err := time.Parse(time.RFC3339, res.ReturnDate)
+	if err != nil {
+		// Fallback parse YYYY-MM-DD
+		if tShort, err2 := time.Parse("2006-01-02", res.ReturnDate); err2 == nil {
+			return tShort, nil
+		}
+		return time.Time{}, err
+	}
+
+	return t, nil
 }

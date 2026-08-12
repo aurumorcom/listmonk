@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -319,4 +320,62 @@ func TestBifrostWorkerPoolStressTest(t *testing.T) {
 	}
 
 	t.Logf("Completed %d concurrent JIT AI prompt generations in %v", totalExpected, duration)
+}
+
+func TestBifrostClassifyReplyIntentAndExtractOOODate(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req BifrostRequest
+		json.NewDecoder(r.Body).Decode(&req)
+
+		var respContent string
+		if strings.Contains(req.Messages[0].Content, "Out-Of-Office") {
+			respContent = `{"return_date": "2026-08-25T09:00:00Z"}`
+		} else {
+			respContent = `{"intent": "opt_out", "reason": "Explicit unsubscribe request", "return_date": ""}`
+		}
+
+		resp := BifrostResponse{
+			Choices: []struct {
+				Message struct {
+					Content string `json:"content"`
+				} `json:"message"`
+			}{
+				{
+					Message: struct {
+						Content string `json:"content"`
+					}{
+						Content: respContent,
+					},
+				},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	client := NewBifrostClient(BifrostConfig{
+		APIKey:   "test-key",
+		Endpoint: server.URL,
+	})
+
+	ctx := context.Background()
+
+	// Test Intent Classification
+	res, err := client.ClassifyReplyIntent(ctx, "Please stop emailing me", "2026-08-10T10:00:00Z")
+	if err != nil {
+		t.Fatalf("unexpected error classifying reply intent: %v", err)
+	}
+	if res.Intent != "opt_out" {
+		t.Errorf("expected intent 'opt_out', got %s", res.Intent)
+	}
+
+	// Test OOO Return Date Extraction
+	oooDate, err := client.ExtractOOOReturnDate(ctx, "Out of office until Aug 25", "2026-08-10T10:00:00Z")
+	if err != nil {
+		t.Fatalf("unexpected error extracting OOO return date: %v", err)
+	}
+	if oooDate.Year() != 2026 || oooDate.Month() != 8 || oooDate.Day() != 25 {
+		t.Errorf("unexpected return date extracted: %v", oooDate)
+	}
 }
