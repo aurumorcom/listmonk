@@ -126,7 +126,7 @@ func (m *Manager) ProcessBatch() error {
 			if nextStep > len(steps) {
 				_ = m.core.UpdateSequenceContactStatus(sub.SequenceID, sub.SubscriberID, models.SequenceContactStatusFinished, nextStep, null.Time{}, null.String{}, sub.LastThreadMsgID)
 			} else {
-				nextSend := null.TimeFrom(time.Now().Add(time.Duration(steps[nextStep-1].DelayDays) * 24 * time.Hour))
+				nextSend := null.TimeFrom(time.Now().Add(time.Duration(steps[nextStep-1].DelaySeconds) * time.Second))
 				_ = m.core.UpdateSequenceContactStatus(sub.SequenceID, sub.SubscriberID, models.SequenceContactStatusInProgress, nextStep, nextSend, null.String{}, sub.LastThreadMsgID)
 			}
 			continue
@@ -331,7 +331,7 @@ func (m *Manager) ProcessBatch() error {
 		if nextStep > len(steps) {
 			status = models.SequenceContactStatusFinished
 		} else {
-			nextSend = null.TimeFrom(time.Now().Add(time.Duration(steps[nextStep-1].DelayDays) * 24 * time.Hour))
+			nextSend = null.TimeFrom(time.Now().Add(time.Duration(steps[nextStep-1].DelaySeconds) * time.Second))
 		}
 
 		_ = m.core.UpdateSequenceContactStatus(sub.SequenceID, sub.SubscriberID, status, nextStep, nextSend, null.StringFrom(msgID), nextLastThreadMsgID)

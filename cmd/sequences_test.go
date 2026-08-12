@@ -16,31 +16,31 @@ import (
 func TestE2E_Sequence_MultiStep_Execution(t *testing.T) {
 	// Create step structure: WhatsApp Step 1 -> Delay Step 2 -> Email Step 3
 	step1 := models.SequenceStep{
-		ID:         1,
-		SequenceID: 100,
-		StepNumber: 1,
-		Messenger:  "whatsapp",
-		Subject:    "Welcome WhatsApp Step 1",
-		Body:       "Hi {{ .Contact.Name }}, welcome! Tracked link: http://localhost:9000/r/sample-link",
-		DelayDays:  0,
+		ID:           1,
+		SequenceID:   100,
+		StepNumber:   1,
+		Messenger:    "whatsapp",
+		Subject:      "Welcome WhatsApp Step 1",
+		Body:         "Hi {{ .Contact.Name }}, welcome! Tracked link: http://localhost:9000/r/sample-link",
+		DelaySeconds: 0,
 	}
 
 	step2 := models.SequenceStep{
-		ID:         2,
-		SequenceID: 100,
-		StepNumber: 2,
-		Messenger:  "delay",
-		DelayDays:  1,
+		ID:           2,
+		SequenceID:   100,
+		StepNumber:   2,
+		Messenger:    "delay",
+		DelaySeconds: 86400,
 	}
 
 	step3 := models.SequenceStep{
-		ID:         3,
-		SequenceID: 100,
-		StepNumber: 3,
-		Messenger:  "email",
-		Subject:    "Followup Email Step 3",
-		Body:       "Hi {{ .Contact.Name }}, following up via email.",
-		DelayDays:  0,
+		ID:           3,
+		SequenceID:   100,
+		StepNumber:   3,
+		Messenger:    "email",
+		Subject:      "Followup Email Step 3",
+		Body:         "Hi {{ .Contact.Name }}, following up via email.",
+		DelaySeconds: 0,
 	}
 
 	steps := []models.SequenceStep{step1, step2, step3}
@@ -421,23 +421,23 @@ func TestE2E_Sequence_REST_API_Pipeline(t *testing.T) {
 
 	steps := []models.SequenceStep{
 		{
-			ID:         1,
-			SequenceID: 101,
-			StepNumber: 1,
-			DelayDays:  0,
-			Messenger:  "email",
-			Subject:    "Initial Outreach",
-			Body:       "Hello {{ .Subscriber.Name }}, interested in our platform?",
+			ID:           1,
+			SequenceID:   101,
+			StepNumber:   1,
+			DelaySeconds: 0,
+			Messenger:    "email",
+			Subject:      "Initial Outreach",
+			Body:         "Hello {{ .Subscriber.Name }}, interested in our platform?",
 		},
 		{
-			ID:         2,
-			SequenceID: 101,
-			StepNumber: 2,
-			DelayDays:  2,
-			Messenger:  "email",
-			Condition:  models.SequenceConditionIfNotRead,
-			Subject:    "Quick Follow-Up",
-			Body:       "Following up on my previous message.",
+			ID:           2,
+			SequenceID:   101,
+			StepNumber:   2,
+			DelaySeconds: 172800,
+			Messenger:    "email",
+			Condition:    models.SequenceConditionIfNotRead,
+			Subject:      "Quick Follow-Up",
+			Body:         "Following up on my previous message.",
 		},
 	}
 

@@ -92,7 +92,7 @@ func V6_3_0(db *sqlx.DB, fs stuffbin.FileSystem, ko *koanf.Koanf, lo *log.Logger
 	// Seed default schedule if none exists
 	var count int
 	if err := db.Get(&count, "SELECT COUNT(*) FROM schedules"); err == nil && count == 0 {
-		defaultWindows := `{"mon":[{"start":"08:00","end":"17:00"}],"tue":[{"start":"08:00","end":"17:00"}],"wed":[{"start":"08:00","end":"17:00"}],"thu":[{"start":"08:00","end":"17:00"}],"fri":[{"start":"08:00","end":"17:00"}]}`
+		defaultWindows := `{"mon":{"start":"08:00","end":"17:00"},"tue":{"start":"08:00","end":"17:00"},"wed":{"start":"08:00","end":"17:00"},"thu":{"start":"08:00","end":"17:00"},"fri":{"start":"08:00","end":"17:00"},"sat":{},"sun":{}}`
 		var defaultID int
 		err := db.Get(&defaultID, `
 			INSERT INTO schedules (name, timezone, use_contact_timezone, skip_holidays, sending_windows)

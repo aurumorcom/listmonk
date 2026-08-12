@@ -15,6 +15,7 @@ import (
 	"github.com/knadh/listmonk/internal/media"
 	"github.com/knadh/listmonk/models"
 	"github.com/labstack/echo/v4"
+	"github.com/lib/pq"
 	null "gopkg.in/volatiletech/null.v6"
 )
 
@@ -89,6 +90,15 @@ func (c *Core) UpdateSequence(seq models.Sequence) (*models.Sequence, error) {
 	if seq.LoadBalanceMode == "" {
 		seq.LoadBalanceMode = models.LoadBalanceModeRoundRobin
 	}
+	if len(seq.EmailIDs) == 0 {
+		seq.EmailIDs = pq.Int64Array{}
+	}
+	if len(seq.WahaSessions) == 0 {
+		seq.WahaSessions = pq.StringArray{}
+	}
+	if seq.SendWindow == nil {
+		seq.SendWindow = models.JSON{}
+	}
 	_, err := c.db.Exec(`UPDATE sequences
 		SET name = $2, status = $3, schedule_id = $4, send_window = $5, email_ids = $6, waha_sessions = $7, load_balance_mode = $8, updated_at = NOW()
 		WHERE id = $1`,
@@ -114,7 +124,7 @@ func (c *Core) DeleteSequence(id int) error {
 func (c *Core) GetSequenceSteps(sequenceID int) ([]models.SequenceStep, error) {
 	var steps []models.SequenceStep
 	query := `SELECT
-		s.id, s.sequence_id, s.step_number, s.delay_days, s.messenger, s.condition,
+		s.id, s.sequence_id, s.step_number, s.delay_seconds, s.messenger, s.condition,
 		s.subject, s.body, COALESCE(s.email_type, '') AS email_type, s.template_id,
 		COALESCE(ARRAY_AGG(m.media_id) FILTER (WHERE m.media_id IS NOT NULL), '{}') AS media_ids
 	FROM sequence_steps s
@@ -157,9 +167,9 @@ func (c *Core) SaveSequenceSteps(sequenceID int, steps []models.SequenceStep) er
 		}
 
 		var newID int
-		err := tx.Get(&newID, `INSERT INTO sequence_steps (sequence_id, step_number, delay_days, messenger, condition, subject, body, email_type, template_id)
+		err := tx.Get(&newID, `INSERT INTO sequence_steps (sequence_id, step_number, delay_seconds, messenger, condition, subject, body, email_type, template_id)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
-			s.SequenceID, s.StepNumber, s.DelayDays, s.Messenger, s.Condition, s.Subject, s.Body, s.EmailType, s.TemplateID)
+			s.SequenceID, s.StepNumber, s.DelaySeconds, s.Messenger, s.Condition, s.Subject, s.Body, s.EmailType, s.TemplateID)
 		if err != nil {
 			return err
 		}
@@ -674,32 +684,53 @@ func IsInsideSchedule(sched *models.Schedule, contactLoc *time.Location, now tim
 
 	dayKey := strings.ToLower(localNow.Format("mon"))
 
-	var windows map[string][]models.TimeBlock
+	var startStr, endStr string
+
 	if len(sched.SendingWindows) > 0 {
+		var raw map[string]interface{}
 		if b, err := json.Marshal(sched.SendingWindows); err == nil {
-			_ = json.Unmarshal(b, &windows)
+			_ = json.Unmarshal(b, &raw)
+		}
+
+		if dayVal, exists := raw[dayKey]; exists && dayVal != nil {
+			if m, ok := dayVal.(map[string]interface{}); ok {
+				// dict of dict: {"mon": {"start": "08:00", "end": "17:00"}}
+				if s, ok := m["start"].(string); ok {
+					startStr = s
+				}
+				if e, ok := m["end"].(string); ok {
+					endStr = e
+				}
+			} else if slice, ok := dayVal.([]interface{}); ok && len(slice) > 0 {
+				// dict of array: {"mon": [{"start": "08:00", "end": "17:00"}]}
+				if m, ok := slice[0].(map[string]interface{}); ok {
+					if s, ok := m["start"].(string); ok {
+						startStr = s
+					}
+					if e, ok := m["end"].(string); ok {
+						endStr = e
+					}
+				}
+			}
 		}
 	}
 
-	blocks, exists := windows[dayKey]
-	if !exists || len(blocks) == 0 {
-		// No blocks configured for today
+	if startStr == "" || endStr == "" {
+		// No active window configured for today
 		nextDay := localNow.AddDate(0, 0, 1)
 		return false, time.Date(nextDay.Year(), nextDay.Month(), nextDay.Day(), 8, 0, 0, 0, loc)
 	}
 
-	for _, block := range blocks {
-		startHour, startMin := 8, 0
-		endHour, endMin := 17, 0
-		fmt.Sscanf(block.Start, "%d:%d", &startHour, &startMin)
-		fmt.Sscanf(block.End, "%d:%d", &endHour, &endMin)
+	startHour, startMin := 8, 0
+	endHour, endMin := 17, 0
+	fmt.Sscanf(startStr, "%d:%d", &startHour, &startMin)
+	fmt.Sscanf(endStr, "%d:%d", &endHour, &endMin)
 
-		startTimeToday := time.Date(localNow.Year(), localNow.Month(), localNow.Day(), startHour, startMin, 0, 0, loc)
-		endTimeToday := time.Date(localNow.Year(), localNow.Month(), localNow.Day(), endHour, endMin, 0, 0, loc)
+	startTimeToday := time.Date(localNow.Year(), localNow.Month(), localNow.Day(), startHour, startMin, 0, 0, loc)
+	endTimeToday := time.Date(localNow.Year(), localNow.Month(), localNow.Day(), endHour, endMin, 0, 0, loc)
 
-		if (!localNow.Before(startTimeToday)) && localNow.Before(endTimeToday) {
-			return true, localNow
-		}
+	if (!localNow.Before(startTimeToday)) && localNow.Before(endTimeToday) {
+		return true, localNow
 	}
 
 	nextDay := localNow.AddDate(0, 0, 1)

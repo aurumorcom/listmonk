@@ -25,7 +25,7 @@ DELETE FROM sequences WHERE id = $1;
 
 -- name: get-sequence-steps
 SELECT
-    s.id, s.sequence_id, s.step_number, s.delay_days, s.messenger, s.condition,
+    s.id, s.sequence_id, s.step_number, s.delay_seconds, s.messenger, s.condition,
     s.subject, s.body, s.email_type, s.template_id, s.created_at,
     COALESCE(ARRAY_AGG(m.media_id) FILTER (WHERE m.media_id IS NOT NULL), '{}') AS media_ids
 FROM sequence_steps s
@@ -39,9 +39,9 @@ INSERT INTO sequence_step_media (sequence_step_id, media_id, filename)
 SELECT $1, id, filename FROM media WHERE id = ANY($2::INT[]);
 
 -- name: create-sequence-step
-INSERT INTO sequence_steps (sequence_id, step_number, delay_days, messenger, condition, subject, body, email_type, template_id)
+INSERT INTO sequence_steps (sequence_id, step_number, delay_seconds, messenger, condition, subject, body, email_type, template_id)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-RETURNING id, sequence_id, step_number, delay_days, messenger, condition, subject, body, email_type, template_id, created_at;
+RETURNING id, sequence_id, step_number, delay_seconds, messenger, condition, subject, body, email_type, template_id, created_at;
 
 -- name: delete-sequence-steps
 DELETE FROM sequence_steps WHERE sequence_id = $1;
