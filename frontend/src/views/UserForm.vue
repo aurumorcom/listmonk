@@ -56,6 +56,10 @@
           <b-input :maxlength="200" v-model="form.email" name="email" :placeholder="$t('subscribers.email')" required />
         </b-field>
 
+        <b-field v-if="form.type !== 'api'" label="Signature" label-position="on-border">
+          <b-input v-model="form.signature" name="signature" type="textarea" placeholder="Default user signature..." />
+        </b-field>
+
         <template v-if="form.type !== 'api'">
           <div class="box">
             <b-field>
@@ -154,6 +158,7 @@ export default Vue.extend({
         passwordLogin: false,
         type: 'user',
         status: 'enabled',
+        signature: '',
       },
       apiToken: null,
     };

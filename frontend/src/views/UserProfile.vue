@@ -18,6 +18,10 @@
         <b-input :maxlength="200" v-model="form.name" name="name" :placeholder="$t('globals.fields.name')" />
       </b-field>
 
+      <b-field v-if="data.type !== 'api'" label="Signature" label-position="on-border">
+        <b-input v-model="form.signature" name="signature" type="textarea" placeholder="Default user signature..." />
+      </b-field>
+
       <div v-if="data.passwordLogin" class="columns">
         <div class="column is-6">
           <b-field :label="$t('users.password')" label-position="on-border">
@@ -154,6 +158,7 @@ export default Vue.extend({
       const params = {
         name: this.form.name,
         email: this.form.email,
+        signature: this.form.signature || '',
       };
 
       if (this.data.passwordLogin && this.form.password) {
@@ -265,7 +270,7 @@ export default Vue.extend({
   mounted() {
     this.$api.getUserProfile().then((data) => {
       this.data = { ...data };
-      this.form = { name: data.name, email: data.email };
+      this.form = { name: data.name, email: data.email, signature: data.signature || '' };
       this.twofaEnabled = data.twofaType === 'totp';
     });
   },

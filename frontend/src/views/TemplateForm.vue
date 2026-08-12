@@ -68,6 +68,10 @@
                 @change="onChangeVisualEditor" height="70vh" />
             </b-field>
 
+            <b-field v-else-if="form.type === 'prompt'" :label="$t('templates.userPrompt')" label-position="on-border">
+              <code-editor lang="markdown" v-model="form.body" name="body" />
+            </b-field>
+
             <b-field v-else :label="$t('templates.rawHTML')" label-position="on-border">
               <code-editor lang="html" v-model="form.body" name="body" />
             </b-field>
