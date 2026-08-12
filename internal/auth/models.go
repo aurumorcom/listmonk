@@ -98,6 +98,9 @@ type User struct {
 	Avatar        null.String      `db:"avatar" json:"avatar"`
 	TwofaType     string           `db:"twofa_type" json:"twofa_type"`
 	TwofaKey      null.String      `db:"twofa_key" json:"-"`
+	EmailID       null.Int         `db:"email_id" json:"email_id"`
+	WahaSession   null.String      `db:"waha_session" json:"waha_session"`
+	Signature     string           `db:"signature" json:"signature"`
 	LoggedInAt    null.Time        `db:"loggedin_at" json:"loggedin_at"`
 	UserRoleID    int              `db:"user_role_id" json:"user_role_id,omitempty"`
 	UserRoleName  string           `db:"user_role_name" json:"-"`
