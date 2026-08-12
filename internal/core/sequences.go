@@ -326,8 +326,7 @@ func (c *Core) EnrollSequenceContacts(sequenceID int, subscriberIDs []int, expli
 		return nil
 	}
 
-	seq, err := c.GetSequence(sequenceID, "")
-	if err != nil {
+	if _, err := c.GetSequence(sequenceID, ""); err != nil {
 		return err
 	}
 
@@ -367,41 +366,10 @@ func (c *Core) EnrollSequenceContacts(sequenceID int, subscriberIDs []int, expli
 		}
 	}
 
-	// Email Allocation
-	if explicitEmailID.Valid {
-		for _, id := range subscriberIDs {
-			emailAlloc[id] = explicitEmailID
-		}
-	} else if len(seq.EmailIDs) > 0 {
-		if seq.LoadBalanceMode == models.LoadBalanceModeCapacityWeighted {
-			emails, err := c.GetEmails()
-			if err == nil && len(emails) > 0 {
-				var pool []models.Email
-				poolMap := make(map[int]bool)
-				for _, mid := range seq.EmailIDs {
-					poolMap[int(mid)] = true
-				}
-				for _, m := range emails {
-					if poolMap[m.ID] {
-						pool = append(pool, m)
-					}
-				}
-				emailAlloc = AllocateSendersCapacityWeighted(subscriberIDs, pool)
-			} else {
-				emailAlloc = AllocateSendersRoundRobinInt(subscriberIDs, seq.EmailIDs)
-			}
-		} else {
-			emailAlloc = AllocateSendersRoundRobinInt(subscriberIDs, seq.EmailIDs)
-		}
-	}
-
-	// WAHA Session Allocation
-	if explicitWahaSession.Valid && explicitWahaSession.String != "" {
-		for _, id := range subscriberIDs {
-			wahaAlloc[id] = explicitWahaSession
-		}
-	} else if len(seq.WahaSessions) > 0 {
-		wahaAlloc = AllocateSendersRoundRobinString(subscriberIDs, seq.WahaSessions)
+	// Direct channel assignment for enrolled contacts
+	for _, id := range subscriberIDs {
+		emailAlloc[id] = explicitEmailID
+		wahaAlloc[id] = explicitWahaSession
 	}
 
 	tx, err := c.db.Beginx()

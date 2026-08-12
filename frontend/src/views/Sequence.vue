@@ -67,7 +67,7 @@
                   <b-field v-if="form.headersStr !== '[]' || isHeadersVisible" label-position="on-border"
                     :message="$t('campaigns.customHeadersHelp')">
                     <b-input v-model="form.headersStr" name="headers" type="textarea"
-                      placeholder='[{"X-Custom": "value"}, {"X-Custom2": "value"}]' />
+                      placeholder="[{&quot;X-Custom&quot;: &quot;value&quot;}, {&quot;X-Custom2&quot;: &quot;value&quot;}]" />
                   </b-field>
                 </div>
 
@@ -258,31 +258,7 @@
         </section>
       </b-tab-item>
 
-      <!-- TAB 3: Sender Pools -->
-      <b-tab-item label="Sender Pools" icon="cog-outline" value="senders" :disabled="isNew">
-        <section class="wrap">
-          <div class="columns">
-            <div class="column is-7">
-              <b-field label="Email Accounts Pool" label-position="on-border">
-                <b-taginput v-model="selectedEmails" :data="availableEmails" field="name" placeholder="Select Emails" autocomplete />
-              </b-field>
-
-              <b-field label="WAHA WhatsApp Sessions Pool" label-position="on-border">
-                <b-taginput v-model="selectedWahaSessions" :data="availableWahaSessions" placeholder="Select Sessions" autocomplete />
-              </b-field>
-
-              <b-field label="Load Balancing Mode" label-position="on-border">
-                <b-select v-model="form.load_balance_mode" expanded>
-                  <option value="round_robin">Round Robin Allocation</option>
-                  <option value="capacity_weighted">Capacity-Weighted (Daily Limit Remaining)</option>
-                </b-select>
-              </b-field>
-            </div>
-          </div>
-        </section>
-      </b-tab-item>
-
-      <!-- TAB 4: Attributes (JSON) -->
+      <!-- TAB 3: Attributes (JSON) -->
       <b-tab-item label="Attributes" icon="code" value="attribs" :disabled="isNew">
         <section class="wrap">
           <b-field label="Attributes (JSON)" message="Custom JSON metadata for sequence runtime context" label-position="on-border">
@@ -320,10 +296,6 @@ export default {
         { key: 'sat', label: 'Saturday' },
         { key: 'sun', label: 'Sunday' },
       ],
-      selectedEmails: [],
-      availableEmails: [],
-      selectedWahaSessions: [],
-      availableWahaSessions: [],
       checkedSteps: [],
       form: {
         id: null,
@@ -333,9 +305,6 @@ export default {
         schedule_id: null,
         tags: [],
         headersStr: '[]',
-        load_balance_mode: 'round_robin',
-        email_ids: [],
-        waha_sessions: [],
         attribsStr: '{}',
       },
       steps: [

@@ -121,7 +121,7 @@
                     </a>
                   </p>
                   <b-field v-if="form.headersStr !== '[]' || isHeadersVisible" label-position="on-border" message="Custom JSON headers passed during message dispatch">
-                    <b-input v-model="form.headersStr" name="headers" type="textarea" placeholder='[{"X-Custom": "value"}]' />
+                    <b-input v-model="form.headersStr" name="headers" type="textarea" placeholder="[{&quot;X-Custom&quot;: &quot;value&quot;}]" />
                   </b-field>
                 </div>
                 <hr />

@@ -339,8 +339,6 @@ export default {
       this.$api.updateSequence(seq.id, {
         ...seq,
         status,
-        email_ids: seq.email_ids || seq.mailbox_ids || [],
-        waha_sessions: seq.waha_sessions || [],
       }).then(() => {
         this.$utils.toast(`Sequence status updated to ${status}`);
         this.getSequences();
@@ -350,11 +348,8 @@ export default {
       const cloned = {
         name,
         status: 'paused',
-        timezone: seq.timezone || 'UTC',
-        send_schedule: seq.send_schedule,
-        load_balance_mode: seq.load_balance_mode,
-        email_ids: seq.email_ids || seq.mailbox_ids || [],
-        waha_sessions: seq.waha_sessions || [],
+        schedule_id: seq.schedule_id,
+        tags: seq.tags,
       };
       this.$api.createSequence(cloned).then((res) => {
         const newId = res.id || (res.data && res.data.id);
