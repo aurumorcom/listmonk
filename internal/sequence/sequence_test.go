@@ -95,7 +95,7 @@ func TestAllocateSendersRoundRobinInt(t *testing.T) {
 	for subID, expMb := range expected {
 		got, ok := alloc[subID]
 		if !ok || !got.Valid || got.Int != expMb {
-			t.Errorf("subscriber %d: expected mailbox %d, got %v", subID, expMb, got)
+			t.Errorf("subscriber %d: expected email account %d, got %v", subID, expMb, got)
 		}
 	}
 }
@@ -148,13 +148,13 @@ func TestAllocateSendersCapacityWeighted(t *testing.T) {
 	}
 
 	if counts[1] != 2 {
-		t.Errorf("expected mailbox 1 count = 2, got %d", counts[1])
+		t.Errorf("expected email account 1 count = 2, got %d", counts[1])
 	}
 	if counts[2] != 10 {
-		t.Errorf("expected mailbox 2 count = 10, got %d", counts[2])
+		t.Errorf("expected email account 2 count = 10, got %d", counts[2])
 	}
 	if counts[3] != 8 {
-		t.Errorf("expected mailbox 3 count = 8, got %d", counts[3])
+		t.Errorf("expected email account 3 count = 8, got %d", counts[3])
 	}
 }
 

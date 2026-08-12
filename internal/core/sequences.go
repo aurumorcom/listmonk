@@ -311,7 +311,7 @@ func AllocateSendersCapacityWeighted(subIDs []int, emails []models.Email) map[in
 }
 
 // EnrollSequenceContacts enrolls contacts into a sequence with sender locking, load balancing, and optional User context.
-func (c *Core) EnrollSequenceContacts(sequenceID int, subscriberIDs []int, explicitMailboxID null.Int, explicitWahaSession null.String, userContext map[string]any) error {
+func (c *Core) EnrollSequenceContacts(sequenceID int, subscriberIDs []int, explicitEmailID null.Int, explicitWahaSession null.String, userContext map[string]any) error {
 	if len(subscriberIDs) == 0 {
 		return nil
 	}
@@ -321,7 +321,7 @@ func (c *Core) EnrollSequenceContacts(sequenceID int, subscriberIDs []int, expli
 		return err
 	}
 
-	mailboxAlloc := make(map[int]null.Int)
+	emailAlloc := make(map[int]null.Int)
 	wahaAlloc := make(map[int]null.String)
 
 	// Check for User identity in userContext to bind User channels across Email and WAHA
@@ -340,27 +340,27 @@ func (c *Core) EnrollSequenceContacts(sequenceID int, subscriberIDs []int, expli
 		if uid > 0 {
 			var u auth.User
 			if err := c.db.Get(&u, "SELECT id, email_id, waha_session FROM users WHERE id = $1", uid); err == nil {
-				if u.EmailID.Valid && !explicitMailboxID.Valid {
-					explicitMailboxID = u.EmailID
+				if u.EmailID.Valid && !explicitEmailID.Valid {
+					explicitEmailID = u.EmailID
 				}
 				if u.WahaSession.Valid && u.WahaSession.String != "" && (!explicitWahaSession.Valid || explicitWahaSession.String == "") {
 					explicitWahaSession = u.WahaSession
 				}
 			}
 			// Fallback: look up email account owned by this user_id if email_id not set on user profile
-			if !explicitMailboxID.Valid {
-				var mbID int
-				if err := c.db.Get(&mbID, "SELECT id FROM emails WHERE user_id = $1 ORDER BY id ASC LIMIT 1", uid); err == nil && mbID > 0 {
-					explicitMailboxID = null.IntFrom(mbID)
+			if !explicitEmailID.Valid {
+				var emailAccountID int
+				if err := c.db.Get(&emailAccountID, "SELECT id FROM emails WHERE user_id = $1 ORDER BY id ASC LIMIT 1", uid); err == nil && emailAccountID > 0 {
+					explicitEmailID = null.IntFrom(emailAccountID)
 				}
 			}
 		}
 	}
 
 	// Email Allocation
-	if explicitMailboxID.Valid {
+	if explicitEmailID.Valid {
 		for _, id := range subscriberIDs {
-			mailboxAlloc[id] = explicitMailboxID
+			emailAlloc[id] = explicitEmailID
 		}
 	} else if len(seq.EmailIDs) > 0 {
 		if seq.LoadBalanceMode == models.LoadBalanceModeCapacityWeighted {
@@ -376,12 +376,12 @@ func (c *Core) EnrollSequenceContacts(sequenceID int, subscriberIDs []int, expli
 						pool = append(pool, m)
 					}
 				}
-				mailboxAlloc = AllocateSendersCapacityWeighted(subscriberIDs, pool)
+				emailAlloc = AllocateSendersCapacityWeighted(subscriberIDs, pool)
 			} else {
-				mailboxAlloc = AllocateSendersRoundRobinInt(subscriberIDs, seq.EmailIDs)
+				emailAlloc = AllocateSendersRoundRobinInt(subscriberIDs, seq.EmailIDs)
 			}
 		} else {
-			mailboxAlloc = AllocateSendersRoundRobinInt(subscriberIDs, seq.EmailIDs)
+			emailAlloc = AllocateSendersRoundRobinInt(subscriberIDs, seq.EmailIDs)
 		}
 	}
 
@@ -410,12 +410,12 @@ func (c *Core) EnrollSequenceContacts(sequenceID int, subscriberIDs []int, expli
 	defer stmt.Close()
 
 	for _, subID := range subscriberIDs {
-		mbID := mailboxAlloc[subID]
+		emailID := emailAlloc[subID]
 		wSession := wahaAlloc[subID]
 
 		var mbVal any
-		if mbID.Valid {
-			mbVal = mbID.Int
+		if emailID.Valid {
+			mbVal = emailID.Int
 		}
 		var wsVal any
 		if wSession.Valid && wSession.String != "" {

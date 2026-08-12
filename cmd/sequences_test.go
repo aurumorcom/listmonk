@@ -169,7 +169,7 @@ func TestE2E_Sequence_Sender_Reassignment_And_Limits(t *testing.T) {
 		}
 	}
 
-	t.Log("Successfully verified sender reassignment and mailbox daily limit deferral logic")
+	t.Log("Successfully verified sender reassignment and email account daily limit deferral logic")
 }
 
 func TestE2E_Sequence_Schedule_Timezone_Pacing(t *testing.T) {
