@@ -249,4 +249,24 @@ export default class Utils {
     p[key] = val;
     localStorage.setItem(prefKey, JSON.stringify(p));
   };
+
+  getTimezones = () => {
+    if (typeof Intl !== 'undefined' && typeof Intl.supportedValuesOf === 'function') {
+      try {
+        return Intl.supportedValuesOf('timeZone');
+      } catch (e) {
+        // Fallback below
+      }
+    }
+    return [
+      'UTC', 'Africa/Abidjan', 'Africa/Cairo', 'Africa/Johannesburg', 'Africa/Lagos',
+      'America/Anchorage', 'America/Argentina/Buenos_Aires', 'America/Bogota', 'America/Chicago',
+      'America/Denver', 'America/Los_Angeles', 'America/Mexico_City', 'America/New_York',
+      'America/Phoenix', 'America/Sao_Paulo', 'America/Toronto', 'Asia/Bangkok', 'Asia/Dubai',
+      'Asia/Hong_Kong', 'Asia/Istanbul', 'Asia/Jakarta', 'Asia/Kolkata', 'Asia/Seoul',
+      'Asia/Shanghai', 'Asia/Singapore', 'Asia/Tokyo', 'Australia/Sydney', 'Europe/Amsterdam',
+      'Europe/Berlin', 'Europe/London', 'Europe/Madrid', 'Europe/Moscow', 'Europe/Paris',
+      'Europe/Rome', 'Pacific/Auckland', 'Pacific/Honolulu',
+    ];
+  };
 }
