@@ -34,6 +34,7 @@ type Template struct {
 	// Only relevant to tx (transactional) and prompt templates.
 	SubjectTpl      *txttpl.Template   `json:"-"`
 	SystemPromptTpl *txttpl.Template   `json:"-"`
+	UserPromptTpl   *txttpl.Template   `json:"-"`
 	Tpl             *template.Template `json:"-"`
 	Attachments     []Attachment       `json:"-"`
 }
@@ -41,6 +42,23 @@ type Template struct {
 // Compile compiles a template body and subject (only for tx templates) and
 // caches the template references to be executed later.
 func (t *Template) Compile(f template.FuncMap) error {
+	if t.Type == TemplateTypePrompt {
+		userTpl, err := txttpl.New(BaseTpl).Funcs(txttpl.FuncMap(f)).Parse(t.Body)
+		if err != nil {
+			return fmt.Errorf("error compiling user prompt: %v", err)
+		}
+		t.UserPromptTpl = userTpl
+
+		if t.SystemPrompt != "" {
+			sysTpl, err := txttpl.New(BaseTpl).Funcs(txttpl.FuncMap(f)).Parse(t.SystemPrompt)
+			if err != nil {
+				return fmt.Errorf("error compiling system prompt: %v", err)
+			}
+			t.SystemPromptTpl = sysTpl
+		}
+		return nil
+	}
+
 	tpl, err := template.New(BaseTpl).Funcs(f).Parse(t.Body)
 	if err != nil {
 		return fmt.Errorf("error compiling template: %v", err)

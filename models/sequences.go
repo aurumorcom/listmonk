@@ -23,6 +23,9 @@ const (
 	SequenceConditionIfNotRead = "if_not_read"
 	SequenceConditionIfClicked = "if_clicked"
 
+	EmailTypeNewThread = "New Thread"
+	EmailTypeReply     = "Reply"
+
 	LoadBalanceModeRoundRobin       = "round_robin"
 	LoadBalanceModeCapacityWeighted = "capacity_weighted"
 )
@@ -37,10 +40,12 @@ type Sequence struct {
 	UUID            string         `db:"uuid" json:"uuid"`
 	Name            string         `db:"name" json:"name"`
 	Status          string         `db:"status" json:"status"`
+	ScheduleID      null.Int       `db:"schedule_id" json:"schedule_id"`
+	Schedule        *Schedule      `db:"-" json:"schedule,omitempty"`
 	Timezone        string         `db:"timezone" json:"timezone"`
 	SendSchedule    JSON           `db:"send_schedule" json:"send_schedule"`
 	SendWindow      JSON           `db:"send_window" json:"send_window"`
-	MailboxIDs      pq.Int64Array  `db:"mailbox_ids" json:"mailbox_ids"`
+	EmailIDs        pq.Int64Array  `db:"email_ids" json:"email_ids"`
 	WahaSessions    pq.StringArray `db:"waha_sessions" json:"waha_sessions"`
 	LoadBalanceMode string         `db:"load_balance_mode" json:"load_balance_mode"`
 }
@@ -68,6 +73,7 @@ type SequenceStep struct {
 	Condition  string        `db:"condition" json:"condition"`
 	Subject    string        `db:"subject" json:"subject"`
 	Body       string        `db:"body" json:"body"`
+	EmailType  string        `db:"email_type" json:"email_type"`
 	TemplateID null.Int      `db:"template_id" json:"template_id"`
 	MediaIDs   pq.Int64Array `db:"media_ids" json:"media_ids"`
 }
@@ -77,15 +83,34 @@ type SequenceContacts []SequenceContact
 
 // SequenceContact tracks the state machine position of a lead/contact within a sequence.
 type SequenceContact struct {
-	SequenceID    int         `db:"sequence_id" json:"sequence_id"`
-	SubscriberID  int         `db:"subscriber_id" json:"subscriber_id"`
-	MailboxID     null.Int    `db:"mailbox_id" json:"mailbox_id"`
-	WahaSession   null.String `db:"waha_session" json:"waha_session"`
-	Status        string      `db:"status" json:"status"`
-	CurrentStep   int         `db:"current_step" json:"current_step"`
-	NextSendAt    null.Time   `db:"next_send_at" json:"next_send_at"`
-	LastReadAt    null.Time   `db:"last_read_at" json:"last_read_at"`
-	LastClickedAt null.Time   `db:"last_clicked_at" json:"last_clicked_at"`
-	LastMessageID null.String `db:"last_message_id" json:"last_message_id"`
-	CreatedAt     time.Time   `db:"created_at" json:"created_at"`
+	SequenceID      int         `db:"sequence_id" json:"sequence_id"`
+	SubscriberID    int         `db:"subscriber_id" json:"subscriber_id"`
+	EmailID         null.Int    `db:"email_id" json:"email_id"`
+	WahaSession     null.String `db:"waha_session" json:"waha_session"`
+	Status          string      `db:"status" json:"status"`
+	CurrentStep     int         `db:"current_step" json:"current_step"`
+	NextSendAt      null.Time   `db:"next_send_at" json:"next_send_at"`
+	LastReadAt      null.Time   `db:"last_read_at" json:"last_read_at"`
+	LastClickedAt   null.Time   `db:"last_clicked_at" json:"last_clicked_at"`
+	LastMessageID   null.String `db:"last_message_id" json:"last_message_id"`
+	LastThreadMsgID null.String `db:"last_thread_msg_id" json:"last_thread_msg_id"`
+	CreatedAt       time.Time   `db:"created_at" json:"created_at"`
+}
+
+// SequenceStepFunnel represents metrics for an individual sequence step in the conversion funnel.
+type SequenceStepFunnel struct {
+	StepNumber int    `json:"step_number"`
+	Subject    string `json:"subject"`
+	Messenger  string `json:"messenger"`
+	Reached    int    `json:"reached"`
+	Replied    int    `json:"replied"`
+}
+
+// SequenceAnalytics aggregates metrics across cold outreach sequences.
+type SequenceAnalytics struct {
+	ActiveContacts  int                  `json:"active_contacts"`
+	StepCompletions int                  `json:"step_completions"`
+	ReplyRate       float64              `json:"reply_rate"`
+	ConversionRate  float64              `json:"conversion_rate"`
+	Funnel          []SequenceStepFunnel `json:"funnel"`
 }
