@@ -35,6 +35,10 @@
             <b-input v-model="item.phone_attribute" name="phone_attribute" placeholder="phone" :maxlength="100" />
           </b-field>
 
+          <b-field label="Signature" label-position="on-border" message="Default signature appended to WhatsApp messages sent from this session">
+            <b-input v-model="item.signature" name="signature" type="textarea" placeholder="Best regards,\nSupport Team" />
+          </b-field>
+
           <div class="columns">
             <div class="column is-4">
               <b-field label="Max Connections" label-position="on-border">
@@ -49,6 +53,20 @@
             <div class="column is-4">
               <b-field label="Timeout" label-position="on-border">
                 <b-input v-model="item.timeout" name="timeout" placeholder="10s" :maxlength="10" />
+              </b-field>
+            </div>
+          </div>
+
+          <!-- Standardized Sending Limits Section -->
+          <div class="columns">
+            <div class="column is-6">
+              <b-field label="Messages sent per day" label-position="on-border" message="Daily max sending quota for this WhatsApp session (0 = unlimited)">
+                <b-numberinput v-model="item.messages_per_day" name="messages_per_day" type="is-light" controls-position="compact" placeholder="0" min="0" max="100000" />
+              </b-field>
+            </div>
+            <div class="column is-6">
+              <b-field label="Messages sent per hour" label-position="on-border" message="Hourly max sending quota for this WhatsApp session (0 = unlimited)">
+                <b-numberinput v-model="item.messages_per_hour" name="messages_per_hour" type="is-light" controls-position="compact" placeholder="0" min="0" max="10000" />
               </b-field>
             </div>
           </div>
@@ -150,6 +168,8 @@ export default {
         wpm_std: 10,
         keyboard_layout: 'qwerty',
         max_typing_delay_sec: 30,
+        messages_per_day: 0,
+        messages_per_hour: 0,
       });
     },
     removeMessenger(i) {

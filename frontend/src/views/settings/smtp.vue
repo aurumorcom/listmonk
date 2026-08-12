@@ -139,6 +139,20 @@
               </div>
             </div>
 
+            <!-- Standardized Sending Limits Section -->
+            <div class="columns">
+              <div class="column is-6">
+                <b-field label="Emails sent per day" label-position="on-border" message="Daily max sending quota for this SMTP account (0 = unlimited)">
+                  <b-numberinput v-model="item.emails_per_day" name="emails_per_day" type="is-light" controls-position="compact" placeholder="0" min="0" max="100000" />
+                </b-field>
+              </div>
+              <div class="column is-6">
+                <b-field label="Emails sent per hour" label-position="on-border" message="Hourly max sending quota for this SMTP account (0 = unlimited)">
+                  <b-numberinput v-model="item.emails_per_hour" name="emails_per_hour" type="is-light" controls-position="compact" placeholder="0" min="0" max="10000" />
+                </b-field>
+              </div>
+            </div>
+
             <div class="columns">
               <div class="column is-4">
                 <b-field :label="$t('settings.smtp.retries')" label-position="on-border"
@@ -182,7 +196,7 @@
                 <b-field v-if="item.email_headers.length > 0 || item.showHeaders" label-position="on-border"
                   :message="$t('settings.smtp.customHeadersHelp')">
                   <b-input v-model="item.strEmailHeaders" name="email_headers" type="textarea"
-                    placeholder="[{&quot;X-Custom&quot;: &quot;value&quot;}, {&quot;X-Custom2&quot;: &quot;value&quot;}]" />
+                    placeholder='[{"X-Custom": "value"}]' />
                 </b-field>
               </div>
             </div>
@@ -306,6 +320,8 @@ export default Vue.extend({
         wait_timeout: '5s',
         tls_type: 'STARTTLS',
         tls_skip_verify: false,
+        emails_per_day: 0,
+        emails_per_hour: 0,
       });
 
       this.$nextTick(() => {
