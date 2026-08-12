@@ -335,6 +335,23 @@ CREATE TABLE roles (
 CREATE UNIQUE INDEX idx_roles ON roles (parent_id, list_id);
 CREATE UNIQUE INDEX idx_roles_name ON roles (type, name) WHERE name IS NOT NULL;
 
+-- emails
+DROP TABLE IF EXISTS emails CASCADE;
+CREATE TABLE emails (
+    id          SERIAL PRIMARY KEY,
+    name        TEXT NOT NULL,
+    email       TEXT NOT NULL UNIQUE,
+    smtp_config     JSONB NOT NULL DEFAULT '{}',
+    imap_config     JSONB NOT NULL DEFAULT '{}',
+    emails_per_day  INTEGER NOT NULL DEFAULT 0,
+    emails_per_hour INTEGER NOT NULL DEFAULT 0,
+    emails_today    INTEGER NOT NULL DEFAULT 0,
+    user_id     INTEGER NULL,
+    signature   TEXT NOT NULL DEFAULT '',
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- users
 DROP TABLE IF EXISTS users CASCADE;
 CREATE TABLE users (
@@ -358,6 +375,8 @@ CREATE TABLE users (
     created_at       TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at       TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+ALTER TABLE emails ADD CONSTRAINT fk_emails_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL;
 
 -- user sessions
 DROP TABLE IF EXISTS sessions CASCADE;
@@ -450,23 +469,6 @@ CREATE MATERIALIZED VIEW mat_list_subscriber_stats AS
     UNION ALL
     SELECT NOW() AS updated_at, 0 AS list_id, NULL AS status, COUNT(id) AS subscriber_count FROM subscribers;
 DROP INDEX IF EXISTS mat_list_subscriber_stats_idx; CREATE UNIQUE INDEX mat_list_subscriber_stats_idx ON mat_list_subscriber_stats (list_id, status);
-
--- emails
-DROP TABLE IF EXISTS emails CASCADE;
-CREATE TABLE emails (
-    id          SERIAL PRIMARY KEY,
-    name        TEXT NOT NULL,
-    email       TEXT NOT NULL UNIQUE,
-    smtp_config     JSONB NOT NULL DEFAULT '{}',
-    imap_config     JSONB NOT NULL DEFAULT '{}',
-    emails_per_day  INTEGER NOT NULL DEFAULT 0,
-    emails_per_hour INTEGER NOT NULL DEFAULT 0,
-    emails_today    INTEGER NOT NULL DEFAULT 0,
-    user_id     INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
-    signature   TEXT NOT NULL DEFAULT '',
-    created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
 
 -- schedules
 DROP TABLE IF EXISTS schedules CASCADE;
