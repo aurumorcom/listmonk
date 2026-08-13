@@ -25,9 +25,6 @@ const (
 
 	EmailTypeNewThread = "New Thread"
 	EmailTypeReply     = "Reply"
-
-	LoadBalanceModeRoundRobin       = "round_robin"
-	LoadBalanceModeCapacityWeighted = "capacity_weighted"
 )
 
 // Sequences represents a slice of Sequence.
@@ -48,7 +45,6 @@ type Sequence struct {
 	SendWindow        JSON           `db:"send_window" json:"send_window"`
 	EmailIDs          pq.Int64Array  `db:"email_ids" json:"email_ids"`
 	WahaSessions      pq.StringArray `db:"waha_sessions" json:"waha_sessions"`
-	LoadBalanceMode   string         `db:"load_balance_mode" json:"load_balance_mode"`
 	Archive           bool           `db:"archive" json:"archive"`
 	ArchiveTemplateID null.Int       `db:"archive_template_id" json:"archive_template_id"`
 	ArchiveSlug       null.String    `db:"archive_slug" json:"archive_slug"`

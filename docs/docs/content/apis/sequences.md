@@ -14,9 +14,8 @@ The Sequences API enables management of automated multi-step cold outreach seque
 | `status` | string | Sequence status (`active`, `paused`, `archived`, `cancelled`) |
 | `schedule_id` | number | Associated sending schedule ID |
 | `send_window` | object | Daily sending window time range configuration |
-| `email_ids` | number[] | Array of sender email account IDs for load balancing |
-| `waha_sessions` | string[] | Array of WhatsApp session names for load balancing |
-| `load_balance_mode` | string | Load balancing strategy (`round_robin`, `capacity_weighted`) |
+| `email_ids` | number[] | Array of sender email account IDs |
+| `waha_sessions` | string[] | Array of WhatsApp session names |
 | `archive` | boolean | Web archive status |
 | `archive_template_id` | number | Template ID used for web archive view |
 | `archive_slug` | string | Custom URL slug for public web archive |

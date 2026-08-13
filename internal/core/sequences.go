@@ -22,7 +22,7 @@ import (
 // GetSequences returns a list of all sequences.
 func (c *Core) GetSequences() ([]models.Sequence, error) {
 	var out []models.Sequence
-	err := c.db.Select(&out, "SELECT id, uuid, name, description, status, schedule_id, send_window, email_ids, waha_sessions, load_balance_mode, archive, archive_template_id, archive_slug, archive_meta, created_at, updated_at FROM sequences ORDER BY id DESC")
+	err := c.db.Select(&out, "SELECT id, uuid, name, description, status, schedule_id, send_window, email_ids, waha_sessions, archive, archive_template_id, archive_slug, archive_meta, created_at, updated_at FROM sequences ORDER BY id DESC")
 	if err != nil {
 		c.log.Printf("error querying sequences: %v", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, c.i18n.Ts("public.errorProcessingRequest"))
@@ -41,7 +41,7 @@ func (c *Core) GetSequences() ([]models.Sequence, error) {
 // GetSequence returns a sequence by ID or UUID.
 func (c *Core) GetSequence(id int, uid string) (*models.Sequence, error) {
 	var seq models.Sequence
-	err := c.db.Get(&seq, "SELECT id, uuid, name, description, status, schedule_id, send_window, email_ids, waha_sessions, load_balance_mode, archive, archive_template_id, archive_slug, archive_meta, created_at, updated_at FROM sequences WHERE id = $1 OR uuid::text = $2", id, uid)
+	err := c.db.Get(&seq, "SELECT id, uuid, name, description, status, schedule_id, send_window, email_ids, waha_sessions, archive, archive_template_id, archive_slug, archive_meta, created_at, updated_at FROM sequences WHERE id = $1 OR uuid::text = $2", id, uid)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, echo.NewHTTPError(http.StatusNotFound, c.i18n.Ts("globals.messages.notFound"))
@@ -72,15 +72,11 @@ func (c *Core) CreateSequence(seq models.Sequence) (*models.Sequence, error) {
 	if seq.ArchiveMeta == nil {
 		seq.ArchiveMeta = models.JSON{}
 	}
-	if seq.LoadBalanceMode == "" {
-		seq.LoadBalanceMode = models.LoadBalanceModeRoundRobin
-	}
-
 	var out models.Sequence
-	err := c.db.Get(&out, `INSERT INTO sequences (uuid, name, description, status, schedule_id, send_window, email_ids, waha_sessions, load_balance_mode, archive, archive_template_id, archive_slug, archive_meta)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-		RETURNING id, uuid, name, description, status, schedule_id, send_window, email_ids, waha_sessions, load_balance_mode, archive, archive_template_id, archive_slug, archive_meta, created_at, updated_at`,
-		seq.UUID, seq.Name, seq.Description, seq.Status, seq.ScheduleID, seq.SendWindow, seq.EmailIDs, seq.WahaSessions, seq.LoadBalanceMode, seq.Archive, seq.ArchiveTemplateID, seq.ArchiveSlug, seq.ArchiveMeta)
+	err := c.db.Get(&out, `INSERT INTO sequences (uuid, name, description, status, schedule_id, send_window, email_ids, waha_sessions, archive, archive_template_id, archive_slug, archive_meta)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+		RETURNING id, uuid, name, description, status, schedule_id, send_window, email_ids, waha_sessions, archive, archive_template_id, archive_slug, archive_meta, created_at, updated_at`,
+		seq.UUID, seq.Name, seq.Description, seq.Status, seq.ScheduleID, seq.SendWindow, seq.EmailIDs, seq.WahaSessions, seq.Archive, seq.ArchiveTemplateID, seq.ArchiveSlug, seq.ArchiveMeta)
 	if err != nil {
 		c.log.Printf("error creating sequence: %v", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, c.i18n.Ts("public.errorProcessingRequest"))
@@ -94,9 +90,6 @@ func (c *Core) CreateSequence(seq models.Sequence) (*models.Sequence, error) {
 
 // UpdateSequence updates an existing sequence.
 func (c *Core) UpdateSequence(seq models.Sequence) (*models.Sequence, error) {
-	if seq.LoadBalanceMode == "" {
-		seq.LoadBalanceMode = models.LoadBalanceModeRoundRobin
-	}
 	if len(seq.EmailIDs) == 0 {
 		seq.EmailIDs = pq.Int64Array{}
 	}
@@ -110,9 +103,9 @@ func (c *Core) UpdateSequence(seq models.Sequence) (*models.Sequence, error) {
 		seq.ArchiveMeta = models.JSON{}
 	}
 	_, err := c.db.Exec(`UPDATE sequences
-		SET name = $2, description = $3, status = $4, schedule_id = $5, send_window = $6, email_ids = $7, waha_sessions = $8, load_balance_mode = $9, archive = $10, archive_template_id = $11, archive_slug = $12, archive_meta = $13, updated_at = NOW()
+		SET name = $2, description = $3, status = $4, schedule_id = $5, send_window = $6, email_ids = $7, waha_sessions = $8, archive = $9, archive_template_id = $10, archive_slug = $11, archive_meta = $12, updated_at = NOW()
 		WHERE id = $1`,
-		seq.ID, seq.Name, seq.Description, seq.Status, seq.ScheduleID, seq.SendWindow, seq.EmailIDs, seq.WahaSessions, seq.LoadBalanceMode, seq.Archive, seq.ArchiveTemplateID, seq.ArchiveSlug, seq.ArchiveMeta)
+		seq.ID, seq.Name, seq.Description, seq.Status, seq.ScheduleID, seq.SendWindow, seq.EmailIDs, seq.WahaSessions, seq.Archive, seq.ArchiveTemplateID, seq.ArchiveSlug, seq.ArchiveMeta)
 	if err != nil {
 		c.log.Printf("error updating sequence: %v", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, c.i18n.Ts("public.errorProcessingRequest"))

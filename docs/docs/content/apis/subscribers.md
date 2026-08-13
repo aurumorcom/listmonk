@@ -11,6 +11,9 @@
 | POST   | [/api/public/subscription](#post-apipublicsubscription)                                 | Create a public subscription.                  |
 | PUT    | [/api/subscribers/lists](#put-apisubscriberslists)                                      | Modify subscriber list memberships.            |
 | PUT    | [/api/subscribers/query/lists](#put-apisubscribersquerylists)                           | Bulk modify list memberships using SQL/Search queries. |
+| PUT    | [/api/subscribers/sequences](#put-apisubscriberssequences)                              | Modify subscriber sequence memberships (enroll, disenroll, pause). |
+| PUT    | [/api/subscribers/query/sequences](#put-apisubscribersquerysequences)                  | Bulk modify sequence memberships using SQL/Search queries. |
+| GET    | [/api/subscribers/{subscriber_id}/sequences](#get-apisubscriberssubscriber_idsequences)  | Retrieve active sequence memberships for a subscriber. |
 | PUT    | [/api/subscribers/{subscriber_id}](#put-apisubscriberssubscriber_id)                    | Update a specific subscriber.                  |
 | PATCH  | [/api/subscribers/{subscriber_id}](#patch-apisubscriberssubscriber_id)                  | Partially update a specific subscriber.        |
 | PUT    | [/api/subscribers/{subscriber_id}/blocklist](#put-apisubscriberssubscriber_idblocklist) | Blocklist a specific subscriber.               |
@@ -428,6 +431,108 @@ curl -u "username:token" -X PUT 'http://localhost:9000/api/subscribers/lists' \
     "data": true
 } 
 ```
+______________________________________________________________________
+
+#### PUT /api/subscribers/sequences
+
+Modify subscriber sequence memberships (enroll, disenroll, or pause subscribers in target cold outreach sequences).
+
+##### Parameters
+
+| Name | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `action` | string | Yes | Action to apply: `add`/`enroll`, `remove`/`disenroll`, or `pause`. |
+| `contact_ids` | number[] | No | Array of subscriber IDs to modify. |
+| `target_sequence_ids` | number[] | Yes | Array of target sequence IDs to enroll/disenroll/pause. |
+| `status` | string | No | Initial status for enrollment: `scheduled`, `in_progress`, or `paused`. Default is `scheduled`. |
+
+##### Example Request
+
+```shell
+curl -u "username:token" -X PUT 'http://localhost:9000/api/subscribers/sequences' \
+  -H 'Content-Type: application/json' \
+  --data-raw '{
+    "action": "add",
+    "contact_ids": [101, 102],
+    "target_sequence_ids": [1, 2],
+    "status": "scheduled"
+  }'
+```
+
+##### Example Response
+
+```json
+{
+    "data": true
+}
+```
+
+______________________________________________________________________
+
+#### PUT /api/subscribers/query/sequences
+
+Modify sequence memberships for multiple subscribers dynamically using a search query and/or SQL expression.
+
+##### Parameters
+
+| Name | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `action` | string | Yes | Action to apply: `add`/`enroll`, `remove`/`disenroll`, or `pause`. |
+| `target_sequence_ids` | number[] | Yes | Array of sequence IDs to enroll/disenroll subscribers in. |
+| `query` | string | No | SQL expression to filter subscribers (e.g., `subscribers.attribs->>'industry' = 'Software'`). |
+| `search` | string | No | Free-text search query. |
+| `status` | string | No | Initial status when enrolling: `scheduled` or `in_progress`. |
+
+##### Example Request
+
+```shell
+curl -u "username:token" -X PUT 'http://localhost:9000/api/subscribers/query/sequences' \
+  -H 'Content-Type: application/json' \
+  --data-raw '{
+    "query": "subscribers.attribs->>'\''industry'\'' = '\''Software'\''",
+    "action": "add",
+    "target_sequence_ids": [1]
+  }'
+```
+
+##### Example Response
+
+```json
+{
+    "data": true
+}
+```
+
+______________________________________________________________________
+
+#### GET /api/subscribers/{subscriber_id}/sequences
+
+Retrieve active sequence memberships and state machine progress for a specific subscriber.
+
+##### Example Request
+
+```shell
+curl -u "username:token" 'http://localhost:9000/api/subscribers/101/sequences'
+```
+
+##### Example Response
+
+```json
+{
+  "data": [
+    {
+      "sequence_id": 1,
+      "subscriber_id": 101,
+      "email_id": 2,
+      "waha_session": "sales-wa-1",
+      "status": "in_progress",
+      "current_step": 2,
+      "next_send_at": "2026-08-12T10:00:00Z"
+    }
+  ]
+}
+```
+
 ______________________________________________________________________
 
 #### PUT /api/subscribers/query/lists

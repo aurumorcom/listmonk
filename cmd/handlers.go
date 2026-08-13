@@ -128,6 +128,9 @@ func initHTTPHandlers(e *echo.Echo, a *App) {
 		g.PUT("/api/subscribers/:id/blocklist", pm(hasID(a.BlocklistSubscriber), "subscribers:manage"))
 		g.PUT("/api/subscribers/lists/:id", pm(a.ManageSubscriberLists, "subscribers:manage"))
 		g.PUT("/api/subscribers/lists", pm(a.ManageSubscriberLists, "subscribers:manage"))
+		g.PUT("/api/subscribers/sequences/:id", pm(a.ManageContactSequences, "contacts:manage", "subscribers:manage"))
+		g.PUT("/api/subscribers/sequences", pm(a.ManageContactSequences, "contacts:manage", "subscribers:manage"))
+		g.GET("/api/subscribers/:id/sequences", pm(hasID(a.GetContactSequences), "contacts:get_all", "contacts:get", "subscribers:get_all", "subscribers:get"))
 		g.DELETE("/api/subscribers/:id", pm(hasID(a.DeleteSubscriber), "subscribers:manage"))
 		g.DELETE("/api/subscribers", pm(a.DeleteSubscribers, "subscribers:manage"))
 
@@ -153,6 +156,7 @@ func initHTTPHandlers(e *echo.Echo, a *App) {
 		g.POST("/api/subscribers/query/delete", pm(a.DeleteSubscribersByQuery, "subscribers:manage"))
 		g.PUT("/api/subscribers/query/blocklist", pm(a.BlocklistSubscribersByQuery, "subscribers:manage"))
 		g.PUT("/api/subscribers/query/lists", pm(a.ManageSubscriberListsByQuery, "subscribers:manage"))
+		g.PUT("/api/subscribers/query/sequences", pm(a.ManageContactSequencesByQuery, "contacts:manage", "subscribers:manage"))
 		g.GET("/api/subscribers/export",
 			pm(middleware.GzipWithConfig(middleware.GzipConfig{Level: 9})(a.ExportSubscribers), "subscribers:get_all", "subscribers:get"))
 

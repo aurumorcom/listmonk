@@ -44,12 +44,13 @@ func V6_3_0(db *sqlx.DB, fs stuffbin.FileSystem, ko *koanf.Koanf, lo *log.Logger
 		ALTER TABLE sequences
 			ADD COLUMN IF NOT EXISTS email_ids INTEGER[] NOT NULL DEFAULT '{}',
 			ADD COLUMN IF NOT EXISTS waha_sessions TEXT[] NOT NULL DEFAULT '{}',
-			ADD COLUMN IF NOT EXISTS load_balance_mode TEXT NOT NULL DEFAULT 'round_robin',
 			ADD COLUMN IF NOT EXISTS description TEXT NOT NULL DEFAULT '',
 			ADD COLUMN IF NOT EXISTS archive BOOLEAN NOT NULL DEFAULT false,
 			ADD COLUMN IF NOT EXISTS archive_template_id INTEGER NULL REFERENCES templates(id) ON DELETE SET NULL,
 			ADD COLUMN IF NOT EXISTS archive_slug TEXT NULL,
 			ADD COLUMN IF NOT EXISTS archive_meta JSONB NOT NULL DEFAULT '{}';
+
+		ALTER TABLE sequences DROP COLUMN IF EXISTS load_balance_mode;
 	`); err != nil {
 		return err
 	}

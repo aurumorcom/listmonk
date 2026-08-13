@@ -410,13 +410,12 @@ func TestE2E_Sequence_REST_API_Pipeline(t *testing.T) {
 		Base: models.Base{
 			ID: 101,
 		},
-		UUID:            "seq-uuid-101",
-		Name:            "E2E Outbound Campaign Sequence",
-		Status:          models.SequenceStatusActive,
-		ScheduleID:      null.IntFrom(1),
-		Timezone:        "America/New_York",
-		EmailIDs:        []int64{1, 2},
-		LoadBalanceMode: models.LoadBalanceModeRoundRobin,
+		UUID:       "seq-uuid-101",
+		Name:       "E2E Outbound Campaign Sequence",
+		Status:     models.SequenceStatusActive,
+		ScheduleID: null.IntFrom(1),
+		Timezone:   "America/New_York",
+		EmailIDs:   []int64{1, 2},
 	}
 
 	steps := []models.SequenceStep{

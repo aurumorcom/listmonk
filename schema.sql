@@ -498,7 +498,6 @@ CREATE TABLE sequences (
     send_window       JSONB NOT NULL DEFAULT '{}',
     email_ids         INTEGER[] NOT NULL DEFAULT '{}',
     waha_sessions     TEXT[] NOT NULL DEFAULT '{}',
-    load_balance_mode TEXT NOT NULL DEFAULT 'round_robin',
     archive           BOOLEAN NOT NULL DEFAULT false,
     archive_template_id INTEGER NULL REFERENCES templates(id) ON DELETE SET NULL,
     archive_slug      TEXT NULL,

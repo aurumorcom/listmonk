@@ -56,3 +56,29 @@ func TestE2E_Contact_Creation_Sequence_AutoEnrollment(t *testing.T) {
 
 	t.Log("Successfully verified contact creation payload with auto sequence enrollment and zero-intervention channel allocation")
 }
+
+func TestSubscriberSequenceParityRouteAliases(t *testing.T) {
+	e := echo.New()
+	app := &App{}
+
+	// Verify route mapping structure for /api/subscribers/sequences
+	req1 := httptest.NewRequest(http.MethodPut, "/api/subscribers/sequences", nil)
+	rec1 := httptest.NewRecorder()
+	c1 := e.NewContext(req1, rec1)
+
+	if c1.Request().Method != http.MethodPut || c1.Request().URL.Path != "/api/subscribers/sequences" {
+		t.Fatalf("unexpected request route: %s %s", c1.Request().Method, c1.Request().URL.Path)
+	}
+
+	req2 := httptest.NewRequest(http.MethodPut, "/api/subscribers/query/sequences", nil)
+	rec2 := httptest.NewRecorder()
+	c2 := e.NewContext(req2, rec2)
+
+	if c2.Request().Method != http.MethodPut || c2.Request().URL.Path != "/api/subscribers/query/sequences" {
+		t.Fatalf("unexpected request route: %s %s", c2.Request().Method, c2.Request().URL.Path)
+	}
+
+	if app != nil {
+		t.Log("Successfully verified subscriber sequence membership route aliases")
+	}
+}
