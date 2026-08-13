@@ -39,12 +39,19 @@ The Contacts API allows querying, creating, updating, and deleting contacts (sub
 | `GET` | `/api/contacts` | Query and retrieve contacts |
 | `GET` | `/api/contacts/{id}` | Retrieve a specific contact by ID |
 | `GET` | `/api/contacts/{id}/sequences` | Retrieve sequence memberships for a contact |
-| `POST` | `/api/contacts` | Create a new contact |
+| `GET` | `/api/contacts/{id}/export` | Export profile, sequence history, campaign views, and link clicks for a contact |
+| `GET` | `/api/contacts/{id}/bounces` | Retrieve bounce logs for a contact |
+| `POST` | `/api/contacts` | Create a new contact (supports optional `sequences` auto-enrollment) |
 | `PUT` | `/api/contacts/{id}` | Update an existing contact |
+| `PATCH` | `/api/contacts/{id}` | Partially update an existing contact |
 | `PUT` | `/api/contacts/sequences` | Modify contact sequence memberships (`enroll`, `disenroll`, `pause`) |
-| `PUT` | `/api/contacts/query/sequences` | Modify contact sequence memberships by query filter |
+| `PUT` | `/api/contacts/sequences/{id}` | Modify sequence memberships for a single contact |
+| `PUT` | `/api/contacts/query/sequences` | Modify sequence memberships dynamically using SQL/Search queries |
+| `PUT` | `/api/contacts/blocklist` | Blocklist one or more contacts |
+| `PUT` | `/api/contacts/{id}/blocklist` | Blocklist a specific contact |
 | `DELETE` | `/api/contacts/{id}` | Delete a specific contact |
 | `DELETE` | `/api/contacts` | Bulk delete contacts |
+| `POST` | `/api/contacts/query/delete` | Bulk delete contacts matching a query filter |
 
 ---
 
@@ -191,6 +198,72 @@ curl -u "username:token" -X PUT 'http://localhost:9000/api/contacts/sequences' \
 
 ---
 
+### PUT /api/contacts/query/sequences
+
+Modify sequence memberships for multiple contacts dynamically using a search query and/or SQL expression.
+
+#### Parameters
+| Parameter | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `action` | string | Yes | Action to perform: `add` (or `enroll`), `remove` (or `disenroll`), `pause` |
+| `target_sequence_ids` | number[] | Yes | Array of target sequence IDs |
+| `query` | string | No | SQL expression filter (e.g. `subscribers.attribs->>'company' = 'Acme Inc'`) |
+| `search` | string | No | Free-text search term |
+| `status` | string | No | Initial status when enrolling (default: `scheduled`) |
+
+#### Example Request
+```shell
+curl -u "username:token" -X PUT 'http://localhost:9000/api/contacts/query/sequences' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "query": "subscribers.attribs->>'\''company'\'' = '\''Acme Inc'\''",
+    "action": "add",
+    "target_sequence_ids": [1]
+  }'
+```
+
+##### Example Response
+```json
+{
+  "data": true
+}
+```
+
+---
+
+### GET /api/contacts/{id}/export
+
+Export complete contact profile, sequence history, campaign views, and link click logs.
+
+#### Example Request
+```shell
+curl -u "username:token" 'http://localhost:9000/api/contacts/1/export'
+```
+
+---
+
+### GET /api/contacts/{id}/bounces
+
+Retrieve bounce records for a contact.
+
+#### Example Request
+```shell
+curl -u "username:token" 'http://localhost:9000/api/contacts/1/bounces'
+```
+
+---
+
+### PUT /api/contacts/{id}/blocklist
+
+Blocklist a specific contact by ID.
+
+#### Example Request
+```shell
+curl -u "username:token" -X PUT 'http://localhost:9000/api/contacts/1/blocklist'
+```
+
+---
+
 ### DELETE /api/contacts/{id}
 
 Delete a contact by ID.
@@ -198,4 +271,30 @@ Delete a contact by ID.
 #### Example Request
 ```shell
 curl -u "username:token" -X DELETE 'http://localhost:9000/api/contacts/1'
+```
+
+---
+
+### DELETE /api/contacts
+
+Bulk delete contacts by ID list.
+
+#### Example Request
+```shell
+curl -u "username:token" -X DELETE 'http://localhost:9000/api/contacts?id=101&id=102'
+```
+
+---
+
+### POST /api/contacts/query/delete
+
+Bulk delete contacts matching an SQL or free-text query expression.
+
+#### Example Request
+```shell
+curl -u "username:token" -X POST 'http://localhost:9000/api/contacts/query/delete' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "query": "subscribers.status = '\''disabled'\''"
+  }'
 ```
