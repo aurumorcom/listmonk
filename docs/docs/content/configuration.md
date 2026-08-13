@@ -10,15 +10,25 @@ Variables defined in config.toml can also be provided as environment variables p
 
 Supported variables:
 
-| **Environment variable**       | Example value  |
-| ------------------------------ | -------------- |
-| `LISTMONK_app__address`        | "0.0.0.0:9000" |
-| `LISTMONK_db__host`            | db             |
-| `LISTMONK_db__port`            | 9432           |
-| `LISTMONK_db__user`            | listmonk       |
-| `LISTMONK_db__password`        | listmonk       |
-| `LISTMONK_db__database`        | listmonk       |
-| `LISTMONK_db__ssl_mode`        | disable        |
+| **Environment variable**                 | Example value                          |
+| ---------------------------------------- | -------------------------------------- |
+| `LISTMONK_app__address`                  | "0.0.0.0:9000"                         |
+| `LISTMONK_db__host`                      | db                                     |
+| `LISTMONK_db__port`                      | 9432                                   |
+| `LISTMONK_db__user`                      | listmonk                               |
+| `LISTMONK_db__password`                  | listmonk                               |
+| `LISTMONK_db__database`                  | listmonk                               |
+| `LISTMONK_db__ssl_mode`                  | disable                                |
+| `LISTMONK_upload__provider`              | s3                                     |
+| `LISTMONK_upload__s3__aws_default_region` | us-east-1                              |
+| `LISTMONK_upload__s3__aws_access_key_id` | myaccesskey                            |
+| `LISTMONK_upload__s3__aws_secret_access_key` | mysecretkey                       |
+| `LISTMONK_upload__s3__bucket`            | listmonk-media                         |
+| `LISTMONK_upload__s3__bucket_path`       | /                                      |
+| `LISTMONK_upload__s3__bucket_type`       | public                                 |
+| `LISTMONK_upload__s3__url`               | https://s3.us-east-1.amazonaws.com     |
+| `LISTMONK_upload__s3__public_url`        | https://cdn.example.com                |
+| `LISTMONK_upload__s3__expiry`            | 167h                                   |
 
 
 ### Customizing system templates
@@ -100,6 +110,23 @@ To use the default `uploads` folder:
     volumes:
       - ./uploads:/listmonk/uploads
 ```
+
+#### Using S3 or S3-compatible storage
+
+listmonk supports Amazon S3 and S3-compatible providers (such as MinIO, Cloudflare R2, DigitalOcean Spaces, Wasabi, etc.) for storing uploaded media.
+
+You can configure S3 storage in **Settings -> Media uploads** in the admin dashboard or via environment variables (`LISTMONK_upload__s3__*`).
+
+Key settings include:
+- **Provider**: Set to `s3`.
+- **Region**: The S3 region (e.g., `us-east-1`).
+- **Access key / Secret key**: S3 credentials. If left empty, listmonk falls back to AWS IAM instance/pod roles.
+- **Bucket & Bucket path**: The bucket name and relative directory path inside the bucket.
+- **Bucket type**:
+  - `public`: Uploads files with `public-read` ACL and generates direct public URLs.
+  - `private`: Generates time-limited pre-signed URLs for media files based on the configured expiration (`upload.s3.expiry`).
+- **S3 backend URL**: The base S3 endpoint URL (e.g. `https://s3.us-east-1.amazonaws.com` or custom MinIO endpoint `https://minio.example.com`).
+- **Custom public URL**: Optional custom CDN URL (e.g., `https://cdn.example.com`) or relative proxy route (e.g., `/uploads`) to serve files through listmonk.
 
 ## Logs
 
