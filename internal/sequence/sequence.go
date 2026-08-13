@@ -219,7 +219,12 @@ func (m *Manager) ProcessBatch() error {
 				}
 
 				if m.bifrostClient != nil {
-					aiBody, err := m.bifrostClient.GeneratePrompt(m.bifrostClient.TimeoutContext(), sysPromptStr, userPromptStr)
+					var respFormat *manager.BifrostResponseFormat
+					if step.Messenger != "waha" && msgr.Name() != "waha" {
+						respFormat = manager.EmailResponseFormat()
+					}
+
+					aiBody, err := m.bifrostClient.GeneratePromptWithFormat(m.bifrostClient.TimeoutContext(), sysPromptStr, userPromptStr, respFormat)
 					if err != nil {
 						m.log.Printf("Bifrost AI prompt generation failed for step %d, contact %d: %v", step.ID, contact.ID, err)
 						deferSend := null.TimeFrom(time.Now().Add(1 * time.Hour))
@@ -241,7 +246,6 @@ func (m *Manager) ProcessBatch() error {
 							if emailOut.Subject != "" {
 								msg.Subject = emailOut.Subject
 							}
-							finalContent := emailOut.Content
 							var assignedUser *auth.User
 							if activeEmail != nil && activeEmail.UserID.Valid {
 								if u, err := m.core.GetUser(activeEmail.UserID.Int, "", ""); err == nil {
@@ -253,9 +257,7 @@ func (m *Manager) ProcessBatch() error {
 								Email:      activeEmail,
 								User:       assignedUser,
 							})
-							if sig != "" {
-								finalContent = fmt.Sprintf("%s<br/><br/>%s", finalContent, sig)
-							}
+							finalContent := manager.FormatPlainTextWithSignature(emailOut.Content, sig)
 							msg.Body = []byte(finalContent)
 						} else {
 							msg.Body = []byte(aiBody)
