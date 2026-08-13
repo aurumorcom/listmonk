@@ -12,7 +12,7 @@ import (
 // GetSchedules returns a list of all schedules.
 func (c *Core) GetSchedules() ([]models.Schedule, error) {
 	var out []models.Schedule
-	err := c.db.Select(&out, "SELECT id, uuid, name, timezone, use_contact_timezone, skip_holidays, sending_windows, created_at, updated_at FROM schedules ORDER BY id DESC")
+	err := c.db.Select(&out, "SELECT id, uuid, name, timezone, use_contact_timezone, skip_holidays, sending_windows, is_default, created_at, updated_at FROM schedules ORDER BY id DESC")
 	if err != nil {
 		c.log.Printf("error querying schedules: %v", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, c.i18n.Ts("public.errorProcessingRequest"))
@@ -23,7 +23,7 @@ func (c *Core) GetSchedules() ([]models.Schedule, error) {
 // GetSchedule returns a schedule by ID or UUID.
 func (c *Core) GetSchedule(id int, uid string) (*models.Schedule, error) {
 	var s models.Schedule
-	err := c.db.Get(&s, "SELECT id, uuid, name, timezone, use_contact_timezone, skip_holidays, sending_windows, created_at, updated_at FROM schedules WHERE id = $1 OR uuid::text = $2", id, uid)
+	err := c.db.Get(&s, "SELECT id, uuid, name, timezone, use_contact_timezone, skip_holidays, sending_windows, is_default, created_at, updated_at FROM schedules WHERE id = $1 OR uuid::text = $2", id, uid)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, echo.NewHTTPError(http.StatusNotFound, c.i18n.Ts("globals.messages.notFound"))
@@ -76,6 +76,15 @@ func (c *Core) UpdateSchedule(s models.Schedule) (*models.Schedule, error) {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, c.i18n.Ts("public.errorProcessingRequest"))
 	}
 	return c.GetSchedule(s.ID, "")
+}
+
+// SetDefaultSchedule sets a schedule as default.
+func (c *Core) SetDefaultSchedule(id int) error {
+	if _, err := c.q.SetDefaultSchedule.Exec(id); err != nil {
+		c.log.Printf("error setting default schedule: %v", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, c.i18n.Ts("public.errorProcessingRequest"))
+	}
+	return nil
 }
 
 // DeleteSchedule deletes a schedule.

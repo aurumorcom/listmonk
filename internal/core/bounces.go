@@ -83,6 +83,10 @@ func (c *Core) RecordBounce(b models.Bounce) error {
 		c.log.Printf("error recording bounce: %v", err)
 	}
 
+	if err == nil {
+		_ = c.DispatchWebhookEvent("contact.bounced", b)
+	}
+
 	return err
 }
 

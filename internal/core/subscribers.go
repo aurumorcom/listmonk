@@ -359,6 +359,7 @@ func (c *Core) InsertSubscriber(sub models.Subscriber, listIDs []int, listUUIDs 
 		hasOptin = num > 0
 	}
 
+	_ = c.DispatchWebhookEvent("contact.created", out)
 	return out, hasOptin, nil
 }
 
@@ -394,6 +395,7 @@ func (c *Core) UpdateSubscriber(id int, sub models.Subscriber) (models.Subscribe
 		return models.Subscriber{}, err
 	}
 
+	_ = c.DispatchWebhookEvent("contact.updated", out)
 	return out, nil
 }
 
@@ -491,6 +493,7 @@ func (c *Core) DeleteSubscribers(subIDs []int, subUUIDs []string) error {
 			c.i18n.Ts("globals.messages.errorDeleting", "name", "{globals.terms.subscribers}", "error", pqErrMsg(err)))
 	}
 
+	_ = c.DispatchWebhookEvent("contact.deleted", map[string]any{"ids": subIDs, "uuids": subUUIDs})
 	return nil
 }
 
@@ -514,6 +517,7 @@ func (c *Core) UnsubscribeByCampaign(subUUID, campUUID string, blocklist bool) e
 			c.i18n.Ts("globals.messages.errorUpdating", "name", "{globals.terms.subscribers}", "error", pqErrMsg(err)))
 	}
 
+	_ = c.DispatchWebhookEvent("contact.unsubscribed", map[string]any{"subscriber_uuid": subUUID, "campaign_uuid": campUUID, "blocklist": blocklist})
 	return nil
 }
 

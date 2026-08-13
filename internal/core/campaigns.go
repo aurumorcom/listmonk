@@ -299,6 +299,7 @@ func (c *Core) UpdateCampaignStatus(id int, status string) (models.Campaign, err
 	}
 
 	cm.Status = status
+	_ = c.DispatchWebhookEvent("campaign.status_changed", cm)
 	return cm, nil
 }
 

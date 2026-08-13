@@ -22,7 +22,7 @@ import (
 // GetSequences returns a list of all sequences.
 func (c *Core) GetSequences() ([]models.Sequence, error) {
 	var out []models.Sequence
-	err := c.db.Select(&out, "SELECT id, uuid, name, status, schedule_id, send_window, email_ids, waha_sessions, load_balance_mode, created_at, updated_at FROM sequences ORDER BY id DESC")
+	err := c.db.Select(&out, "SELECT id, uuid, name, description, status, schedule_id, send_window, email_ids, waha_sessions, load_balance_mode, archive, archive_template_id, archive_slug, archive_meta, created_at, updated_at FROM sequences ORDER BY id DESC")
 	if err != nil {
 		c.log.Printf("error querying sequences: %v", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, c.i18n.Ts("public.errorProcessingRequest"))
@@ -41,7 +41,7 @@ func (c *Core) GetSequences() ([]models.Sequence, error) {
 // GetSequence returns a sequence by ID or UUID.
 func (c *Core) GetSequence(id int, uid string) (*models.Sequence, error) {
 	var seq models.Sequence
-	err := c.db.Get(&seq, "SELECT id, uuid, name, status, schedule_id, send_window, email_ids, waha_sessions, load_balance_mode, created_at, updated_at FROM sequences WHERE id = $1 OR uuid::text = $2", id, uid)
+	err := c.db.Get(&seq, "SELECT id, uuid, name, description, status, schedule_id, send_window, email_ids, waha_sessions, load_balance_mode, archive, archive_template_id, archive_slug, archive_meta, created_at, updated_at FROM sequences WHERE id = $1 OR uuid::text = $2", id, uid)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, echo.NewHTTPError(http.StatusNotFound, c.i18n.Ts("globals.messages.notFound"))
@@ -69,20 +69,27 @@ func (c *Core) CreateSequence(seq models.Sequence) (*models.Sequence, error) {
 	if seq.SendWindow == nil {
 		seq.SendWindow = models.JSON{}
 	}
+	if seq.ArchiveMeta == nil {
+		seq.ArchiveMeta = models.JSON{}
+	}
 	if seq.LoadBalanceMode == "" {
 		seq.LoadBalanceMode = models.LoadBalanceModeRoundRobin
 	}
 
 	var out models.Sequence
-	err := c.db.Get(&out, `INSERT INTO sequences (uuid, name, status, schedule_id, send_window, email_ids, waha_sessions, load_balance_mode)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-		RETURNING id, uuid, name, status, schedule_id, send_window, email_ids, waha_sessions, load_balance_mode, created_at, updated_at`,
-		seq.UUID, seq.Name, seq.Status, seq.ScheduleID, seq.SendWindow, seq.EmailIDs, seq.WahaSessions, seq.LoadBalanceMode)
+	err := c.db.Get(&out, `INSERT INTO sequences (uuid, name, description, status, schedule_id, send_window, email_ids, waha_sessions, load_balance_mode, archive, archive_template_id, archive_slug, archive_meta)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+		RETURNING id, uuid, name, description, status, schedule_id, send_window, email_ids, waha_sessions, load_balance_mode, archive, archive_template_id, archive_slug, archive_meta, created_at, updated_at`,
+		seq.UUID, seq.Name, seq.Description, seq.Status, seq.ScheduleID, seq.SendWindow, seq.EmailIDs, seq.WahaSessions, seq.LoadBalanceMode, seq.Archive, seq.ArchiveTemplateID, seq.ArchiveSlug, seq.ArchiveMeta)
 	if err != nil {
 		c.log.Printf("error creating sequence: %v", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, c.i18n.Ts("public.errorProcessingRequest"))
 	}
-	return c.GetSequence(out.ID, "")
+	res, _ := c.GetSequence(out.ID, "")
+	if res != nil {
+		_ = c.DispatchWebhookEvent("sequence.created", res)
+	}
+	return res, nil
 }
 
 // UpdateSequence updates an existing sequence.
@@ -99,15 +106,54 @@ func (c *Core) UpdateSequence(seq models.Sequence) (*models.Sequence, error) {
 	if seq.SendWindow == nil {
 		seq.SendWindow = models.JSON{}
 	}
+	if seq.ArchiveMeta == nil {
+		seq.ArchiveMeta = models.JSON{}
+	}
 	_, err := c.db.Exec(`UPDATE sequences
-		SET name = $2, status = $3, schedule_id = $4, send_window = $5, email_ids = $6, waha_sessions = $7, load_balance_mode = $8, updated_at = NOW()
+		SET name = $2, description = $3, status = $4, schedule_id = $5, send_window = $6, email_ids = $7, waha_sessions = $8, load_balance_mode = $9, archive = $10, archive_template_id = $11, archive_slug = $12, archive_meta = $13, updated_at = NOW()
 		WHERE id = $1`,
-		seq.ID, seq.Name, seq.Status, seq.ScheduleID, seq.SendWindow, seq.EmailIDs, seq.WahaSessions, seq.LoadBalanceMode)
+		seq.ID, seq.Name, seq.Description, seq.Status, seq.ScheduleID, seq.SendWindow, seq.EmailIDs, seq.WahaSessions, seq.LoadBalanceMode, seq.Archive, seq.ArchiveTemplateID, seq.ArchiveSlug, seq.ArchiveMeta)
 	if err != nil {
 		c.log.Printf("error updating sequence: %v", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, c.i18n.Ts("public.errorProcessingRequest"))
 	}
 	return c.GetSequence(seq.ID, "")
+}
+
+// UpdateSequenceStatus updates a sequence's status.
+func (c *Core) UpdateSequenceStatus(id int, status string) (*models.Sequence, error) {
+	switch status {
+	case models.SequenceStatusActive, models.SequenceStatusPaused, models.SequenceStatusArchived, "cancelled":
+	default:
+		return nil, echo.NewHTTPError(http.StatusBadRequest, c.i18n.Ts("globals.messages.invalidFields", "name", "status"))
+	}
+
+	_, err := c.db.Exec("UPDATE sequences SET status = $2, updated_at = NOW() WHERE id = $1", id, status)
+	if err != nil {
+		c.log.Printf("error updating sequence status: %v", err)
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, c.i18n.Ts("public.errorProcessingRequest"))
+	}
+
+	res, err := c.GetSequence(id, "")
+	if err == nil && res != nil {
+		_ = c.DispatchWebhookEvent("sequence.updated", res)
+	}
+	return res, err
+}
+
+// UpdateSequenceArchive updates sequence web archive settings.
+func (c *Core) UpdateSequenceArchive(id int, archive bool, templateID null.Int, meta models.JSON, archiveSlug null.String) error {
+	if meta == nil {
+		meta = models.JSON{}
+	}
+	_, err := c.db.Exec(`UPDATE sequences
+		SET archive = $2, archive_template_id = $3, archive_meta = $4, archive_slug = $5, updated_at = NOW()
+		WHERE id = $1`, id, archive, templateID, meta, archiveSlug)
+	if err != nil {
+		c.log.Printf("error updating sequence archive: %v", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, c.i18n.Ts("public.errorProcessingRequest"))
+	}
+	return nil
 }
 
 // DeleteSequence deletes a sequence.
@@ -118,6 +164,73 @@ func (c *Core) DeleteSequence(id int) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, c.i18n.Ts("public.errorProcessingRequest"))
 	}
 	return nil
+}
+
+// DeleteSequences bulk deletes sequences by ID list.
+func (c *Core) DeleteSequences(ids []int) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	_, err := c.db.Exec("DELETE FROM sequences WHERE id = ANY($1)", pq.Array(ids))
+	if err != nil {
+		c.log.Printf("error bulk deleting sequences: %v", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, c.i18n.Ts("public.errorProcessingRequest"))
+	}
+	return nil
+}
+
+// ManageContactSequences modifies contact sequence memberships (enroll, disenroll, pause).
+func (c *Core) ManageContactSequences(contactIDs []int, sequenceIDs []int, action string, status string) error {
+	if len(contactIDs) == 0 || len(sequenceIDs) == 0 {
+		return nil
+	}
+	switch action {
+	case "add", "enroll":
+		if status == "" {
+			status = models.SequenceContactStatusScheduled
+		}
+		for _, seqID := range sequenceIDs {
+			_, err := c.db.Exec(`INSERT INTO sequence_contacts (sequence_id, subscriber_id, status, current_step, next_send_at)
+				SELECT $1, id, $3, 1, NOW()
+				FROM subscribers
+				WHERE id = ANY($2)
+				ON CONFLICT (sequence_id, subscriber_id) DO UPDATE SET status = EXCLUDED.status`,
+				seqID, pq.Array(contactIDs), status)
+			if err != nil {
+				c.log.Printf("error enrolling contacts into sequence %d: %v", seqID, err)
+				return echo.NewHTTPError(http.StatusInternalServerError, c.i18n.Ts("public.errorProcessingRequest"))
+			}
+		}
+	case "remove", "disenroll":
+		_, err := c.db.Exec("DELETE FROM sequence_contacts WHERE subscriber_id = ANY($1) AND sequence_id = ANY($2)",
+			pq.Array(contactIDs), pq.Array(sequenceIDs))
+		if err != nil {
+			c.log.Printf("error disenrolling contacts: %v", err)
+			return echo.NewHTTPError(http.StatusInternalServerError, c.i18n.Ts("public.errorProcessingRequest"))
+		}
+	case "pause":
+		_, err := c.db.Exec("UPDATE sequence_contacts SET status = 'paused' WHERE subscriber_id = ANY($1) AND sequence_id = ANY($2)",
+			pq.Array(contactIDs), pq.Array(sequenceIDs))
+		if err != nil {
+			c.log.Printf("error pausing contacts in sequence: %v", err)
+			return echo.NewHTTPError(http.StatusInternalServerError, c.i18n.Ts("public.errorProcessingRequest"))
+		}
+	default:
+		return echo.NewHTTPError(http.StatusBadRequest, c.i18n.Ts("globals.messages.invalidFields", "name", "action"))
+	}
+	return nil
+}
+
+// GetContactSequences returns sequence memberships for a given contact ID.
+func (c *Core) GetContactSequences(contactID int) ([]models.SequenceContact, error) {
+	var out []models.SequenceContact
+	err := c.db.Select(&out, `SELECT sequence_id, subscriber_id, email_id, waha_session, status, current_step, next_send_at, last_read_at, last_clicked_at, last_message_id, created_at
+		FROM sequence_contacts WHERE subscriber_id = $1 ORDER BY sequence_id ASC`, contactID)
+	if err != nil {
+		c.log.Printf("error getting contact sequences: %v", err)
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, c.i18n.Ts("public.errorProcessingRequest"))
+	}
+	return out, nil
 }
 
 // GetSequenceSteps returns the steps for a given sequence.
@@ -320,8 +433,8 @@ func AllocateSendersCapacityWeighted(subIDs []int, emails []models.Email) map[in
 	return alloc
 }
 
-// EnrollSequenceContacts enrolls contacts into a sequence with sender locking, load balancing, and optional User context.
-func (c *Core) EnrollSequenceContacts(sequenceID int, subscriberIDs []int, explicitEmailID null.Int, explicitWahaSession null.String, userContext map[string]any) error {
+// EnrollSequenceContacts enrolls contacts into a sequence with automatic channel locking and optional User context.
+func (c *Core) EnrollSequenceContacts(sequenceID int, subscriberIDs []int, userContext map[string]any) error {
 	if len(subscriberIDs) == 0 {
 		return nil
 	}
@@ -330,11 +443,21 @@ func (c *Core) EnrollSequenceContacts(sequenceID int, subscriberIDs []int, expli
 		return err
 	}
 
-	emailAlloc := make(map[int]null.Int)
-	wahaAlloc := make(map[int]null.String)
+	var explicitEmailID null.Int
+	var explicitWahaSession null.String
 
-	// Check for User identity in userContext to bind User channels across Email and WAHA
+	// Extract explicit channel options if present in userContext
 	if len(userContext) > 0 {
+		if rawEID, ok := userContext["email_id"].(float64); ok && rawEID > 0 {
+			explicitEmailID = null.IntFrom(int(rawEID))
+		} else if rawEIDInt, ok := userContext["email_id"].(int); ok && rawEIDInt > 0 {
+			explicitEmailID = null.IntFrom(rawEIDInt)
+		}
+
+		if rawWS, ok := userContext["waha_session"].(string); ok && strings.TrimSpace(rawWS) != "" {
+			explicitWahaSession = null.StringFrom(strings.TrimSpace(rawWS))
+		}
+
 		var uid int
 		if rawID, ok := userContext["id"].(float64); ok && rawID > 0 {
 			uid = int(rawID)
@@ -365,6 +488,9 @@ func (c *Core) EnrollSequenceContacts(sequenceID int, subscriberIDs []int, expli
 			}
 		}
 	}
+
+	emailAlloc := make(map[int]null.Int, len(subscriberIDs))
+	wahaAlloc := make(map[int]null.String, len(subscriberIDs))
 
 	// Direct channel assignment for enrolled contacts
 	for _, id := range subscriberIDs {
