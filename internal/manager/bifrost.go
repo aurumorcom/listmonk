@@ -5,8 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -38,6 +40,71 @@ type BifrostMessage struct {
 type BifrostResponseFormat struct {
 	Type       string `json:"type"` // "json_object" or "json_schema"
 	JSONSchema any    `json:"json_schema,omitempty"`
+}
+
+var reHTMLTags = regexp.MustCompile(`<[^>]*>`)
+var reBreakTags = regexp.MustCompile(`(?i)<br\s*/?>|</p>|</div>`)
+var reMultipleNewlines = regexp.MustCompile(`\n{3,}`)
+
+// EmailResponseFormat returns the json_schema response format guide for email prompt completions.
+func EmailResponseFormat() *BifrostResponseFormat {
+	return &BifrostResponseFormat{
+		Type: "json_schema",
+		JSONSchema: map[string]any{
+			"name":   "email_prompt_output",
+			"strict": true,
+			"schema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"subject": map[string]any{
+						"type":        "string",
+						"description": "The email subject line. Short, compelling, and relevant.",
+					},
+					"content": map[string]any{
+						"type":        "string",
+						"description": "The main body of the email in pure plain text. MUST NOT contain the subject line. MUST NOT contain signatures or sign-offs (e.g. 'Best regards', 'Sincerely', or closing names), as signatures are dynamically appended by the system.",
+					},
+				},
+				"required":             []string{"subject", "content"},
+				"additionalProperties": false,
+			},
+		},
+	}
+}
+
+// StripHTML converts common HTML line breaks to \n, strips all remaining HTML tags, and unescapes HTML entities.
+func StripHTML(input string) string {
+	if strings.TrimSpace(input) == "" {
+		return ""
+	}
+	s := reBreakTags.ReplaceAllString(input, "\n")
+	s = reHTMLTags.ReplaceAllString(s, "")
+	s = html.UnescapeString(s)
+	return strings.TrimSpace(s)
+}
+
+// NormalizePlainTextLineBreaks converts Windows newlines (\r\n) to \n, trims space, and collapses 3+ consecutive newlines into \n\n.
+func NormalizePlainTextLineBreaks(input string) string {
+	s := strings.ReplaceAll(input, "\r\n", "\n")
+	s = strings.ReplaceAll(s, "\r", "\n")
+	s = strings.TrimSpace(s)
+	s = reMultipleNewlines.ReplaceAllString(s, "\n\n")
+	return s
+}
+
+// FormatPlainTextWithSignature normalizes the content and signature to pure plain text and joins them with double newlines.
+func FormatPlainTextWithSignature(content string, sig string) string {
+	cleanContent := NormalizePlainTextLineBreaks(StripHTML(content))
+	cleanSig := NormalizePlainTextLineBreaks(StripHTML(sig))
+
+	if cleanSig == "" {
+		return cleanContent
+	}
+	if cleanContent == "" {
+		return cleanSig
+	}
+
+	return fmt.Sprintf("%s\n\n%s", cleanContent, cleanSig)
 }
 
 // EmailStructuredOutput represents structured JSON response for email prompts.
