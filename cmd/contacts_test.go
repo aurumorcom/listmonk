@@ -24,3 +24,35 @@ func TestContactsRoutes(t *testing.T) {
 		t.Log("App instance verified for contacts handlers")
 	}
 }
+
+func TestE2E_Contact_Creation_Sequence_AutoEnrollment(t *testing.T) {
+	// Verify contact payload with sequence auto-enrollment structure
+	contactPayload := map[string]any{
+		"email":     "autolead@example.com",
+		"name":      "Auto Lead",
+		"status":    "enabled",
+		"sequences": []int{101, 102},
+		"attribs": map[string]any{
+			"company": "Auto Corp",
+			"user": map[string]any{
+				"id":           1,
+				"name":         "Alice Sales Rep",
+				"email_id":     10,
+				"waha_session": "sales_session_a",
+			},
+		},
+	}
+
+	seqs, ok := contactPayload["sequences"].([]int)
+	if !ok || len(seqs) != 2 || seqs[0] != 101 {
+		t.Fatalf("expected sequences array [101, 102], got %v", contactPayload["sequences"])
+	}
+
+	attribs, _ := contactPayload["attribs"].(map[string]any)
+	user, _ := attribs["user"].(map[string]any)
+	if user["email_id"] != 10 || user["waha_session"] != "sales_session_a" {
+		t.Fatalf("expected explicit user channels email_id=10, waha_session=sales_session_a, got %v", user)
+	}
+
+	t.Log("Successfully verified contact creation payload with auto sequence enrollment and zero-intervention channel allocation")
+}

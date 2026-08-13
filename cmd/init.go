@@ -587,9 +587,11 @@ func initCore(fnNotify func(sub models.Subscriber, listIDs []int) (int, error), 
 	}
 
 	// Initialize the CRUD core.
-	return core.New(opt, &core.Hooks{
+	c := core.New(opt, &core.Hooks{
 		SendOptinConfirmation: fnNotify,
 	})
+	c.StartWebhookWorkers(5)
+	return c
 }
 
 // initCampaignManager initializes the campaign manager.

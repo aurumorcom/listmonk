@@ -209,7 +209,7 @@ func TestE2E_ContactAware_Template_Preview_Lifecycle(t *testing.T) {
 }
 
 func TestE2E_TestMessageDispatch_Lifecycle(t *testing.T) {
-	req := templateTestReq{
+	req := campReq{
 		SubscriberID: 901,
 		TestEmail:    "admin-test@example.com",
 	}
@@ -219,4 +219,36 @@ func TestE2E_TestMessageDispatch_Lifecycle(t *testing.T) {
 	}
 
 	t.Log("Successfully verified test message dispatch payload lifecycle")
+}
+
+func TestE2E_DummySubscriber_UserBio_And_StepVariations(t *testing.T) {
+	scope := manager.ExtractTemplateScope(dummySubscriber)
+
+	// Verify User bio
+	userObj, ok := scope["User"].(map[string]any)
+	if !ok || userObj["bio"] == "" {
+		t.Fatalf("expected non-empty user.bio in dummySubscriber scope, got %v", scope["User"])
+	}
+
+	// Verify Step 1 variations
+	tplStr := `Rep: {{ .User.name }} ({{ .User.bio }}). Step 1: {{ .Step1.subject }}. Steps.Step1: {{ .Steps.Step1.subject }}. Step.1: {{ (index .Step "1").subject }}. Step.Step1: {{ .Step.Step1.subject }}`
+	tmpl, err := template.New("test_dummy").Parse(tplStr)
+	if err != nil {
+		t.Fatalf("failed to parse template string: %v", err)
+	}
+
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, scope); err != nil {
+		t.Fatalf("failed to execute template string: %v", err)
+	}
+
+	rendered := buf.String()
+	if !bytes.Contains(buf.Bytes(), []byte("Experienced Account Executive")) {
+		t.Errorf("expected user.bio 'Experienced Account Executive' in rendered output, got %s", rendered)
+	}
+	if !bytes.Contains(buf.Bytes(), []byte("Introduction Email")) {
+		t.Errorf("expected 'Introduction Email' in rendered step variations, got %s", rendered)
+	}
+
+	t.Log("Successfully verified dummySubscriber with user.bio and all step template scope variations")
 }

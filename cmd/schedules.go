@@ -59,6 +59,15 @@ func (a *App) UpdateSchedule(c echo.Context) error {
 	return c.JSON(http.StatusOK, okResp{sched})
 }
 
+// SetDefaultSchedule sets a schedule as default.
+func (a *App) SetDefaultSchedule(c echo.Context) error {
+	id, _ := strconv.Atoi(c.Param("id"))
+	if err := a.core.SetDefaultSchedule(id); err != nil {
+		return err
+	}
+	return c.JSON(http.StatusOK, okResp{true})
+}
+
 // DeleteSchedule deletes a schedule.
 func (a *App) DeleteSchedule(c echo.Context) error {
 	id, _ := strconv.Atoi(c.Param("id"))

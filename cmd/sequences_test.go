@@ -507,3 +507,47 @@ func TestE2E_Sequence_Outside_Window_Schedule_Deferral(t *testing.T) {
 
 	t.Log("Successfully verified E2E sequence schedule window deferral boundaries")
 }
+
+func TestSequence_DescriptionAndArchiveFields(t *testing.T) {
+	seq := models.Sequence{
+		Name:              "Cold Email Outreach Campaign",
+		Description:       "Outreach sequence targeting SaaS leads",
+		Status:            "active",
+		Archive:           true,
+		ArchiveTemplateID: null.IntFrom(5),
+		ArchiveSlug:       null.StringFrom("cold-email-outreach-archive"),
+		ArchiveMeta:       models.JSON{"author": "sales-team"},
+	}
+
+	if seq.Description != "Outreach sequence targeting SaaS leads" {
+		t.Fatalf("expected description 'Outreach sequence targeting SaaS leads', got '%s'", seq.Description)
+	}
+	if !seq.Archive {
+		t.Fatalf("expected archive true, got false")
+	}
+	if !seq.ArchiveTemplateID.Valid || seq.ArchiveTemplateID.Int != 5 {
+		t.Fatalf("expected archive_template_id 5, got %v", seq.ArchiveTemplateID)
+	}
+	if !seq.ArchiveSlug.Valid || seq.ArchiveSlug.String != "cold-email-outreach-archive" {
+		t.Fatalf("expected archive_slug 'cold-email-outreach-archive', got %v", seq.ArchiveSlug)
+	}
+	if author, ok := seq.ArchiveMeta["author"].(string); !ok || author != "sales-team" {
+		t.Fatalf("expected archive_meta author 'sales-team', got %v", seq.ArchiveMeta)
+	}
+
+	t.Log("Successfully verified Sequence description and archive model fields")
+}
+
+func TestSchedule_IsDefaultField(t *testing.T) {
+	sched := models.Schedule{
+		Name:      "Normal Business Hours",
+		Timezone:  "UTC",
+		IsDefault: true,
+	}
+
+	if !sched.IsDefault {
+		t.Fatalf("expected IsDefault true, got false")
+	}
+
+	t.Log("Successfully verified Schedule IsDefault field")
+}
