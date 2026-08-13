@@ -29,7 +29,7 @@ func isURLReachable(url string) bool {
 		return false
 	}
 	defer resp.Body.Close()
-	return resp.StatusCode < 500
+	return resp.StatusCode >= 200 && resp.StatusCode < 300
 }
 
 func waitForWahaSessionWorking(wahaURL, apiKey, session string) {

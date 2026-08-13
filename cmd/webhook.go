@@ -8,18 +8,18 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// GetWebhookEndpoints handles GET /api/webhooks and returns all registered outbound webhooks.
-func (a *App) GetWebhookEndpoints(c echo.Context) error {
-	eps, err := a.core.GetWebhookEndpoints()
+// GetWebhooks handles GET /api/webhooks and returns all registered outbound webhooks.
+func (a *App) GetWebhooks(c echo.Context) error {
+	eps, err := a.core.GetWebhooks()
 	if err != nil {
 		return err
 	}
 	return c.JSON(http.StatusOK, okResp{Data: eps})
 }
 
-// CreateWebhookEndpoint handles POST /api/webhooks and registers a new outbound webhook.
-func (a *App) CreateWebhookEndpoint(c echo.Context) error {
-	var req models.WebhookEndpoint
+// CreateWebhook handles POST /api/webhooks and registers a new outbound webhook.
+func (a *App) CreateWebhook(c echo.Context) error {
+	var req models.Webhook
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
@@ -27,40 +27,40 @@ func (a *App) CreateWebhookEndpoint(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "URL is required")
 	}
 
-	ep, err := a.core.CreateWebhookEndpoint(req)
+	ep, err := a.core.CreateWebhook(req)
 	if err != nil {
 		return err
 	}
 	return c.JSON(http.StatusOK, okResp{Data: ep})
 }
 
-// UpdateWebhookEndpoint handles PUT /api/webhooks/:id and updates an existing outbound webhook.
-func (a *App) UpdateWebhookEndpoint(c echo.Context) error {
+// UpdateWebhook handles PUT /api/webhooks/:id and updates an existing outbound webhook.
+func (a *App) UpdateWebhook(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid ID")
 	}
 
-	var req models.WebhookEndpoint
+	var req models.Webhook
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
-	ep, err := a.core.UpdateWebhookEndpoint(id, req)
+	ep, err := a.core.UpdateWebhook(id, req)
 	if err != nil {
 		return err
 	}
 	return c.JSON(http.StatusOK, okResp{Data: ep})
 }
 
-// DeleteWebhookEndpoint handles DELETE /api/webhooks/:id and deletes an outbound webhook by ID.
-func (a *App) DeleteWebhookEndpoint(c echo.Context) error {
+// DeleteWebhook handles DELETE /api/webhooks/:id and deletes an outbound webhook by ID.
+func (a *App) DeleteWebhook(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid ID")
 	}
 
-	if err := a.core.DeleteWebhookEndpoint(id); err != nil {
+	if err := a.core.DeleteWebhook(id); err != nil {
 		return err
 	}
 	return c.JSON(http.StatusOK, okResp{Data: true})
@@ -85,8 +85,8 @@ func (a *App) GetWebhookLogs(c echo.Context) error {
 	return c.JSON(http.StatusOK, okResp{Data: logs})
 }
 
-// TestWebhookEndpoint handles POST /api/webhooks/test and executes a test webhook call.
-func (a *App) TestWebhookEndpoint(c echo.Context) error {
+// TestWebhook handles POST /api/webhooks/test and executes a test webhook call.
+func (a *App) TestWebhook(c echo.Context) error {
 	var req struct {
 		URL       string `json:"url"`
 		Secret    string `json:"secret"`
@@ -96,7 +96,7 @@ func (a *App) TestWebhookEndpoint(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
-	if err := a.core.TestWebhookEndpoint(req.URL, req.Secret, req.EventType); err != nil {
+	if err := a.core.TestWebhook(req.URL, req.Secret, req.EventType); err != nil {
 		return err
 	}
 

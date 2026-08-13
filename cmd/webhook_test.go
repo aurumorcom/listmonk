@@ -28,9 +28,9 @@ func TestE2E_WebhookTestEndpoint(t *testing.T) {
 
 	// Execute test webhook delivery directly via core method
 	c := &core.Core{}
-	err := c.TestWebhookEndpoint(ts.URL, "secret_123", "contact.created")
+	err := c.TestWebhook(ts.URL, "secret_123", "contact.created")
 	if err != nil {
-		t.Fatalf("unexpected TestWebhookEndpoint error: %v", err)
+		t.Fatalf("unexpected TestWebhook error: %v", err)
 	}
 
 	select {

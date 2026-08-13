@@ -186,12 +186,12 @@ func initHTTPHandlers(e *echo.Echo, a *App) {
 		g.DELETE("/api/campaigns", pm(a.DeleteCampaigns, "campaigns:manage", "campaigns:manage_all"))
 		g.DELETE("/api/campaigns/:id", pm(hasID(a.DeleteCampaign), "campaigns:manage_all", "campaigns:manage"))
 
-		g.GET("/api/webhooks", pm(a.GetWebhookEndpoints, "webhooks:get"))
-		g.POST("/api/webhooks", pm(a.CreateWebhookEndpoint, "webhooks:manage"))
-		g.PUT("/api/webhooks/:id", pm(a.UpdateWebhookEndpoint, "webhooks:manage"))
-		g.DELETE("/api/webhooks/:id", pm(a.DeleteWebhookEndpoint, "webhooks:manage"))
+		g.GET("/api/webhooks", pm(a.GetWebhooks, "webhooks:get"))
+		g.POST("/api/webhooks", pm(a.CreateWebhook, "webhooks:manage"))
+		g.PUT("/api/webhooks/:id", pm(a.UpdateWebhook, "webhooks:manage"))
+		g.DELETE("/api/webhooks/:id", pm(a.DeleteWebhook, "webhooks:manage"))
 		g.GET("/api/webhooks/logs", pm(a.GetWebhookLogs, "webhooks:get"))
-		g.POST("/api/webhooks/test", pm(a.TestWebhookEndpoint, "webhooks:manage"))
+		g.POST("/api/webhooks/test", pm(a.TestWebhook, "webhooks:manage"))
 
 		g.GET("/api/sequences", pm(a.GetSequences, "sequences:manage_all", "sequences:manage", "sequences:get", "campaigns:manage_all", "campaigns:manage"))
 		g.GET("/api/sequences/analytics", pm(a.GetSequenceAnalytics, "sequences:get_analytics", "sequences:get", "campaigns:get_analytics", "campaigns:get"))
