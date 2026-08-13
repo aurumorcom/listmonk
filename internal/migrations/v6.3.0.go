@@ -44,7 +44,12 @@ func V6_3_0(db *sqlx.DB, fs stuffbin.FileSystem, ko *koanf.Koanf, lo *log.Logger
 		ALTER TABLE sequences
 			ADD COLUMN IF NOT EXISTS email_ids INTEGER[] NOT NULL DEFAULT '{}',
 			ADD COLUMN IF NOT EXISTS waha_sessions TEXT[] NOT NULL DEFAULT '{}',
-			ADD COLUMN IF NOT EXISTS load_balance_mode TEXT NOT NULL DEFAULT 'round_robin';
+			ADD COLUMN IF NOT EXISTS load_balance_mode TEXT NOT NULL DEFAULT 'round_robin',
+			ADD COLUMN IF NOT EXISTS description TEXT NOT NULL DEFAULT '',
+			ADD COLUMN IF NOT EXISTS archive BOOLEAN NOT NULL DEFAULT false,
+			ADD COLUMN IF NOT EXISTS archive_template_id INTEGER NULL REFERENCES templates(id) ON DELETE SET NULL,
+			ADD COLUMN IF NOT EXISTS archive_slug TEXT NULL,
+			ADD COLUMN IF NOT EXISTS archive_meta JSONB NOT NULL DEFAULT '{}';
 	`); err != nil {
 		return err
 	}
@@ -79,9 +84,15 @@ func V6_3_0(db *sqlx.DB, fs stuffbin.FileSystem, ko *koanf.Koanf, lo *log.Logger
 			use_contact_timezone BOOLEAN NOT NULL DEFAULT TRUE,
 			skip_holidays        BOOLEAN NOT NULL DEFAULT TRUE,
 			sending_windows      JSONB NOT NULL DEFAULT '{}',
+			is_default           BOOLEAN NOT NULL DEFAULT false,
 			created_at           TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
 			updated_at           TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 		);
+
+		ALTER TABLE schedules
+			ADD COLUMN IF NOT EXISTS is_default BOOLEAN NOT NULL DEFAULT false;
+
+		CREATE UNIQUE INDEX IF NOT EXISTS schedules_is_default_idx ON schedules (is_default) WHERE is_default = true;
 
 		ALTER TABLE sequences
 			ADD COLUMN IF NOT EXISTS schedule_id INTEGER NULL REFERENCES schedules(id) ON DELETE SET NULL;
@@ -95,8 +106,8 @@ func V6_3_0(db *sqlx.DB, fs stuffbin.FileSystem, ko *koanf.Koanf, lo *log.Logger
 		defaultWindows := `{"mon":{"start":"08:00","end":"17:00"},"tue":{"start":"08:00","end":"17:00"},"wed":{"start":"08:00","end":"17:00"},"thu":{"start":"08:00","end":"17:00"},"fri":{"start":"08:00","end":"17:00"},"sat":{},"sun":{}}`
 		var defaultID int
 		err := db.Get(&defaultID, `
-			INSERT INTO schedules (name, timezone, use_contact_timezone, skip_holidays, sending_windows)
-			VALUES ($1, $2, $3, $4, $5)
+			INSERT INTO schedules (name, timezone, use_contact_timezone, skip_holidays, sending_windows, is_default)
+			VALUES ($1, $2, $3, $4, $5, true)
 			RETURNING id`,
 			"Normal Business Hours", "UTC", true, true, defaultWindows)
 		if err == nil {
@@ -119,6 +130,38 @@ func V6_3_0(db *sqlx.DB, fs stuffbin.FileSystem, ko *koanf.Koanf, lo *log.Logger
 			ADD COLUMN IF NOT EXISTS waha_session TEXT NULL,
 			ADD COLUMN IF NOT EXISTS signature TEXT NOT NULL DEFAULT '';
 		CREATE INDEX IF NOT EXISTS idx_users_channels ON users(email_id, waha_session);
+	`); err != nil {
+		return err
+	}
+
+	// 8. Webhook Endpoints & Delivery Logs tables
+	if _, err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS webhook_endpoints (
+			id          SERIAL PRIMARY KEY,
+			name        TEXT NOT NULL,
+			url         TEXT NOT NULL,
+			secret      TEXT NOT NULL,
+			events      TEXT[] NOT NULL DEFAULT '{}',
+			enabled     BOOLEAN NOT NULL DEFAULT TRUE,
+			created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+			updated_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+		);
+
+		CREATE TABLE IF NOT EXISTS webhook_logs (
+			id            BIGSERIAL PRIMARY KEY,
+			endpoint_id   INT REFERENCES webhook_endpoints(id) ON DELETE CASCADE,
+			event_type    TEXT NOT NULL,
+			payload       JSONB NOT NULL,
+			status        TEXT NOT NULL DEFAULT 'pending',
+			attempts      INT NOT NULL DEFAULT 0,
+			max_attempts  INT NOT NULL DEFAULT 5,
+			next_retry_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+			response_code INT NOT NULL DEFAULT 0,
+			response_body TEXT NOT NULL DEFAULT '',
+			created_at    TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+			updated_at    TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+		);
+		CREATE INDEX IF NOT EXISTS idx_webhook_logs_pending ON webhook_logs(status, next_retry_at) WHERE status = 'pending';
 	`); err != nil {
 		return err
 	}
