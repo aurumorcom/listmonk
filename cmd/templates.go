@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"html/template"
 	"net/http"
 	"regexp"
@@ -282,12 +283,11 @@ func (a *App) previewTemplate(tpl models.Template, sub models.Subscriber) ([]byt
 		}
 
 		if bc := a.manager.BifrostClient(); bc != nil {
-			aiBody, err := bc.GeneratePrompt(bc.TimeoutContext(), sysPromptStr, userPromptStr)
+			aiBody, err := bc.GeneratePromptWithFormat(bc.TimeoutContext(), sysPromptStr, userPromptStr, manager.EmailResponseFormat())
 			if err == nil && aiBody != "" {
 				cleanBody := manager.CleanJSONResponse(aiBody)
 				var emailOut manager.EmailStructuredOutput
 				if err := json.Unmarshal([]byte(cleanBody), &emailOut); err == nil && emailOut.Content != "" {
-					finalContent := emailOut.Content
 					var globalSig string
 					if st, err := a.core.GetSettings(); err == nil {
 						globalSig = st.AppGlobalSignature
@@ -296,12 +296,10 @@ func (a *App) previewTemplate(tpl models.Template, sub models.Subscriber) ([]byt
 						Subscriber: sub,
 						GlobalSig:  globalSig,
 					})
-					if sig != "" {
-						finalContent = fmt.Sprintf("%s<br/><br/>%s", finalContent, sig)
-					}
-					return []byte(fmt.Sprintf("<!DOCTYPE html><html><body style='font-family: sans-serif; line-height: 1.6; padding: 1em;'>%s</body></html>", finalContent)), nil
+					finalContent := manager.FormatPlainTextWithSignature(emailOut.Content, sig)
+					return []byte(fmt.Sprintf("<!DOCTYPE html><html><body style='margin: 0; padding: 1.5em; background-color: #f9fafb;'><div style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #111827; white-space: pre-wrap; background: #ffffff; padding: 1.5em; border-radius: 6px; border: 1px solid #e5e7eb;'>%s</div></body></html>", html.EscapeString(finalContent))), nil
 				}
-				return []byte(fmt.Sprintf("<!DOCTYPE html><html><body style='font-family: sans-serif; line-height: 1.6; padding: 1em;'>%s</body></html>", aiBody)), nil
+				return []byte(fmt.Sprintf("<!DOCTYPE html><html><body style='margin: 0; padding: 1.5em; background-color: #f9fafb;'><div style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #111827; white-space: pre-wrap; background: #ffffff; padding: 1.5em; border-radius: 6px; border: 1px solid #e5e7eb;'>%s</div></body></html>", html.EscapeString(aiBody))), nil
 			}
 		}
 
@@ -315,12 +313,10 @@ func (a *App) previewTemplate(tpl models.Template, sub models.Subscriber) ([]byt
 		})
 		renderedBody := userPromptStr
 		if sysPromptStr != "" {
-			renderedBody = fmt.Sprintf("<div style='margin-bottom: 1em;'><strong>System Prompt:</strong><br/>%s</div><div><strong>User Prompt:</strong><br/>%s</div>", sysPromptStr, userPromptStr)
+			renderedBody = fmt.Sprintf("System Prompt:\n%s\n\nUser Prompt:\n%s", sysPromptStr, userPromptStr)
 		}
-		if sig != "" {
-			renderedBody = fmt.Sprintf("%s<br/><br/>%s", renderedBody, sig)
-		}
-		return []byte(fmt.Sprintf("<!DOCTYPE html><html><body style='font-family: sans-serif; line-height: 1.6; padding: 1em;'>%s</body></html>", renderedBody)), nil
+		finalContent := manager.FormatPlainTextWithSignature(renderedBody, sig)
+		return []byte(fmt.Sprintf("<!DOCTYPE html><html><body style='margin: 0; padding: 1.5em; background-color: #f9fafb;'><div style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #111827; white-space: pre-wrap; background: #ffffff; padding: 1.5em; border-radius: 6px; border: 1px solid #e5e7eb;'>%s</div></body></html>", html.EscapeString(finalContent))), nil
 	} else if tpl.Type == models.TemplateTypeCampaign || tpl.Type == models.TemplateTypeCampaignVisual {
 		camp := models.Campaign{
 			UUID:         dummyUUID,
