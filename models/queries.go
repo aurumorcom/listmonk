@@ -14,29 +14,30 @@ type Queries struct {
 	GetDashboardCharts *sqlx.Stmt `query:"get-dashboard-charts"`
 	GetDashboardCounts *sqlx.Stmt `query:"get-dashboard-counts"`
 
-	InsertSubscriber                *sqlx.Stmt `query:"insert-subscriber"`
-	UpsertSubscriber                *sqlx.Stmt `query:"upsert-subscriber"`
-	UpsertBlocklistSubscriber       *sqlx.Stmt `query:"upsert-blocklist-subscriber"`
-	GetSubscriber                   *sqlx.Stmt `query:"get-subscriber"`
-	HasSubscriberLists              *sqlx.Stmt `query:"has-subscriber-list"`
-	GetSubscribersByEmails          *sqlx.Stmt `query:"get-subscribers-by-emails"`
-	GetSubscriberLists              *sqlx.Stmt `query:"get-subscriber-lists"`
-	GetSubscriptions                *sqlx.Stmt `query:"get-subscriptions"`
-	GetSubscriberListsLazy          *sqlx.Stmt `query:"get-subscriber-lists-lazy"`
-	UpdateSubscriber                *sqlx.Stmt `query:"update-subscriber"`
-	UpdateSubscriberWithLists       *sqlx.Stmt `query:"update-subscriber-with-lists"`
-	BlocklistSubscribers            *sqlx.Stmt `query:"blocklist-subscribers"`
-	AddSubscribersToLists           *sqlx.Stmt `query:"add-subscribers-to-lists"`
-	DeleteSubscriptions             *sqlx.Stmt `query:"delete-subscriptions"`
-	DeleteUnconfirmedSubscriptions  *sqlx.Stmt `query:"delete-unconfirmed-subscriptions"`
-	ConfirmSubscriptionOptin        *sqlx.Stmt `query:"confirm-subscription-optin"`
-	UnsubscribeSubscribersFromLists *sqlx.Stmt `query:"unsubscribe-subscribers-from-lists"`
-	DeleteSubscribers               *sqlx.Stmt `query:"delete-subscribers"`
-	DeleteBlocklistedSubscribers    *sqlx.Stmt `query:"delete-blocklisted-subscribers"`
-	DeleteOrphanSubscribers         *sqlx.Stmt `query:"delete-orphan-subscribers"`
-	UnsubscribeByCampaign           *sqlx.Stmt `query:"unsubscribe-by-campaign"`
-	ExportSubscriberData            *sqlx.Stmt `query:"export-subscriber-data"`
-	GetSubscriberActivity           *sqlx.Stmt `query:"get-subscriber-activity"`
+	InsertSubscriber                     *sqlx.Stmt `query:"insert-subscriber"`
+	UpsertSubscriber                     *sqlx.Stmt `query:"upsert-subscriber"`
+	UpsertBlocklistSubscriber            *sqlx.Stmt `query:"upsert-blocklist-subscriber"`
+	GetSubscriber                        *sqlx.Stmt `query:"get-subscriber"`
+	GetMostPopulatedSubscriberForPreview *sqlx.Stmt `query:"get-most-populated-subscriber-for-preview"`
+	HasSubscriberLists                   *sqlx.Stmt `query:"has-subscriber-list"`
+	GetSubscribersByEmails               *sqlx.Stmt `query:"get-subscribers-by-emails"`
+	GetSubscriberLists                   *sqlx.Stmt `query:"get-subscriber-lists"`
+	GetSubscriptions                     *sqlx.Stmt `query:"get-subscriptions"`
+	GetSubscriberListsLazy               *sqlx.Stmt `query:"get-subscriber-lists-lazy"`
+	UpdateSubscriber                     *sqlx.Stmt `query:"update-subscriber"`
+	UpdateSubscriberWithLists            *sqlx.Stmt `query:"update-subscriber-with-lists"`
+	BlocklistSubscribers                 *sqlx.Stmt `query:"blocklist-subscribers"`
+	AddSubscribersToLists                *sqlx.Stmt `query:"add-subscribers-to-lists"`
+	DeleteSubscriptions                  *sqlx.Stmt `query:"delete-subscriptions"`
+	DeleteUnconfirmedSubscriptions       *sqlx.Stmt `query:"delete-unconfirmed-subscriptions"`
+	ConfirmSubscriptionOptin             *sqlx.Stmt `query:"confirm-subscription-optin"`
+	UnsubscribeSubscribersFromLists      *sqlx.Stmt `query:"unsubscribe-subscribers-from-lists"`
+	DeleteSubscribers                    *sqlx.Stmt `query:"delete-subscribers"`
+	DeleteBlocklistedSubscribers         *sqlx.Stmt `query:"delete-blocklisted-subscribers"`
+	DeleteOrphanSubscribers              *sqlx.Stmt `query:"delete-orphan-subscribers"`
+	UnsubscribeByCampaign                *sqlx.Stmt `query:"unsubscribe-by-campaign"`
+	ExportSubscriberData                 *sqlx.Stmt `query:"export-subscriber-data"`
+	GetSubscriberActivity                *sqlx.Stmt `query:"get-subscriber-activity"`
 
 	// Non-prepared arbitrary subscriber queries.
 	QuerySubscribers                       string     `query:"query-subscribers"`
