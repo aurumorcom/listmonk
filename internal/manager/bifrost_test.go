@@ -379,3 +379,36 @@ func TestBifrostClassifyReplyIntentAndExtractOOODate(t *testing.T) {
 		t.Errorf("unexpected return date extracted: %v", oooDate)
 	}
 }
+
+func TestPlainTextFormattingUtilities(t *testing.T) {
+	// 1. Test StripHTML
+	htmlInput := "<p>Hi Alex,<br/><br/>Thanks for connecting.</p><div>Best,<br/>John & Team</div>"
+	expectedStripped := "Hi Alex,\n\nThanks for connecting.\n\nBest,\nJohn & Team"
+	gotStripped := StripHTML(htmlInput)
+	if gotStripped != expectedStripped {
+		t.Errorf("StripHTML() = %q, expected %q", gotStripped, expectedStripped)
+	}
+
+	// 2. Test NormalizePlainTextLineBreaks
+	winInput := "Line 1\r\n\r\nLine 2\r\n\r\n\r\n\r\nLine 3   "
+	expectedNormalized := "Line 1\n\nLine 2\n\nLine 3"
+	gotNormalized := NormalizePlainTextLineBreaks(winInput)
+	if gotNormalized != expectedNormalized {
+		t.Errorf("NormalizePlainTextLineBreaks() = %q, expected %q", gotNormalized, expectedNormalized)
+	}
+
+	// 3. Test FormatPlainTextWithSignature
+	body := "Hi there,\n\nI hope you are doing well."
+	sig := "<p>Best regards,<br/><strong>Alice Developer</strong></p>"
+	formatted := FormatPlainTextWithSignature(body, sig)
+	expectedFormatted := "Hi there,\n\nI hope you are doing well.\n\nBest regards,\nAlice Developer"
+	if formatted != expectedFormatted {
+		t.Errorf("FormatPlainTextWithSignature() = %q, expected %q", formatted, expectedFormatted)
+	}
+
+	// 4. Test EmailResponseFormat schema
+	rf := EmailResponseFormat()
+	if rf.Type != "json_schema" {
+		t.Errorf("expected EmailResponseFormat type 'json_schema', got %q", rf.Type)
+	}
+}

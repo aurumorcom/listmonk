@@ -43,7 +43,8 @@ type BifrostResponseFormat struct {
 }
 
 var reHTMLTags = regexp.MustCompile(`<[^>]*>`)
-var reBreakTags = regexp.MustCompile(`(?i)<br\s*/?>|</p>|</div>`)
+var reBlockTags = regexp.MustCompile(`(?i)</p>|</div>|</h[1-6]>`)
+var reBreakTags = regexp.MustCompile(`(?i)<br\s*/?>`)
 var reMultipleNewlines = regexp.MustCompile(`\n{3,}`)
 
 // EmailResponseFormat returns the json_schema response format guide for email prompt completions.
@@ -72,15 +73,16 @@ func EmailResponseFormat() *BifrostResponseFormat {
 	}
 }
 
-// StripHTML converts common HTML line breaks to \n, strips all remaining HTML tags, and unescapes HTML entities.
+// StripHTML converts HTML block end tags to \n\n and line breaks to \n, strips remaining HTML tags, and unescapes HTML entities.
 func StripHTML(input string) string {
 	if strings.TrimSpace(input) == "" {
 		return ""
 	}
-	s := reBreakTags.ReplaceAllString(input, "\n")
+	s := reBlockTags.ReplaceAllString(input, "\n\n")
+	s = reBreakTags.ReplaceAllString(s, "\n")
 	s = reHTMLTags.ReplaceAllString(s, "")
 	s = html.UnescapeString(s)
-	return strings.TrimSpace(s)
+	return NormalizePlainTextLineBreaks(s)
 }
 
 // NormalizePlainTextLineBreaks converts Windows newlines (\r\n) to \n, trims space, and collapses 3+ consecutive newlines into \n\n.
