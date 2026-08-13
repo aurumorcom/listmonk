@@ -20,6 +20,7 @@ type Schedule struct {
 	UseContactTimezone bool      `db:"use_contact_timezone" json:"use_contact_timezone"`
 	SkipHolidays       bool      `db:"skip_holidays" json:"skip_holidays"`
 	SendingWindows     JSON      `db:"sending_windows" json:"sending_windows"`
+	IsDefault          bool      `db:"is_default" json:"is_default"`
 	CreatedAt          time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt          time.Time `db:"updated_at" json:"updated_at"`
 }

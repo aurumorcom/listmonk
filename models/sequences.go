@@ -37,17 +37,22 @@ type Sequences []Sequence
 type Sequence struct {
 	Base
 
-	UUID            string         `db:"uuid" json:"uuid"`
-	Name            string         `db:"name" json:"name"`
-	Status          string         `db:"status" json:"status"`
-	ScheduleID      null.Int       `db:"schedule_id" json:"schedule_id"`
-	Schedule        *Schedule      `db:"-" json:"schedule,omitempty"`
-	Timezone        string         `db:"timezone" json:"timezone"`
-	SendSchedule    JSON           `db:"send_schedule" json:"send_schedule"`
-	SendWindow      JSON           `db:"send_window" json:"send_window"`
-	EmailIDs        pq.Int64Array  `db:"email_ids" json:"email_ids"`
-	WahaSessions    pq.StringArray `db:"waha_sessions" json:"waha_sessions"`
-	LoadBalanceMode string         `db:"load_balance_mode" json:"load_balance_mode"`
+	UUID              string         `db:"uuid" json:"uuid"`
+	Name              string         `db:"name" json:"name"`
+	Description       string         `db:"description" json:"description"`
+	Status            string         `db:"status" json:"status"`
+	ScheduleID        null.Int       `db:"schedule_id" json:"schedule_id"`
+	Schedule          *Schedule      `db:"-" json:"schedule,omitempty"`
+	Timezone          string         `db:"timezone" json:"timezone"`
+	SendSchedule      JSON           `db:"send_schedule" json:"send_schedule"`
+	SendWindow        JSON           `db:"send_window" json:"send_window"`
+	EmailIDs          pq.Int64Array  `db:"email_ids" json:"email_ids"`
+	WahaSessions      pq.StringArray `db:"waha_sessions" json:"waha_sessions"`
+	LoadBalanceMode   string         `db:"load_balance_mode" json:"load_balance_mode"`
+	Archive           bool           `db:"archive" json:"archive"`
+	ArchiveTemplateID null.Int       `db:"archive_template_id" json:"archive_template_id"`
+	ArchiveSlug       null.String    `db:"archive_slug" json:"archive_slug"`
+	ArchiveMeta       JSON           `db:"archive_meta" json:"archive_meta"`
 }
 
 // SequenceSchedule defines daily sending time windows and rate pacing settings.
