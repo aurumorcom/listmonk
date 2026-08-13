@@ -184,7 +184,9 @@ Modify contact sequence memberships (enroll contacts into target sequences, dise
 | `target_sequence_ids` | number[] | Yes | Array of sequence IDs |
 | `status` | string | No | Sequence contact initial status (default: `scheduled`) |
 
-#### Example Request
+#### Example Requests
+
+##### Enrolling Contacts into Sequences
 ```shell
 curl -u "username:token" -X PUT 'http://localhost:9000/api/contacts/sequences' \
   -H 'Content-Type: application/json' \
@@ -193,6 +195,28 @@ curl -u "username:token" -X PUT 'http://localhost:9000/api/contacts/sequences' \
     "contact_ids": [1, 2, 3],
     "target_sequence_ids": [10, 20],
     "status": "scheduled"
+  }'
+```
+
+##### Removing (Disenrolling) Contacts from Sequences
+```shell
+curl -u "username:token" -X PUT 'http://localhost:9000/api/contacts/sequences' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "action": "remove",
+    "contact_ids": [1, 2, 3],
+    "target_sequence_ids": [10, 20]
+  }'
+```
+
+##### Pausing Contacts in Sequences
+```shell
+curl -u "username:token" -X PUT 'http://localhost:9000/api/contacts/sequences' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "action": "pause",
+    "contact_ids": [1, 2],
+    "target_sequence_ids": [10]
   }'
 ```
 
