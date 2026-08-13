@@ -64,6 +64,25 @@ func (c *Core) GetContact(id int, uuid, email string) (models.Contact, error) {
 	return c.GetSubscriber(id, uuid, email)
 }
 
+// GetMostPopulatedSubscriberForPreview fetches an enabled subscriber with the largest JSON attributes payload for previews.
+func (c *Core) GetMostPopulatedSubscriberForPreview() (models.Subscriber, error) {
+	var out models.Subscribers
+	if err := c.q.GetMostPopulatedSubscriberForPreview.Select(&out); err != nil {
+		c.log.Printf("error fetching most populated subscriber for preview: %v", err)
+		return models.Subscriber{}, echo.NewHTTPError(http.StatusInternalServerError,
+			c.i18n.Ts("globals.messages.errorFetching",
+				"name", "{globals.terms.subscriber}", "error", pqErrMsg(err)))
+	}
+	if len(out) == 0 {
+		return models.Subscriber{}, echo.NewHTTPError(http.StatusNotFound, "no subscribers found")
+	}
+	if err := out.LoadLists(c.q.GetSubscriberListsLazy); err != nil {
+		c.log.Printf("error loading subscriber lists: %v", err)
+	}
+
+	return out[0], nil
+}
+
 // HasSubscriberLists checks if the given subscribers have at least one of the given lists.
 func (c *Core) HasSubscriberLists(subIDs []int, listIDs []int) (map[int]bool, error) {
 	res := []struct {

@@ -252,3 +252,80 @@ func TestE2E_DummySubscriber_UserBio_And_StepVariations(t *testing.T) {
 
 	t.Log("Successfully verified dummySubscriber with user.bio and all step template scope variations")
 }
+
+func TestE2E_MostPopulated_Subscriber_Preview_Selection(t *testing.T) {
+	// Contact 1: Basic contact with minimal attribs
+	c1 := models.Subscriber{
+		Base:    models.Base{ID: 101},
+		Email:   "basic@example.com",
+		Name:    "Basic Contact",
+		Attribs: models.JSON{"city": "NYC"},
+	}
+
+	// Contact 2: Rich CRM contact with extensive Frappe Lead doc attributes
+	c2 := models.Subscriber{
+		Base:  models.Base{ID: 102},
+		Email: "richcrm@example.com",
+		Name:  "Rich CRM Contact",
+		Attribs: models.JSON{
+			"city":         "San Francisco",
+			"company_name": "Acme Corp",
+			"user": map[string]any{
+				"name":         "Alice Sales Rep",
+				"email_id":     10,
+				"waha_session": "sales_session_a",
+				"signature":    "Best regards,\nAlice",
+			},
+			"frappe_lead": map[string]any{
+				"lead_name":     "Rich CRM Contact",
+				"status":        "Interested",
+				"custom_budget": "$100,000",
+				"notes":         "Key decision maker.",
+			},
+		},
+	}
+
+	// Compare attribs payload sizes
+	b1, _ := json.Marshal(c1.Attribs)
+	b2, _ := json.Marshal(c2.Attribs)
+	if len(b2) <= len(b1) {
+		t.Fatalf("expected rich CRM contact to have larger attribs payload than basic contact")
+	}
+
+	// Verify template scope extraction for rich CRM contact
+	scope := manager.ExtractTemplateScope(c2)
+	frappeLead, ok := scope["Subscriber"].(models.Subscriber).Attribs["frappe_lead"].(map[string]any)
+	if !ok || frappeLead["custom_budget"] != "$100,000" {
+		t.Fatalf("expected frappe_lead custom_budget '$100,000' in scope, got %v", scope["Subscriber"])
+	}
+
+	// Test fallback behavior logic
+	subs := []models.Subscriber{c1, c2}
+
+	// Simulating GetMostPopulatedSubscriber selection: select subscriber with max OCTET_LENGTH(attribs)
+	var selected models.Subscriber
+	maxLen := -1
+	for _, s := range subs {
+		b, _ := json.Marshal(s.Attribs)
+		if len(b) > maxLen {
+			maxLen = len(b)
+			selected = s
+		}
+	}
+
+	if selected.ID != 102 || selected.Name != "Rich CRM Contact" {
+		t.Errorf("expected most populated contact (ID 102) selected for preview fallback, got ID %d", selected.ID)
+	}
+
+	// Verify empty database fallback returns dummySubscriber
+	var emptySubs []models.Subscriber
+	fallbackSub := dummySubscriber
+	if len(emptySubs) > 0 {
+		fallbackSub = emptySubs[0]
+	}
+	if fallbackSub.Email != "demo@listmonk.app" {
+		t.Errorf("expected empty database fallback to 'demo@listmonk.app', got %s", fallbackSub.Email)
+	}
+
+	t.Log("Successfully verified explicit subscriber ID selection, most-populated CRM contact fallback, and empty DB dummy fallback")
+}

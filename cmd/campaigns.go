@@ -182,8 +182,14 @@ func (a *App) PreviewCampaign(c echo.Context) error {
 			a.i18n.Ts("templates.errorCompiling", "error", err.Error()))
 	}
 
+	subID, _ := strconv.Atoi(c.FormValue("subscriber_id"))
+	if subID == 0 {
+		subID, _ = strconv.Atoi(c.QueryParam("subscriber_id"))
+	}
+	sub := a.getSubscriberForPreview(subID)
+
 	// Render the message body.
-	msg, err := a.manager.NewCampaignMessage(&camp, dummySubscriber)
+	msg, err := a.manager.NewCampaignMessage(&camp, sub)
 	if err != nil {
 		a.log.Printf("error rendering message: %v", err)
 		return echo.NewHTTPError(http.StatusBadRequest,
@@ -566,7 +572,7 @@ func (a *App) TestCampaign(c echo.Context) error {
 	}
 
 	if len(subs) == 0 {
-		subs = []models.Subscriber{dummySubscriber}
+		subs = []models.Subscriber{a.getSubscriberForPreview(0)}
 	}
 
 	// Get the campaign from the DB for previewing.

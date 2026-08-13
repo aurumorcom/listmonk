@@ -190,6 +190,13 @@ func (a *App) PreviewSequence(c echo.Context) error {
 	if len(steps) == 0 {
 		return c.JSON(http.StatusOK, okResp{""})
 	}
+
+	subID, _ := strconv.Atoi(c.FormValue("subscriber_id"))
+	if subID == 0 {
+		subID, _ = strconv.Atoi(c.QueryParam("subscriber_id"))
+	}
+	_ = a.getSubscriberForPreview(subID)
+
 	return c.JSON(http.StatusOK, okResp{steps[0].Body})
 }
 
