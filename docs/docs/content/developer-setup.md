@@ -30,9 +30,19 @@ After setting up the dev environment, you can visit `http://localhost:8080`.
 
 2. Inside containers (Using Makefile)
 
-    - Run `make init-dev-docker` to setup container for db.
-    - Run `make dev-docker` to setup docker container suite.
-    - Run `make rm-dev-docker` to clean up docker container suite.
+    Before running Docker initialization commands, install frontend dependencies on your host filesystem:
+
+    ```bash
+    cd frontend && yarn install
+    cd email-builder && yarn install
+    cd ../..
+    ```
+
+    Then run the Docker setup suite:
+
+    - Run `make rm-dev-docker && make init-dev-docker` to initialize the database container.
+    - Run `make dev-docker` to start the Docker container suite.
+    - Run `make rm-dev-docker` to clean up the Docker container suite.
 
 3. Inside containers (Using devcontainer)
 

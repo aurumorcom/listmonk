@@ -27,7 +27,7 @@ Retrieve the bounce records.
 ##### Example Request
 
 ```shell
-curl -u "api_user:token" -X GET 'http://localhost:9000/api/bounces?campaign_id=1&page=1&per_page=2' \ 
+curl -u "username:token" -X GET 'http://localhost:9000/api/bounces?campaign_id=1&page=1&per_page=2' \
     -H 'accept: application/json' -H 'Content-Type: application/x-www-form-urlencoded' \
     --data '{"source":"demo","order_by":"created_at","order":"asc"}'
 ```
@@ -94,7 +94,7 @@ To delete all bounces.
 ##### Example Request
 
 ```shell
-curl -u 'api_username:access_token' -X DELETE 'http://localhost:9000/api/bounces?all=true'
+curl -u 'username:token' -X DELETE 'http://localhost:9000/api/bounces?all=true'
 ```
 
 ##### Example Response
@@ -120,7 +120,7 @@ To delete multiple bounce records.
 ##### Example Request
 
 ```shell
-curl -u 'api_username:access_token' -X DELETE 'http://localhost:9000/api/bounces?id=840965&id=840168&id=840879'
+curl -u 'username:token' -X DELETE 'http://localhost:9000/api/bounces?id=840965&id=840168&id=840879'
 ```
 
 ##### Example Response
@@ -140,7 +140,7 @@ To delete specific bounce id.
 ##### Example Request
 
 ```shell
-curl -u 'api_username:access_token' -X DELETE 'http://localhost:9000/api/bounces/840965'
+curl -u 'username:token' -X DELETE 'http://localhost:9000/api/bounces/840965'
 ```
 
 ##### Example Response

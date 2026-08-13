@@ -20,7 +20,7 @@ Retrieve all templates.
 ##### Example Request
 
 ```shell
-curl -u "api_user:token" -X GET 'http://localhost:9000/api/templates'
+curl -u "username:token" -X GET 'http://localhost:9000/api/templates'
 ```
 
 ##### Example Response
@@ -57,7 +57,7 @@ Retrieve a specific template.
 ##### Example Request
 
 ```shell
-curl -u "api_user:token" -X GET 'http://localhost:9000/api/templates/1'
+curl -u "username:token" -X GET 'http://localhost:9000/api/templates/1'
 ```
 
 ##### Example Response
@@ -92,7 +92,7 @@ Retrieve the HTML preview of a template.
 ##### Example Request
 
 ```shell
-curl -u "api_user:token" -X GET 'http://localhost:9000/api/templates/1/preview'
+curl -u "username:token" -X GET 'http://localhost:9000/api/templates/1/preview'
 ```
 
 ##### Example Response
@@ -120,18 +120,19 @@ Create a template.
 
 ##### Parameters
 
-| Name        | Type   | Required | Description                                                                   |
-|:------------|:-------|:---------|:------------------------------------------------------------------------------|
-| name        | string | Yes      | Name of the template                                                          |
-| type        | string | Yes      | Type of the template (`campaign`, `campaign_visual`, or `tx`)                 |
-| subject     | string |          | Subject line for the template (only for `tx`)                                 |
-| body_source | string |          | If type is `campaign_visual`, the JSON source for the email-builder tempalate |
-| body        | string | Yes      | HTML body of the template                                                     |
+| Name          | Type   | Required | Description                                                                   |
+|:--------------|:-------|:---------|:------------------------------------------------------------------------------|
+| name          | string | Yes      | Name of the template                                                          |
+| type          | string | Yes      | Type of the template (`campaign`, `campaign_visual`, `tx`, or `prompt`)        |
+| subject       | string |          | Subject line for the template (only for `tx`)                                 |
+| system_prompt | string |          | System prompt instructions (only for `prompt` templates)                      |
+| body_source   | string |          | If type is `campaign_visual`, the JSON source for the email-builder template |
+| body          | string | Yes      | HTML body / User prompt content of the template                               |
 
 ##### Example Request
 
 ```shell
-curl -u "api_user:token" -X POST 'http://localhost:9000/api/templates' \
+curl -u "username:token" -X POST 'http://localhost:9000/api/templates' \
 -H 'Content-Type: application/json' \
 -d '{
     "name": "New template",
@@ -183,7 +184,7 @@ Set a template as the default.
 ##### Example Request
 
 ```shell
-curl -u "api_user:token" -X PUT 'http://localhost:9000/api/templates/1/default'
+curl -u "username:token" -X PUT 'http://localhost:9000/api/templates/1/default'
 ```
 
 ##### Example Response
@@ -218,7 +219,7 @@ Delete a template.
 ##### Example Request
 
 ```shell
-curl -u "api_user:token" -X DELETE 'http://localhost:9000/api/templates/35'
+curl -u "username:token" -X DELETE 'http://localhost:9000/api/templates/35'
 ```
 
 ##### Example Response

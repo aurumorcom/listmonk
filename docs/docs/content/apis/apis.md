@@ -7,26 +7,52 @@ All features that are available on the listmonk dashboard are also available as 
 
 
 ## Auth
-HTTP API requests support BasicAuth and a Authorization `token` headers. API users and tokens with the required permissions can be created and managed on the admin UI (Admin -> Users).
+
+HTTP API requests support BasicAuth, `Authorization: token` headers, `Authorization: Bearer` headers, and `X-API-Key` headers.
+
+### API Credentials Standard
+All API authentication requires two credentials:
+- **`username`**: The API user account username string (e.g. `admin` or `api_user`).
+- **`token`**: The secret access token string generated in Admin -> Users.
+
+### Generating API Credentials
+API user accounts and tokens are managed under **Admin -> Users**:
+1. Navigate to **Users** in the listmonk dashboard.
+2. Create or edit an API user account (`Type = API`) and assign role permissions (e.g. `contacts:manage`, `sequences:send`, `webhooks:manage`).
+3. Copy the generated secret access token upon creation.
+
+### Authentication Examples
 
 ##### BasicAuth example
 ```shell
-curl -u "api_user:token" http://localhost:9000/api/lists
+curl -u "username:token" http://localhost:9000/api/lists
 ```
 
-##### Authorization token example
+##### Authorization token header example
 ```shell
-curl -H "Authorization: token api_user:token" http://localhost:9000/api/lists
+curl -H "Authorization: token username:token" http://localhost:9000/api/lists
 ```
 
-## Permissions
-**User role**: Permissions allowed for a user are defined as a *User role* (Admin -> User roles) and then attached to a user. 
+##### Authorization Bearer header example
+```shell
+curl -H "Authorization: Bearer token" http://localhost:9000/api/lists
+```
 
-**List role**: Read / write permissions per-list can be defined as a *List role* (Admin -> User roles) and then attached to a user. 
+##### X-API-Key header example
+```shell
+curl -H "X-API-Key: token" http://localhost:9000/api/lists
+```
 
-In a *User role*, `lists:get_all` or `lists:manage_all` permission supercede and override any list specific permissions for a user defined in a *List role*.
+---
 
-To manage lists and subscriber list subscriptions via API requests, ensure that the appropriate permissions are attached to the API user.
+## Authorization & Role-Based Access Control (RBAC)
+
+listmonk enforces granular permission checks on every API route via authorization middleware (`Auth.Perm`):
+
+- **User Roles**: Group domain-specific permissions (e.g. `sequences:get`, `sequences:send`, `contacts:manage`, `schedules:manage`, `whatsapp:manage`, `emails:manage`).
+- **List Roles**: Per-list read (`lists:get`) and write (`lists:manage`) restrictions.
+- **Permission Overrides**: `lists:get_all` or `lists:manage_all` permissions in a User Role override per-list restrictions.
+- **Superadmin Bypass**: The default Superadmin user role (`user_role_id = 1`) possesses full access across all endpoints.
 
 ______________________________________________________________________
 
