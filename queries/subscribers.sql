@@ -8,6 +8,13 @@ SELECT * FROM subscribers WHERE
         WHEN $3 != '' THEN email = $3
     END;
 
+-- name: get-most-populated-subscriber-for-preview
+-- Retrieves the enabled subscriber with the largest JSON attributes payload for template previews.
+SELECT * FROM subscribers
+WHERE status = 'enabled'
+ORDER BY OCTET_LENGTH(attribs::text) DESC, id DESC
+LIMIT 1;
+
 -- name: has-subscriber-list
 -- Used for checking access permission by list.
 SELECT s.id AS subscriber_id,
