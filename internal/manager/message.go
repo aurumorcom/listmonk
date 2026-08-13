@@ -2,6 +2,7 @@ package manager
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 
 	"github.com/knadh/listmonk/models"
@@ -32,6 +33,47 @@ func (m *Manager) NewCampaignMessage(c *models.Campaign, s models.Subscriber) (C
 // and applies the resultant bytes to Message.body to be used in messages.
 func (m *CampaignMessage) render() error {
 	out := bytes.Buffer{}
+
+	// If this is a Prompt template type and Bifrost client is configured, run JIT AI generation.
+	if m.pipe != nil && m.pipe.m != nil && m.pipe.m.bifrostClient != nil && m.Campaign != nil {
+		scope := ExtractTemplateScope(m.Subscriber)
+
+		sysPromptStr := m.Campaign.SystemPrompt
+		if m.Campaign.SystemPromptTpl != nil {
+			var sb bytes.Buffer
+			if err := m.Campaign.SystemPromptTpl.Execute(&sb, scope); err == nil {
+				sysPromptStr = sb.String()
+			}
+		}
+
+		var userBuf bytes.Buffer
+		if m.Campaign.Tpl != nil {
+			if err := m.Campaign.Tpl.Execute(&userBuf, scope); err == nil {
+				userPromptStr := userBuf.String()
+
+				// Run JIT generation via Bifrost SDK with EmailResponseFormat guide
+				aiBody, err := m.pipe.m.bifrostClient.GeneratePromptWithFormat(m.pipe.m.bifrostClient.TimeoutContext(), sysPromptStr, userPromptStr, EmailResponseFormat())
+				if err == nil && aiBody != "" {
+					cleanBody := CleanJSONResponse(aiBody)
+					var structOut EmailStructuredOutput
+					if err := json.Unmarshal([]byte(cleanBody), &structOut); err == nil && structOut.Content != "" {
+						if structOut.Subject != "" {
+							m.subject = structOut.Subject
+						}
+						sig := ResolveSignatureAdvanced(SignatureOpts{
+							Subscriber: m.Subscriber,
+						})
+						finalContent := FormatPlainTextWithSignature(structOut.Content, sig)
+						m.body = []byte(finalContent)
+						return nil
+					}
+
+					m.body = []byte(aiBody)
+					return nil
+				}
+			}
+		}
+	}
 
 	// Render the subject if it's a template.
 	if m.Campaign.SubjectTpl != nil {

@@ -3,8 +3,13 @@
     <b-modal scroll="keep" @close="close" :aria-modal="true" :active="isVisible">
       <div>
         <div class="modal-card" style="width: auto">
-          <header class="modal-card-head">
+          <header class="modal-card-head" style="justify-content: space-between; align-items: center;">
             <h4>{{ title }}</h4>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <b-button v-if="id && type === 'template'" size="is-small" type="is-info" icon-left="email-send-outline" @click="sendTest">
+                Send Test
+              </b-button>
+            </div>
           </header>
         </div>
         <section expanded class="modal-card-body preview">
@@ -80,6 +85,27 @@ export default {
 
       if (this.formSubmitted) {
         this.isLoading = false;
+      }
+    },
+
+    reloadPreview() {
+      if (this.isPost && this.$refs.form) {
+        this.isLoading = true;
+        this.$refs.form.submit();
+      }
+    },
+
+    async sendTest() {
+      // eslint-disable-next-line no-alert
+      const email = window.prompt('Enter email address to send test message:');
+      if (!email) return;
+      try {
+        await this.$api.post(`/api/templates/${this.id}/test`, {
+          test_email: email,
+        });
+        this.$buefy.toast.open({ message: 'Test message dispatched successfully', type: 'is-success' });
+      } catch (e) {
+        this.$buefy.toast.open({ message: 'Failed to send test message', type: 'is-danger' });
       }
     },
   },

@@ -52,15 +52,32 @@ const (
 	PermSubscribersImport     = "subscribers:import"
 	PermSubscribersSqlQuery   = "subscribers:sql_query"
 	PermTxSend                = "tx:send"
+	PermContactsGet           = "contacts:get"
+	PermContactsGetAll        = "contacts:get_all"
+	PermContactsManage        = "contacts:manage"
 	PermCampaignsGet          = "campaigns:get"
 	PermCampaignsGetAll       = "campaigns:get_all"
 	PermCampaignsGetAnalytics = "campaigns:get_analytics"
 	PermCampaignsManage       = "campaigns:manage"
 	PermCampaignsManageAll    = "campaigns:manage_all"
 	PermCampaignsSend         = "campaigns:send"
+	PermSequencesGet          = "sequences:get"
+	PermSequencesGetAll       = "sequences:get_all"
+	PermSequencesGetAnalytics = "sequences:get_analytics"
+	PermSequencesManage       = "sequences:manage"
+	PermSequencesManageAll    = "sequences:manage_all"
+	PermSequencesSend         = "sequences:send"
+	PermSchedulesGet          = "schedules:get"
+	PermSchedulesManage       = "schedules:manage"
+	PermWhatsappGet           = "whatsapp:get"
+	PermWhatsappManage        = "whatsapp:manage"
+	PermEmailsGet             = "emails:get"
+	PermEmailsManage          = "emails:manage"
 	PermBouncesGet            = "bounces:get"
 	PermBouncesManage         = "bounces:manage"
 	PermWebhooksPostBounce    = "webhooks:post_bounce"
+	PermWebhooksGet           = "webhooks:get"
+	PermWebhooksManage        = "webhooks:manage"
 	PermMediaGet              = "media:get"
 	PermMediaManage           = "media:manage"
 	PermTemplatesGet          = "templates:get"
@@ -98,6 +115,9 @@ type User struct {
 	Avatar        null.String      `db:"avatar" json:"avatar"`
 	TwofaType     string           `db:"twofa_type" json:"twofa_type"`
 	TwofaKey      null.String      `db:"twofa_key" json:"-"`
+	EmailID       null.Int         `db:"email_id" json:"email_id"`
+	WahaSession   null.String      `db:"waha_session" json:"waha_session"`
+	Signature     string           `db:"signature" json:"signature"`
 	LoggedInAt    null.Time        `db:"loggedin_at" json:"loggedin_at"`
 	UserRoleID    int              `db:"user_role_id" json:"user_role_id,omitempty"`
 	UserRoleName  string           `db:"user_role_name" json:"-"`

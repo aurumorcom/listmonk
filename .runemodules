@@ -1,0 +1,9 @@
+[runemodule ".agents/skills/waha/modules/waha"]
+	url = https://github.com/devlikeapro/waha/tree/core
+	path = .agents/skills/waha/modules/waha
+[runemodule ".agents/skills/waha/modules/waha-docs"]
+	url = https://github.com/devlikeapro/waha-docs/tree/main
+	path = .agents/skills/waha/modules/waha-docs
+[runemodule ".agents/skills/humantyping/modules/HumanTyping"]
+	url = https://github.com/Lax3n/HumanTypin/tree/master
+	path = .agents/skills/humantyping/modules/HumanTyping

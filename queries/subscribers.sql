@@ -85,8 +85,8 @@ SELECT lists.*,
 
 -- name: insert-subscriber
 WITH sub AS (
-    INSERT INTO subscribers (uuid, email, name, status, attribs)
-    VALUES($1, $2, $3, $4, $5)
+    INSERT INTO subscribers (uuid, email, name, status, attribs, phone)
+    VALUES($1, $2, $3, $4, $5, $9)
     RETURNING id, status
 ),
 listIDs AS (
@@ -154,6 +154,7 @@ UPDATE subscribers SET
     name=(CASE WHEN $3 != '' THEN $3 ELSE name END),
     status=(CASE WHEN $4 != '' THEN $4::subscriber_status ELSE status END),
     attribs=(CASE WHEN $5 != '' THEN $5::JSONB ELSE attribs END),
+    phone=$6,
     updated_at=NOW()
 WHERE id = $1;
 
@@ -166,6 +167,7 @@ WITH s AS (
         name=(CASE WHEN $3 != '' THEN $3 ELSE name END),
         status=(CASE WHEN $4 != '' THEN $4::subscriber_status ELSE status END),
         attribs=(CASE WHEN $5 != '' THEN $5::JSONB ELSE attribs END),
+        phone=$12,
         updated_at=NOW()
     WHERE id = $1 RETURNING id
 ),

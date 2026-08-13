@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -94,6 +95,10 @@ var (
 )
 
 func init() {
+	if flag.Lookup("test.v") != nil || strings.HasSuffix(os.Args[0], ".test") || strings.HasSuffix(os.Args[0], ".test.exe") {
+		return
+	}
+
 	// Initialize commandline flags.
 	initFlags(ko)
 
@@ -209,8 +214,8 @@ func main() {
 		// Crud core.
 		core = initCore(fbOptinNotify, queries, db, i18n, ko)
 
-		// Initialize all messengers, SMTP and postback.
-		msgrs = append(initSMTPMessengers(), initPostbackMessengers(ko)...)
+		// Initialize all messengers, SMTP, postback, and WAHA.
+		msgrs = append(append(initSMTPMessengers(), initPostbackMessengers(ko)...), initWAHAMessengers(ko)...)
 
 		// Campaign manager.
 		mgr = initCampaignManager(msgrs, queries, urlCfg, core, media, i18n, ko)

@@ -48,10 +48,43 @@ type subOptin struct {
 
 var (
 	dummySubscriber = models.Subscriber{
-		Email:   "demo@listmonk.app",
-		Name:    "Demo Subscriber",
-		UUID:    dummyUUID,
-		Attribs: models.JSON{"city": "Bengaluru"},
+		Email: "demo@listmonk.app",
+		Name:  "Demo Subscriber",
+		UUID:  dummyUUID,
+		Attribs: models.JSON{
+			"city": "Bengaluru",
+			"user": map[string]any{
+				"id":    1,
+				"name":  "Demo Account Executive",
+				"email": "demo.rep@company.com",
+				"title": "Account Executive",
+				"bio":   "Experienced Account Executive helping SaaS teams scale outreach and customer engagement.",
+			},
+			"context": map[string]any{
+				"company_size": "50-200",
+				"industry":     "SaaS",
+			},
+			"sequence_history": []map[string]any{
+				{
+					"step":        1,
+					"step_number": 1,
+					"messenger":   "email",
+					"subject":     "Introduction Email",
+					"body":        "Hi, glad to connect with you!",
+					"content":     "Hi, glad to connect with you!",
+					"message":     "Hi, glad to connect with you!",
+				},
+				{
+					"step":        2,
+					"step_number": 2,
+					"messenger":   "waha",
+					"subject":     "WhatsApp Followup",
+					"body":        "Hey, following up on WhatsApp!",
+					"content":     "Hey, following up on WhatsApp!",
+					"message":     "Hey, following up on WhatsApp!",
+				},
+			},
+		},
 	}
 )
 
@@ -252,6 +285,19 @@ func (a *App) CreateSubscriber(c echo.Context) error {
 		return err
 	}
 
+	// Auto-enroll contact into requested sequences
+	if len(req.Sequences) > 0 {
+		var userCtx map[string]any
+		if userRaw, ok := sub.Attribs["user"].(map[string]any); ok {
+			userCtx = userRaw
+		}
+		for _, seqID := range req.Sequences {
+			if err := a.core.EnrollSequenceContacts(seqID, []int{sub.ID}, userCtx); err != nil {
+				a.log.Printf("error auto-enrolling subscriber %d into sequence %d: %v", sub.ID, seqID, err)
+			}
+		}
+	}
+
 	return c.JSON(http.StatusOK, okResp{sub})
 }
 
@@ -264,6 +310,7 @@ func (a *App) UpdateSubscriber(c echo.Context) error {
 	req := struct {
 		models.Subscriber
 		Lists          []int `json:"lists"`
+		Sequences      []int `json:"sequences"`
 		PreconfirmSubs bool  `json:"preconfirm_subscriptions"`
 	}{}
 	if err := c.Bind(&req); err != nil {
@@ -307,6 +354,19 @@ func (a *App) UpdateSubscriber(c echo.Context) error {
 	out, _, err := a.core.UpdateSubscriberWithLists(id, req.Subscriber, listIDs, nil, req.PreconfirmSubs, true, false, permittedLists, false)
 	if err != nil {
 		return err
+	}
+
+	// Auto-enroll contact into requested sequences
+	if len(req.Sequences) > 0 {
+		var userCtx map[string]any
+		if userRaw, ok := out.Attribs["user"].(map[string]any); ok {
+			userCtx = userRaw
+		}
+		for _, seqID := range req.Sequences {
+			if err := a.core.EnrollSequenceContacts(seqID, []int{out.ID}, userCtx); err != nil {
+				a.log.Printf("error auto-enrolling subscriber %d into sequence %d: %v", out.ID, seqID, err)
+			}
+		}
 	}
 
 	maskRestrictedSubLists(user, &out)

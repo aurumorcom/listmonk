@@ -128,8 +128,22 @@ func initHTTPHandlers(e *echo.Echo, a *App) {
 		g.PUT("/api/subscribers/:id/blocklist", pm(hasID(a.BlocklistSubscriber), "subscribers:manage"))
 		g.PUT("/api/subscribers/lists/:id", pm(a.ManageSubscriberLists, "subscribers:manage"))
 		g.PUT("/api/subscribers/lists", pm(a.ManageSubscriberLists, "subscribers:manage"))
+		g.PUT("/api/subscribers/sequences/:id", pm(a.ManageContactSequences, "contacts:manage", "subscribers:manage"))
+		g.PUT("/api/subscribers/sequences", pm(a.ManageContactSequences, "contacts:manage", "subscribers:manage"))
+		g.GET("/api/subscribers/:id/sequences", pm(hasID(a.GetContactSequences), "contacts:get_all", "contacts:get", "subscribers:get_all", "subscribers:get"))
 		g.DELETE("/api/subscribers/:id", pm(hasID(a.DeleteSubscriber), "subscribers:manage"))
 		g.DELETE("/api/subscribers", pm(a.DeleteSubscribers, "subscribers:manage"))
+
+		g.GET("/api/contacts", pm(a.GetContacts, "contacts:get_all", "contacts:get", "subscribers:get_all", "subscribers:get"))
+		g.GET("/api/contacts/:id", pm(hasID(a.GetContact), "contacts:get_all", "contacts:get", "subscribers:get_all", "subscribers:get"))
+		g.GET("/api/contacts/:id/sequences", pm(hasID(a.GetContactSequences), "contacts:get_all", "contacts:get", "subscribers:get_all", "subscribers:get"))
+		g.POST("/api/contacts", pm(a.CreateContact, "contacts:manage", "subscribers:manage"))
+		g.PUT("/api/contacts/sequences/:id", pm(a.ManageContactSequences, "contacts:manage", "subscribers:manage"))
+		g.PUT("/api/contacts/sequences", pm(a.ManageContactSequences, "contacts:manage", "subscribers:manage"))
+		g.PUT("/api/contacts/query/sequences", pm(a.ManageContactSequencesByQuery, "contacts:manage", "subscribers:manage"))
+		g.PUT("/api/contacts/:id", pm(hasID(a.UpdateContact), "contacts:manage", "subscribers:manage"))
+		g.DELETE("/api/contacts/:id", pm(hasID(a.DeleteSubscriber), "contacts:manage", "subscribers:manage"))
+		g.DELETE("/api/contacts", pm(a.DeleteContacts, "contacts:manage", "subscribers:manage"))
 
 		g.GET("/api/bounces", pm(a.GetBounces, "bounces:get"))
 		g.PUT("/api/bounces/blocklist", pm(a.BlocklistBouncedSubscribers, "bounces:manage"))
@@ -142,6 +156,7 @@ func initHTTPHandlers(e *echo.Echo, a *App) {
 		g.POST("/api/subscribers/query/delete", pm(a.DeleteSubscribersByQuery, "subscribers:manage"))
 		g.PUT("/api/subscribers/query/blocklist", pm(a.BlocklistSubscribersByQuery, "subscribers:manage"))
 		g.PUT("/api/subscribers/query/lists", pm(a.ManageSubscriberListsByQuery, "subscribers:manage"))
+		g.PUT("/api/subscribers/query/sequences", pm(a.ManageContactSequencesByQuery, "contacts:manage", "subscribers:manage"))
 		g.GET("/api/subscribers/export",
 			pm(middleware.GzipWithConfig(middleware.GzipConfig{Level: 9})(a.ExportSubscribers), "subscribers:get_all", "subscribers:get"))
 
@@ -174,6 +189,37 @@ func initHTTPHandlers(e *echo.Echo, a *App) {
 		g.PUT("/api/campaigns/:id/archive", pm(hasID(a.UpdateCampaignArchive), "campaigns:manage_all", "campaigns:manage"))
 		g.DELETE("/api/campaigns", pm(a.DeleteCampaigns, "campaigns:manage", "campaigns:manage_all"))
 		g.DELETE("/api/campaigns/:id", pm(hasID(a.DeleteCampaign), "campaigns:manage_all", "campaigns:manage"))
+
+		g.GET("/api/webhooks", pm(a.GetWebhooks, "webhooks:get"))
+		g.POST("/api/webhooks", pm(a.CreateWebhook, "webhooks:manage"))
+		g.PUT("/api/webhooks/:id", pm(a.UpdateWebhook, "webhooks:manage"))
+		g.DELETE("/api/webhooks/:id", pm(a.DeleteWebhook, "webhooks:manage"))
+		g.GET("/api/webhooks/logs", pm(a.GetWebhookLogs, "webhooks:get"))
+		g.POST("/api/webhooks/test", pm(a.TestWebhook, "webhooks:manage"))
+
+		g.GET("/api/sequences", pm(a.GetSequences, "sequences:manage_all", "sequences:manage", "sequences:get", "campaigns:manage_all", "campaigns:manage"))
+		g.GET("/api/sequences/analytics", pm(a.GetSequenceAnalytics, "sequences:get_analytics", "sequences:get", "campaigns:get_analytics", "campaigns:get"))
+		g.GET("/api/sequences/:id", pm(a.GetSequence, "sequences:manage_all", "sequences:manage", "sequences:get", "campaigns:manage_all", "campaigns:manage"))
+		g.GET("/api/sequences/:id/preview", pm(hasID(a.PreviewSequence), "sequences:get_all", "sequences:get", "campaigns:get_all", "campaigns:get"))
+		g.POST("/api/sequences/:id/preview/archive", pm(hasID(a.PreviewSequenceArchive), "sequences:get_all", "sequences:get", "campaigns:get_all", "campaigns:get"))
+		g.POST("/api/sequences/:id/preview", pm(hasID(a.PreviewSequence), "sequences:get_all", "sequences:get", "campaigns:get_all", "campaigns:get"))
+		g.POST("/api/sequences/:id/test", pm(hasID(a.TestSequence), "sequences:manage_all", "sequences:manage", "campaigns:manage_all", "campaigns:manage"))
+		g.POST("/api/sequences", pm(a.CreateSequence, "sequences:manage_all", "sequences:manage", "campaigns:manage_all", "campaigns:manage"))
+		g.PUT("/api/sequences/:id", pm(a.UpdateSequence, "sequences:manage_all", "sequences:manage", "campaigns:manage_all", "campaigns:manage"))
+		g.PUT("/api/sequences/:id/status", pm(hasID(a.UpdateSequenceStatus), "sequences:send", "campaigns:send"))
+		g.PUT("/api/sequences/:id/archive", pm(hasID(a.UpdateSequenceArchive), "sequences:manage_all", "sequences:manage", "campaigns:manage_all", "campaigns:manage"))
+		g.DELETE("/api/sequences", pm(a.DeleteSequences, "sequences:manage", "sequences:manage_all", "campaigns:manage", "campaigns:manage_all"))
+		g.DELETE("/api/sequences/:id", pm(a.DeleteSequence, "sequences:manage_all", "sequences:manage", "campaigns:manage_all", "campaigns:manage"))
+		g.GET("/api/sequences/:id/steps", pm(a.GetSequenceSteps, "sequences:manage_all", "sequences:manage", "campaigns:manage_all", "campaigns:manage"))
+		g.POST("/api/sequences/:id/steps", pm(a.SaveSequenceSteps, "sequences:manage_all", "sequences:manage", "campaigns:manage_all", "campaigns:manage"))
+		g.PUT("/api/sequences/:id/contacts/:sub_id/reassign", pm(a.ReassignSequenceContactSender, "sequences:manage_all", "sequences:manage", "campaigns:manage_all", "campaigns:manage"))
+
+		g.GET("/api/schedules", pm(a.GetSchedules, "schedules:manage", "schedules:get", "campaigns:manage_all", "campaigns:manage"))
+		g.GET("/api/schedules/:id", pm(a.GetSchedule, "schedules:manage", "schedules:get", "campaigns:manage_all", "campaigns:manage"))
+		g.POST("/api/schedules", pm(a.CreateSchedule, "schedules:manage", "campaigns:manage_all", "campaigns:manage"))
+		g.PUT("/api/schedules/:id", pm(a.UpdateSchedule, "schedules:manage", "campaigns:manage_all", "campaigns:manage"))
+		g.PUT("/api/schedules/:id/default", pm(hasID(a.SetDefaultSchedule), "schedules:manage", "campaigns:manage_all", "campaigns:manage"))
+		g.DELETE("/api/schedules/:id", pm(a.DeleteSchedule, "schedules:manage", "campaigns:manage_all", "campaigns:manage"))
 
 		g.GET("/api/media", pm(a.GetAllMedia, "media:get"))
 		g.GET("/api/media/:id", pm(hasID(a.GetMedia), "media:get"))
@@ -223,6 +269,7 @@ func initHTTPHandlers(e *echo.Echo, a *App) {
 			// Private authenticated bounce endpoint.
 			g.POST("/webhooks/bounce", pm(a.BounceWebhook, "webhooks:post_bounce"))
 		}
+		g.POST("/api/webhooks/waha", a.WAHAWebhook)
 	}
 
 	// =================================================================

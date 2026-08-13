@@ -46,6 +46,7 @@ import (
 	"github.com/knadh/listmonk/internal/media/providers/s3"
 	"github.com/knadh/listmonk/internal/messenger/email"
 	"github.com/knadh/listmonk/internal/messenger/postback"
+	"github.com/knadh/listmonk/internal/messenger/waha"
 	"github.com/knadh/listmonk/internal/notifs"
 	"github.com/knadh/listmonk/internal/subimporter"
 	"github.com/knadh/listmonk/models"
@@ -191,6 +192,10 @@ func initConfigFiles(files []string, ko *koanf.Koanf) {
 		lo.Printf("reading config: %s", f)
 		if err := ko.Load(file.Provider(f), toml.Parser()); err != nil {
 			if os.IsNotExist(err) {
+				if flag.Lookup("test.v") != nil || strings.HasSuffix(os.Args[0], ".test") || strings.HasSuffix(os.Args[0], ".test.exe") {
+					lo.Printf("test mode: config file %s not found, skipping", f)
+					continue
+				}
 				lo.Fatal("config file not found. If there isn't one yet, run --new-config to generate one.")
 			}
 			lo.Fatalf("error loading config from file: %v.", err)
@@ -582,9 +587,11 @@ func initCore(fnNotify func(sub models.Subscriber, listIDs []int) (int, error), 
 	}
 
 	// Initialize the CRUD core.
-	return core.New(opt, &core.Hooks{
+	c := core.New(opt, &core.Hooks{
 		SendOptinConfirmation: fnNotify,
 	})
+	c.StartWebhookWorkers(5)
+	return c
 }
 
 // initCampaignManager initializes the campaign manager.
@@ -619,6 +626,29 @@ func initCampaignManager(msgrs []manager.Messenger, q *models.Queries, u *UrlCon
 	// Attach all messengers to the campaign manager.
 	for _, m := range msgrs {
 		mgr.AddMessenger(m)
+	}
+
+	// Initialize Bifrost Client if configured
+	bifrostKey := ko.String("bifrost.api_key")
+	if bifrostKey == "" {
+		bifrostKey = os.Getenv("LISTMONK_BIFROST_API_KEY")
+	}
+	if bifrostKey != "" {
+		bifrostEndpoint := ko.String("bifrost.endpoint")
+		if bifrostEndpoint == "" {
+			bifrostEndpoint = os.Getenv("LISTMONK_BIFROST_ENDPOINT")
+		}
+		bifrostModel := ko.String("bifrost.model")
+		if bifrostModel == "" {
+			bifrostModel = os.Getenv("LISTMONK_BIFROST_MODEL")
+		}
+		bc := manager.NewBifrostClient(manager.BifrostConfig{
+			APIKey:   bifrostKey,
+			Endpoint: bifrostEndpoint,
+			Model:    bifrostModel,
+			Timeout:  5 * time.Second,
+		})
+		mgr.SetBifrostClient(bc)
 	}
 
 	return mgr
@@ -745,6 +775,47 @@ func initPostbackMessengers(ko *koanf.Koanf) []manager.Messenger {
 		out = append(out, p)
 
 		lo.Printf("loaded Postback messenger: %s", name)
+	}
+
+	return out
+}
+
+// initWAHAMessengers initializes and returns all the enabled
+// WAHA WhatsApp messenger backends.
+func initWAHAMessengers(ko *koanf.Koanf) []manager.Messenger {
+	items := ko.Slices("waha_messengers")
+	if len(items) == 0 {
+		return nil
+	}
+
+	var out []manager.Messenger
+	for _, item := range items {
+		if !item.Bool("enabled") {
+			continue
+		}
+
+		var (
+			name = item.String("name")
+			o    waha.Options
+		)
+		if err := item.UnmarshalWithConf("", &o, koanf.UnmarshalConf{Tag: "json"}); err != nil {
+			lo.Fatalf("error reading WAHA config: %v", err)
+		}
+
+		w, err := waha.New(o)
+		if err != nil {
+			lo.Fatalf("error initializing WAHA messenger %s: %v", name, err)
+		}
+
+		if rootURL := ko.String("app.root_url"); rootURL != "" {
+			if err := w.SyncWebhook(rootURL); err != nil {
+				lo.Printf("warning: failed to sync WAHA webhook for %s: %v", name, err)
+			}
+		}
+
+		out = append(out, w)
+
+		lo.Printf("loaded WAHA messenger: %s", name)
 	}
 
 	return out

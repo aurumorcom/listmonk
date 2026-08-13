@@ -13,6 +13,8 @@ module.exports = {
   ],
   parser: 'vue-eslint-parser',
   rules: {
+    'linebreak-style': 'off',
+    'unicode-bom': 'off',
     'class-methods-use-this': 'off',
     'vue/multi-word-component-names': 'off',
     'vue/quote-props': 'off',

@@ -24,6 +24,39 @@
         data-cy="bounces" icon="email-bounce" :label="$t('globals.terms.bounces')" />
     </b-menu-item><!-- subscribers -->
 
+    <b-menu-item v-if="$can('subscribers:*')" :expanded="activeGroup.contacts" :active="activeGroup.contacts"
+      data-cy="contacts" @update:active="(state) => toggleGroup('contacts', state)" icon="account-box-outline"
+      :label="$t('globals.terms.contacts')">
+      <b-menu-item v-if="$can('subscribers:get_all', 'subscribers:get')" :to="{ name: 'contacts' }" tag="router-link"
+        :active="activeItem.contacts" data-cy="all-contacts" icon="account-box-outline"
+        :label="$t('menu.allContacts')" />
+      <b-menu-item v-if="$can('subscribers:import')" :to="{ name: 'importContacts' }" tag="router-link"
+        :active="activeItem.importContacts" data-cy="import-contacts" icon="file-upload-outline" :label="$t('menu.import')" />
+      <b-menu-item v-if="$can('bounces:get')" :to="{ name: 'bouncesContacts' }" tag="router-link" :active="activeItem.bouncesContacts"
+        data-cy="bounces-contacts" icon="email-bounce" :label="$t('globals.terms.bounces')" />
+    </b-menu-item><!-- contacts -->
+
+    <b-menu-item v-if="$can('campaigns:*')" :expanded="activeGroup.sequences" :active="activeGroup.sequences"
+      data-cy="sequences" @update:active="(state) => toggleGroup('sequences', state)" icon="run"
+      :label="$t('globals.terms.sequences')">
+      <b-menu-item v-if="$can('campaigns:get')" :to="{ name: 'sequences' }" tag="router-link"
+        :active="activeItem.sequences" data-cy="all-sequences" icon="run"
+        :label="$t('menu.allSequences')" />
+      <b-menu-item v-if="$can('campaigns:manage')" :to="{ name: 'sequence', params: { id: 'new' } }" tag="router-link"
+        :active="activeItem.sequence" data-cy="new-sequence" icon="plus" :label="$t('menu.newSequence')" />
+      <b-menu-item v-if="$can('media:*')" :to="{ name: 'sequenceMedia' }" tag="router-link" :active="activeItem.sequenceMedia"
+        data-cy="sequence-media" icon="image-outline" :label="$t('menu.media')" />
+      <b-menu-item v-if="$can('templates:get')" :to="{ name: 'sequenceTemplates' }" tag="router-link"
+        :active="activeItem.sequenceTemplates" data-cy="sequence-templates" icon="file-image-outline"
+        :label="$t('globals.terms.templates')" />
+      <b-menu-item v-if="$can('campaigns:get')" :to="{ name: 'sequenceSchedules' }" tag="router-link"
+        :active="activeItem.sequenceSchedules" data-cy="sequence-schedules" icon="calendar-clock"
+        :label="$t('globals.terms.schedules')" />
+      <b-menu-item v-if="$can('campaigns:get_analytics')" :to="{ name: 'sequenceAnalytics' }" tag="router-link"
+        :active="activeItem.sequenceAnalytics" data-cy="sequence-analytics" icon="chart-bar"
+        :label="$t('globals.terms.analytics')" />
+    </b-menu-item><!-- sequences -->
+
     <b-menu-item v-if="$can('campaigns:*')" :expanded="activeGroup.campaigns" :active="activeGroup.campaigns"
       data-cy="campaigns" @update:active="(state) => toggleGroup('campaigns', state)" icon="rocket-launch-outline"
       :label="$t('globals.terms.campaigns')">

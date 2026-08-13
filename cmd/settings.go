@@ -21,6 +21,7 @@ import (
 	"github.com/knadh/koanf/v2"
 	"github.com/knadh/listmonk/internal/auth"
 	"github.com/knadh/listmonk/internal/messenger/email"
+	"github.com/knadh/listmonk/internal/messenger/waha"
 	"github.com/knadh/listmonk/internal/notifs"
 	"github.com/knadh/listmonk/models"
 	"github.com/labstack/echo/v4"
@@ -70,6 +71,9 @@ func (a *App) GetSettings(c echo.Context) error {
 	}
 	for i := range s.Messengers {
 		s.Messengers[i].Password = strings.Repeat(pwdMask, utf8.RuneCountInString(s.Messengers[i].Password))
+	}
+	for i := range s.WAHAMessengers {
+		s.WAHAMessengers[i].APIKey = strings.Repeat(pwdMask, utf8.RuneCountInString(s.WAHAMessengers[i].APIKey))
 	}
 
 	s.UploadS3AwsSecretAccessKey = strings.Repeat(pwdMask, utf8.RuneCountInString(s.UploadS3AwsSecretAccessKey))
@@ -228,6 +232,32 @@ func (a *App) UpdateSettings(c echo.Context) error {
 		names[name] = true
 	}
 
+	for i, m := range set.WAHAMessengers {
+		if m.UUID == "" {
+			set.WAHAMessengers[i].UUID = uuid.Must(uuid.NewV4()).String()
+		}
+
+		if m.APIKey == "" {
+			for _, c := range cur.WAHAMessengers {
+				if m.UUID == c.UUID {
+					set.WAHAMessengers[i].APIKey = c.APIKey
+				}
+			}
+		}
+
+		name := reAlphaNum.ReplaceAllString(strings.ToLower(m.Name), "")
+		if _, ok := names[name]; ok {
+			return echo.NewHTTPError(http.StatusBadRequest,
+				a.i18n.Ts("settings.duplicateMessengerName", "name", name))
+		}
+		if len(name) == 0 {
+			return echo.NewHTTPError(http.StatusBadRequest, a.i18n.T("settings.invalidMessengerName"))
+		}
+
+		set.WAHAMessengers[i].Name = name
+		names[name] = true
+	}
+
 	// S3 password?
 	if set.UploadS3AwsSecretAccessKey == "" {
 		set.UploadS3AwsSecretAccessKey = cur.UploadS3AwsSecretAccessKey
@@ -313,6 +343,35 @@ func (a *App) UpdateSettings(c echo.Context) error {
 	// Update the settings in the DB.
 	if err := a.core.UpdateSettings(set); err != nil {
 		return err
+	}
+
+	// Sync WAHA webhooks for any enabled WAHA messengers.
+	rootURL := set.AppRootURL
+	if rootURL == "" && a.urlCfg != nil {
+		rootURL = a.urlCfg.RootURL
+	}
+	for _, wm := range set.WAHAMessengers {
+		if wm.Enabled {
+			dur, _ := time.ParseDuration(wm.Timeout)
+			o := waha.Options{
+				Name:              wm.Name,
+				RootURL:           wm.RootURL,
+				APIKey:            wm.APIKey,
+				Session:           wm.Session,
+				PhoneAttribute:    wm.PhoneAttribute,
+				TypingDelayMs:     wm.TypingDelayMs,
+				TargetWPM:         wm.TargetWPM,
+				WPMStd:            wm.WPMStd,
+				KeyboardLayout:    wm.KeyboardLayout,
+				TypingMode:        wm.TypingMode,
+				MaxTypingDelaySec: wm.MaxTypingDelaySec,
+				MaxConns:          wm.MaxConns,
+				Timeout:           dur,
+			}
+			if w, err := waha.New(o); err == nil {
+				_ = w.SyncWebhook(rootURL)
+			}
+		}
 	}
 
 	return a.handleSettingsRestart(c)

@@ -59,6 +59,11 @@ func (c *Core) GetSubscriber(id int, uuid, email string) (models.Subscriber, err
 	return out[0], nil
 }
 
+// GetContact fetches a contact (subscriber domain alias) by one of the given params.
+func (c *Core) GetContact(id int, uuid, email string) (models.Contact, error) {
+	return c.GetSubscriber(id, uuid, email)
+}
+
 // HasSubscriberLists checks if the given subscribers have at least one of the given lists.
 func (c *Core) HasSubscriberLists(subIDs []int, listIDs []int) (map[int]bool, error) {
 	res := []struct {
@@ -324,7 +329,8 @@ func (c *Core) InsertSubscriber(sub models.Subscriber, listIDs []int, listUUIDs 
 		sub.Attribs,
 		pq.Array(listIDs),
 		pq.Array(listUUIDs),
-		subStatus); err != nil {
+		subStatus,
+		sub.Phone); err != nil {
 		if pqErr, ok := err.(*pq.Error); ok && pqErr.Constraint == "subscribers_email_key" {
 			return models.Subscriber{}, false, echo.NewHTTPError(http.StatusConflict, c.i18n.T("subscribers.emailExists"))
 		} else {
@@ -353,6 +359,7 @@ func (c *Core) InsertSubscriber(sub models.Subscriber, listIDs []int, listUUIDs 
 		hasOptin = num > 0
 	}
 
+	_ = c.DispatchWebhookEvent("contact.created", out)
 	return out, hasOptin, nil
 }
 
@@ -375,6 +382,7 @@ func (c *Core) UpdateSubscriber(id int, sub models.Subscriber) (models.Subscribe
 		strings.TrimSpace(sub.Name),
 		sub.Status,
 		json.RawMessage(attribs),
+		sub.Phone,
 	)
 	if err != nil {
 		c.log.Printf("error updating subscriber: %v", err)
@@ -387,6 +395,7 @@ func (c *Core) UpdateSubscriber(id int, sub models.Subscriber) (models.Subscribe
 		return models.Subscriber{}, err
 	}
 
+	_ = c.DispatchWebhookEvent("contact.updated", out)
 	return out, nil
 }
 
@@ -421,7 +430,8 @@ func (c *Core) UpdateSubscriberWithLists(id int, sub models.Subscriber, listIDs 
 		subStatus,
 		deleteLists,
 		pq.Array(permittedListIDs),
-		allowResubscribe)
+		allowResubscribe,
+		sub.Phone)
 	if err != nil {
 		c.log.Printf("error updating subscriber: %v", err)
 		return models.Subscriber{}, false, echo.NewHTTPError(http.StatusInternalServerError,
@@ -483,6 +493,7 @@ func (c *Core) DeleteSubscribers(subIDs []int, subUUIDs []string) error {
 			c.i18n.Ts("globals.messages.errorDeleting", "name", "{globals.terms.subscribers}", "error", pqErrMsg(err)))
 	}
 
+	_ = c.DispatchWebhookEvent("contact.deleted", map[string]any{"ids": subIDs, "uuids": subUUIDs})
 	return nil
 }
 
@@ -506,6 +517,7 @@ func (c *Core) UnsubscribeByCampaign(subUUID, campUUID string, blocklist bool) e
 			c.i18n.Ts("globals.messages.errorUpdating", "name", "{globals.terms.subscribers}", "error", pqErrMsg(err)))
 	}
 
+	_ = c.DispatchWebhookEvent("contact.unsubscribed", map[string]any{"subscriber_uuid": subUUID, "campaign_uuid": campUUID, "blocklist": blocklist})
 	return nil
 }
 

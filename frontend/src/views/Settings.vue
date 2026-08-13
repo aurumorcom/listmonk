@@ -54,6 +54,14 @@
             <messenger-settings :form="form" :key="key" />
           </b-tab-item><!-- messengers -->
 
+          <b-tab-item label="WhatsApp (WAHA)">
+            <waha-settings :form="form" :key="key" />
+          </b-tab-item><!-- waha -->
+
+          <b-tab-item label="Webhooks">
+            <webhook-settings :form="form" :key="key" />
+          </b-tab-item><!-- webhooks -->
+
           <b-tab-item :label="$t('settings.appearance.name')">
             <appearance-settings :form="form" :key="key" />
           </b-tab-item><!-- appearance -->
@@ -71,6 +79,8 @@ import BounceSettings from './settings/bounces.vue';
 import GeneralSettings from './settings/general.vue';
 import MediaSettings from './settings/media.vue';
 import MessengerSettings from './settings/messengers.vue';
+import WahaSettings from './settings/waha.vue';
+import WebhookSettings from './settings/webhooks.vue';
 import PerformanceSettings from './settings/performance.vue';
 import PrivacySettings from './settings/privacy.vue';
 import SecuritySettings from './settings/security.vue';
@@ -86,6 +96,8 @@ export default Vue.extend({
     SmtpSettings,
     BounceSettings,
     MessengerSettings,
+    WahaSettings,
+    WebhookSettings,
     AppearanceSettings,
   },
 
@@ -236,6 +248,45 @@ export default Vue.extend({
           d.smtp[i].strEmailHeaders = JSON.stringify(d.smtp[i].email_headers, null, 4);
         }
 
+        // Ensure waha_messengers exists and has default item if empty
+        if (!d.waha_messengers || !Array.isArray(d.waha_messengers) || d.waha_messengers.length === 0) {
+          d.waha_messengers = [
+            {
+              enabled: true,
+              user: '',
+              root_url: 'http://waha:3000',
+              api_key: '',
+              session: 'default',
+              phone_attribute: 'phone',
+              signature: '',
+              max_conns: 10,
+              max_msg_retries: 2,
+              timeout: '10s',
+              typing_mode: 'human',
+              target_wpm: 60,
+              wpm_std: 10,
+              keyboard_layout: 'qwerty',
+              max_typing_delay_sec: 30,
+              messages_per_day: 0,
+              messages_per_hour: 0,
+            },
+          ];
+        }
+
+        // Ensure webhooks exists and has default item if empty
+        if (!d.webhooks || !Array.isArray(d.webhooks) || d.webhooks.length === 0) {
+          d.webhooks = [
+            {
+              name: '',
+              enabled: true,
+              url: '',
+              secret: '',
+              events: ['subscriber.created', 'subscriber.updated', 'contact.created', 'contact.updated'],
+              strHeaders: '',
+            },
+          ];
+        }
+
         // Domain blocklist array to multi-line string.
         d['privacy.domain_blocklist'] = d['privacy.domain_blocklist'].join('\n');
         d['privacy.domain_allowlist'] = d['privacy.domain_allowlist'].join('\n');
@@ -251,11 +302,11 @@ export default Vue.extend({
     },
 
     isDummy(pwd) {
-      return !pwd || (pwd.match(/•/g) || []).length === pwd.length;
+      return !pwd || (pwd.match(/â€¢/g) || []).length === pwd.length;
     },
 
     hasDummy(pwd) {
-      return pwd.includes('•');
+      return pwd.includes('â€¢');
     },
   },
 

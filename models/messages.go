@@ -26,6 +26,9 @@ type Message struct {
 
 	// Messenger is the messenger backend to use: email|postback.
 	Messenger string
+
+	// MessengerSession allows overriding the target messenger session (e.g. WAHA session).
+	MessengerSession string
 }
 
 // Attachment represents a file or blob attachment that can be

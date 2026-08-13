@@ -579,6 +579,13 @@ func (a *App) LinkRedirect(c echo.Context) error {
 		return c.Render(e.Code, tplMessage, makeMsgTpl(a.i18n.T("public.errorTitle"), "", e.Error()))
 	}
 
+	// Also record sequence click if campUUID represents a sequence
+	if sub, err := a.core.GetSubscriber(0, subUUID, ""); err == nil {
+		if seq, err := a.core.GetSequence(0, campUUID); err == nil {
+			_ = a.core.RecordSequenceClick(seq.ID, sub.ID)
+		}
+	}
+
 	return c.Redirect(http.StatusTemporaryRedirect, url)
 }
 
@@ -604,6 +611,12 @@ func (a *App) RegisterCampaignView(c echo.Context) error {
 	if campUUID != dummyUUID && subUUID != dummyUUID {
 		if err := a.core.RegisterCampaignView(campUUID, subUUID); err != nil {
 			a.log.Printf("error registering campaign view: %s", err)
+		}
+		// Also record sequence read if campUUID represents a sequence
+		if sub, err := a.core.GetSubscriber(0, subUUID, ""); err == nil {
+			if seq, err := a.core.GetSequence(0, campUUID); err == nil {
+				_ = a.core.RecordSequenceRead(seq.ID, sub.ID)
+			}
 		}
 	}
 

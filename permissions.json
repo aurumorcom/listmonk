@@ -20,6 +20,15 @@
         ]
     },
     {
+        "group": "contacts",
+        "permissions":
+        [
+            "contacts:get",
+            "contacts:get_all",
+            "contacts:manage"
+        ]
+    },
+    {
         "group": "campaigns",
         "permissions":
         [
@@ -32,12 +41,56 @@
         ]
     },
     {
+        "group": "sequences",
+        "permissions":
+        [
+            "sequences:get",
+            "sequences:get_all",
+            "sequences:get_analytics",
+            "sequences:manage",
+            "sequences:manage_all",
+            "sequences:send"
+        ]
+    },
+    {
+        "group": "schedules",
+        "permissions":
+        [
+            "schedules:get",
+            "schedules:manage"
+        ]
+    },
+    {
+        "group": "whatsapp",
+        "permissions":
+        [
+            "whatsapp:get",
+            "whatsapp:manage"
+        ]
+    },
+    {
+        "group": "emails",
+        "permissions":
+        [
+            "emails:get",
+            "emails:manage"
+        ]
+    },
+    {
         "group": "bounces",
         "permissions":
         [
             "bounces:get",
             "bounces:manage",
             "webhooks:post_bounce"
+        ]
+    },
+    {
+        "group": "webhooks",
+        "permissions":
+        [
+            "webhooks:get",
+            "webhooks:manage"
         ]
     },
     {

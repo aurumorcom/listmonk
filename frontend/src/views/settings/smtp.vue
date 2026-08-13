@@ -139,6 +139,20 @@
               </div>
             </div>
 
+            <!-- Standardized Sending Limits Section -->
+            <div class="columns">
+              <div class="column is-6">
+                <b-field label="Emails sent per day" label-position="on-border" message="Daily max sending quota for this email account (0 = unlimited)">
+                  <b-numberinput v-model="item.emails_per_day" name="emails_per_day" type="is-light" controls-position="compact" placeholder="0" min="0" max="100000" />
+                </b-field>
+              </div>
+              <div class="column is-6">
+                <b-field label="Emails sent per hour" label-position="on-border" message="Hourly max sending quota for this email account (0 = unlimited)">
+                  <b-numberinput v-model="item.emails_per_hour" name="emails_per_hour" type="is-light" controls-position="compact" placeholder="0" min="0" max="10000" />
+                </b-field>
+              </div>
+            </div>
+
             <div class="columns">
               <div class="column is-4">
                 <b-field :label="$t('settings.smtp.retries')" label-position="on-border"
@@ -157,20 +171,89 @@
             </div>
 
             <hr />
+            <!-- Extended User & Signature Section -->
             <div class="columns">
-              <div class="column is-6">
+              <div class="column is-4">
                 <b-field :label="$t('globals.fields.name')" label-position="on-border"
                   :message="$t('settings.mailserver.nameHelp')">
                   <b-input v-model="item.name" name="name" placeholder="email-primary" :maxlength="100" />
                 </b-field>
               </div>
-              <div class="column is-6">
+              <div class="column is-4">
+                <b-field label="Assigned User" label-position="on-border" message="Team member assigned to this email account">
+                  <b-select v-model="item.user_id" expanded>
+                    <option value="">&mdash; None &mdash;</option>
+                    <option v-for="u in users" :value="u.id" :key="u.id">
+                      {{ u.name || u.username }} ({{ u.email || u.username }})
+                    </option>
+                  </b-select>
+                </b-field>
+              </div>
+              <div class="column is-4">
                 <b-field :label="$t('settings.smtp.fromAddresses')" label-position="on-border"
                   :message="$t('settings.smtp.fromAddressesHelp')">
                   <b-taginput v-model="item.from_addresses" name="from_addresses" ellipsis icon="tag-outline"
                     :before-adding="validateFromAddress" placeholder="user@example.com, anothersite.com" />
                 </b-field>
               </div>
+            </div>
+
+            <div class="columns">
+              <div class="column">
+                <b-field label="Channel Signature" label-position="on-border" message="Default signature for messages sent via this email account">
+                  <b-input v-model="item.signature" type="textarea" placeholder="Best regards,\nSales Team" />
+                </b-field>
+              </div>
+            </div>
+
+            <!-- Extended IMAP Settings Box (Incoming Reply Processing) -->
+            <div class="box mt-4">
+              <h5 class="title is-6 mb-3">IMAP Settings (Incoming Reply Processing)</h5>
+              <b-field class="mb-3">
+                <b-switch v-model="item.imap_enabled">
+                  Enable IMAP Inbox Polling
+                </b-switch>
+              </b-field>
+              <template v-if="item.imap_enabled">
+                <div class="columns">
+                  <div class="column is-6">
+                    <b-field label="IMAP Host" label-position="on-border">
+                      <b-input v-model="item.imap_host" placeholder="imap.yourmailserver.net" :maxlength="200" />
+                    </b-field>
+                  </div>
+                  <div class="column is-3">
+                    <b-field label="IMAP Port" label-position="on-border">
+                      <b-numberinput v-model="item.imap_port" type="is-light" controls-position="compact" placeholder="993" min="1" max="65535" />
+                    </b-field>
+                  </div>
+                  <div class="column is-3">
+                    <b-field label="Encryption" label-position="on-border">
+                      <b-select v-model="item.imap_tls_type" expanded>
+                        <option value="TLS">SSL/TLS</option>
+                        <option value="STARTTLS">STARTTLS</option>
+                        <option value="none">None</option>
+                      </b-select>
+                    </b-field>
+                  </div>
+                </div>
+                <div class="columns">
+                  <div class="column is-5">
+                    <b-field label="IMAP Username" label-position="on-border">
+                      <b-input v-model="item.imap_username" placeholder="user@example.com" :maxlength="200" />
+                    </b-field>
+                  </div>
+                  <div class="column is-5">
+                    <b-field label="IMAP Password" label-position="on-border" message="Enter to change">
+                      <b-input v-model="item.imap_password" type="password" placeholder="Enter to change" :maxlength="200" />
+                    </b-field>
+                  </div>
+                  <div class="column is-2">
+                    <b-field label="Folder" label-position="on-border">
+                      <b-input v-model="item.imap_folder" placeholder="INBOX" :maxlength="100" />
+                    </b-field>
+                  </div>
+                </div>
+              </template>
             </div>
 
             <div class="columns">
@@ -182,7 +265,7 @@
                 <b-field v-if="item.email_headers.length > 0 || item.showHeaders" label-position="on-border"
                   :message="$t('settings.smtp.customHeadersHelp')">
                   <b-input v-model="item.strEmailHeaders" name="email_headers" type="textarea"
-                    placeholder="[{&quot;X-Custom&quot;: &quot;value&quot;}, {&quot;X-Custom2&quot;: &quot;value&quot;}]" />
+                    placeholder="[{&quot;X-Custom&quot;: &quot;value&quot;}]" />
                 </b-field>
               </div>
             </div>
@@ -278,12 +361,21 @@ export default Vue.extend({
     return {
       data: this.form,
       regDuration,
+      users: [],
       // Index of the SMTP block item in the array to show the
       // test form in.
       smtpTestItem: null,
       testEmail: '',
       errMsg: '',
     };
+  },
+
+  mounted() {
+    if (this.$api && typeof this.$api.queryUsers === 'function') {
+      this.$api.queryUsers().then((resp) => {
+        this.users = resp || [];
+      }).catch(() => {});
+    }
   },
 
   methods: {
@@ -306,6 +398,17 @@ export default Vue.extend({
         wait_timeout: '5s',
         tls_type: 'STARTTLS',
         tls_skip_verify: false,
+        emails_per_day: 0,
+        emails_per_hour: 0,
+        user_id: '',
+        signature: '',
+        imap_enabled: false,
+        imap_host: '',
+        imap_port: 993,
+        imap_username: '',
+        imap_password: '',
+        imap_tls_type: 'TLS',
+        imap_folder: 'INBOX',
       });
 
       this.$nextTick(() => {

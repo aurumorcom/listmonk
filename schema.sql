@@ -7,13 +7,14 @@ DROP TYPE IF EXISTS campaign_status CASCADE; CREATE TYPE campaign_status AS ENUM
 DROP TYPE IF EXISTS campaign_type CASCADE; CREATE TYPE campaign_type AS ENUM ('regular', 'optin');
 DROP TYPE IF EXISTS content_type CASCADE; CREATE TYPE content_type AS ENUM ('richtext', 'html', 'plain', 'markdown', 'visual');
 DROP TYPE IF EXISTS bounce_type CASCADE; CREATE TYPE bounce_type AS ENUM ('soft', 'hard', 'complaint');
-DROP TYPE IF EXISTS template_type CASCADE; CREATE TYPE template_type AS ENUM ('campaign', 'campaign_visual', 'tx');
+DROP TYPE IF EXISTS template_type CASCADE; CREATE TYPE template_type AS ENUM ('campaign', 'campaign_visual', 'tx', 'prompt');
 DROP TYPE IF EXISTS user_type CASCADE; CREATE TYPE user_type AS ENUM ('user', 'api');
 DROP TYPE IF EXISTS user_status CASCADE; CREATE TYPE user_status AS ENUM ('enabled', 'disabled');
 DROP TYPE IF EXISTS role_type CASCADE; CREATE TYPE role_type AS ENUM ('user', 'list');
 DROP TYPE IF EXISTS twofa_type CASCADE; CREATE TYPE twofa_type AS ENUM ('none', 'totp');
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- subscribers
 DROP TABLE IF EXISTS subscribers CASCADE;
@@ -22,6 +23,7 @@ CREATE TABLE subscribers (
     uuid uuid       NOT NULL UNIQUE,
     email           TEXT NOT NULL UNIQUE,
     name            TEXT NOT NULL,
+    phone           TEXT NULL DEFAULT '',
     attribs         JSONB NOT NULL DEFAULT '{}',
     status          subscriber_status NOT NULL DEFAULT 'enabled',
 
@@ -29,6 +31,7 @@ CREATE TABLE subscribers (
     updated_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 DROP INDEX IF EXISTS idx_subs_email; CREATE UNIQUE INDEX idx_subs_email ON subscribers(LOWER(email));
+DROP INDEX IF EXISTS idx_subs_phone; CREATE INDEX idx_subs_phone ON subscribers(phone) WHERE phone IS NOT NULL AND phone != '';
 DROP INDEX IF EXISTS idx_subs_status; CREATE INDEX idx_subs_status ON subscribers(status);
 DROP INDEX IF EXISTS idx_subs_id_status; CREATE INDEX idx_subs_id_status ON subscribers(id, status);
 DROP INDEX IF EXISTS idx_subs_created_at; CREATE INDEX idx_subs_created_at ON subscribers(created_at);
@@ -80,6 +83,7 @@ CREATE TABLE templates (
     name            TEXT NOT NULL,
     type            template_type NOT NULL DEFAULT 'campaign',
     subject         TEXT NOT NULL,
+    system_prompt   TEXT NOT NULL DEFAULT '',
     body            TEXT NOT NULL,
     body_source     TEXT NULL,
     is_default      BOOLEAN NOT NULL DEFAULT false,
@@ -331,6 +335,23 @@ CREATE TABLE roles (
 CREATE UNIQUE INDEX idx_roles ON roles (parent_id, list_id);
 CREATE UNIQUE INDEX idx_roles_name ON roles (type, name) WHERE name IS NOT NULL;
 
+-- emails
+DROP TABLE IF EXISTS emails CASCADE;
+CREATE TABLE emails (
+    id          SERIAL PRIMARY KEY,
+    name        TEXT NOT NULL,
+    email       TEXT NOT NULL UNIQUE,
+    smtp_config     JSONB NOT NULL DEFAULT '{}',
+    imap_config     JSONB NOT NULL DEFAULT '{}',
+    emails_per_day  INTEGER NOT NULL DEFAULT 0,
+    emails_per_hour INTEGER NOT NULL DEFAULT 0,
+    emails_today    INTEGER NOT NULL DEFAULT 0,
+    user_id     INTEGER NULL,
+    signature   TEXT NOT NULL DEFAULT '',
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- users
 DROP TABLE IF EXISTS users CASCADE;
 CREATE TABLE users (
@@ -347,10 +368,15 @@ CREATE TABLE users (
     status           user_status NOT NULL DEFAULT 'disabled',
     twofa_type       twofa_type NOT NULL DEFAULT 'none',
     twofa_key        TEXT NULL,
+    email_id         INTEGER NULL REFERENCES emails(id) ON DELETE SET NULL,
+    waha_session     TEXT NULL,
+    signature        TEXT NOT NULL DEFAULT '',
     loggedin_at      TIMESTAMP WITH TIME ZONE NULL,
     created_at       TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at       TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+ALTER TABLE emails ADD CONSTRAINT fk_emails_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL;
 
 -- user sessions
 DROP TABLE IF EXISTS sessions CASCADE;
@@ -443,3 +469,118 @@ CREATE MATERIALIZED VIEW mat_list_subscriber_stats AS
     UNION ALL
     SELECT NOW() AS updated_at, 0 AS list_id, NULL AS status, COUNT(id) AS subscriber_count FROM subscribers;
 DROP INDEX IF EXISTS mat_list_subscriber_stats_idx; CREATE UNIQUE INDEX mat_list_subscriber_stats_idx ON mat_list_subscriber_stats (list_id, status);
+
+-- schedules
+DROP TABLE IF EXISTS schedules CASCADE;
+CREATE TABLE schedules (
+    id                   SERIAL PRIMARY KEY,
+    uuid                 UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
+    name                 TEXT NOT NULL,
+    timezone             TEXT NOT NULL DEFAULT 'UTC',
+    use_contact_timezone BOOLEAN NOT NULL DEFAULT TRUE,
+    skip_holidays        BOOLEAN NOT NULL DEFAULT TRUE,
+    sending_windows      JSONB NOT NULL DEFAULT '{}',
+    is_default           BOOLEAN NOT NULL DEFAULT false,
+    created_at           TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at           TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+CREATE UNIQUE INDEX schedules_is_default_idx ON schedules (is_default) WHERE is_default = true;
+
+-- sequences
+DROP TABLE IF EXISTS sequences CASCADE;
+CREATE TABLE sequences (
+    id                SERIAL PRIMARY KEY,
+    uuid              UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
+    name              TEXT NOT NULL,
+    description       TEXT NOT NULL DEFAULT '',
+    status            TEXT NOT NULL DEFAULT 'active',
+    schedule_id       INTEGER NULL REFERENCES schedules(id) ON DELETE SET NULL,
+    send_window       JSONB NOT NULL DEFAULT '{}',
+    email_ids         INTEGER[] NOT NULL DEFAULT '{}',
+    waha_sessions     TEXT[] NOT NULL DEFAULT '{}',
+    archive           BOOLEAN NOT NULL DEFAULT false,
+    archive_template_id INTEGER NULL REFERENCES templates(id) ON DELETE SET NULL,
+    archive_slug      TEXT NULL,
+    archive_meta      JSONB NOT NULL DEFAULT '{}',
+    created_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- sequence_steps
+DROP TABLE IF EXISTS sequence_steps CASCADE;
+CREATE TABLE sequence_steps (
+    id            SERIAL PRIMARY KEY,
+    sequence_id   INTEGER NOT NULL REFERENCES sequences(id) ON DELETE CASCADE,
+    step_number   INTEGER NOT NULL DEFAULT 1,
+    delay_seconds INTEGER NOT NULL DEFAULT 0,
+    messenger     TEXT NOT NULL DEFAULT 'email',
+    condition     TEXT NOT NULL DEFAULT 'always',
+    subject       TEXT NOT NULL DEFAULT '',
+    body          TEXT NOT NULL DEFAULT '',
+    email_type    TEXT NOT NULL DEFAULT '',
+    template_id   INTEGER NULL REFERENCES templates(id) ON DELETE SET NULL,
+    created_at    TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+CREATE INDEX idx_sequence_steps_sequence_id ON sequence_steps(sequence_id);
+
+-- sequence_step_media
+DROP TABLE IF EXISTS sequence_step_media CASCADE;
+CREATE TABLE sequence_step_media (
+    sequence_step_id INTEGER REFERENCES sequence_steps(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    media_id         INTEGER NULL REFERENCES media(id) ON DELETE SET NULL ON UPDATE CASCADE,
+    filename         TEXT NOT NULL DEFAULT ''
+);
+DROP INDEX IF EXISTS idx_sequence_step_media_id; CREATE UNIQUE INDEX idx_sequence_step_media_id ON sequence_step_media (sequence_step_id, media_id);
+DROP INDEX IF EXISTS idx_sequence_step_media_step_id; CREATE INDEX idx_sequence_step_media_step_id ON sequence_step_media(sequence_step_id);
+
+-- sequence_contacts
+DROP TABLE IF EXISTS sequence_contacts CASCADE;
+CREATE TABLE sequence_contacts (
+    sequence_id        INTEGER NOT NULL REFERENCES sequences(id) ON DELETE CASCADE,
+    subscriber_id      INTEGER NOT NULL REFERENCES subscribers(id) ON DELETE CASCADE,
+    email_id           INTEGER NULL REFERENCES emails(id) ON DELETE SET NULL,
+    waha_session       TEXT NULL,
+    status             TEXT NOT NULL DEFAULT 'scheduled',
+    current_step       INTEGER NOT NULL DEFAULT 1,
+    next_send_at       TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    last_read_at       TIMESTAMP WITH TIME ZONE NULL,
+    last_clicked_at    TIMESTAMP WITH TIME ZONE NULL,
+    last_message_id    TEXT NULL,
+    last_thread_msg_id TEXT NULL,
+    created_at         TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    PRIMARY KEY (sequence_id, subscriber_id)
+);
+CREATE INDEX idx_sequence_contacts_next_send ON sequence_contacts(status, next_send_at);
+CREATE INDEX idx_sequence_contacts_sender ON sequence_contacts(sequence_id, email_id, waha_session);
+
+-- webhook_endpoints
+DROP TABLE IF EXISTS webhook_endpoints CASCADE;
+CREATE TABLE webhook_endpoints (
+    id          SERIAL PRIMARY KEY,
+    name        TEXT NOT NULL,
+    url         TEXT NOT NULL,
+    secret      TEXT NOT NULL,
+    events      TEXT[] NOT NULL DEFAULT '{}',
+    enabled     BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- webhook_logs
+DROP TABLE IF EXISTS webhook_logs CASCADE;
+CREATE TABLE webhook_logs (
+    id            BIGSERIAL PRIMARY KEY,
+    endpoint_id   INT REFERENCES webhook_endpoints(id) ON DELETE CASCADE,
+    event_type    TEXT NOT NULL,
+    payload       JSONB NOT NULL,
+    status        TEXT NOT NULL DEFAULT 'pending',
+    attempts      INT NOT NULL DEFAULT 0,
+    max_attempts  INT NOT NULL DEFAULT 5,
+    next_retry_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    response_code INT NOT NULL DEFAULT 0,
+    response_body TEXT NOT NULL DEFAULT '',
+    created_at    TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at    TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+CREATE INDEX idx_webhook_logs_pending ON webhook_logs(status, next_retry_at) WHERE status = 'pending';
+

@@ -101,6 +101,7 @@ type Queries struct {
 	GetTemplates       *sqlx.Stmt `query:"get-templates"`
 	UpdateTemplate     *sqlx.Stmt `query:"update-template"`
 	SetDefaultTemplate *sqlx.Stmt `query:"set-default-template"`
+	SetDefaultSchedule *sqlx.Stmt `query:"set-default-schedule"`
 	DeleteTemplate     *sqlx.Stmt `query:"delete-template"`
 
 	CreateLink        *sqlx.Stmt `query:"create-link"`
@@ -138,6 +139,17 @@ type Queries struct {
 	DeleteRole            *sqlx.Stmt `query:"delete-role"`
 	UpsertListPermissions *sqlx.Stmt `query:"upsert-list-permissions"`
 	DeleteListPermission  *sqlx.Stmt `query:"delete-list-permission"`
+
+	GetWebhooks                *sqlx.Stmt `query:"get-webhook-endpoints"`
+	GetWebhookByID             *sqlx.Stmt `query:"get-webhook-endpoint-by-id"`
+	GetActiveEndpointsForEvent *sqlx.Stmt `query:"get-active-endpoints-for-event"`
+	InsertWebhook              *sqlx.Stmt `query:"insert-webhook-endpoint"`
+	UpdateWebhook              *sqlx.Stmt `query:"update-webhook-endpoint"`
+	DeleteWebhook              *sqlx.Stmt `query:"delete-webhook-endpoint"`
+	EnqueueWebhookLog          *sqlx.Stmt `query:"enqueue-webhook-log"`
+	PopPendingWebhookLogs      *sqlx.Stmt `query:"pop-pending-webhook-logs"`
+	UpdateWebhookLogStatus     *sqlx.Stmt `query:"update-webhook-log-status"`
+	GetWebhookLogs             *sqlx.Stmt `query:"get-webhook-logs"`
 }
 
 // compileSubscriberQueryTpl takes an arbitrary WHERE expressions

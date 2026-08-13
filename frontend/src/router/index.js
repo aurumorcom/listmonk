@@ -42,6 +42,30 @@ const routes = [
     component: () => import('../views/Subscribers.vue'),
   },
   {
+    path: '/contacts',
+    name: 'contacts',
+    meta: { title: 'globals.terms.contacts', group: 'contacts' },
+    component: () => import('../views/Contacts.vue'),
+  },
+  {
+    path: '/contacts/import',
+    name: 'importContacts',
+    meta: { title: 'import.title', group: 'contacts' },
+    component: () => import('../views/Import.vue'),
+  },
+  {
+    path: '/contacts/bounces',
+    name: 'bouncesContacts',
+    meta: { title: 'globals.terms.bounces', group: 'contacts' },
+    component: () => import('../views/Bounces.vue'),
+  },
+  {
+    path: '/contacts/:id',
+    name: 'contact',
+    meta: { title: 'globals.terms.contacts', group: 'contacts' },
+    component: () => import('../views/Contacts.vue'),
+  },
+  {
     path: '/subscribers/import',
     name: 'import',
     meta: { title: 'import.title', group: 'subscribers' },
@@ -84,6 +108,12 @@ const routes = [
     component: () => import('../views/Templates.vue'),
   },
   {
+    path: '/templates/analytics',
+    name: 'templateAnalytics',
+    meta: { title: 'analytics.title', group: 'campaigns' },
+    component: () => import('../views/TemplateAnalytics.vue'),
+  },
+  {
     path: '/campaigns/analytics',
     name: 'campaignAnalytics',
     meta: { title: 'analytics.title', group: 'campaigns' },
@@ -94,6 +124,54 @@ const routes = [
     name: 'campaign',
     meta: { title: 'globals.terms.campaign', group: 'campaigns' },
     component: () => import('../views/Campaign.vue'),
+  },
+  {
+    path: '/sequences',
+    name: 'sequences',
+    meta: { title: 'Sequences', group: 'sequences' },
+    component: () => import('../views/Sequences.vue'),
+  },
+  {
+    path: '/sequences/media',
+    name: 'sequenceMedia',
+    meta: { title: 'globals.terms.media', group: 'sequences' },
+    component: () => import('../views/Media.vue'),
+  },
+  {
+    path: '/sequences/templates',
+    name: 'sequenceTemplates',
+    meta: { title: 'globals.terms.templates', group: 'sequences' },
+    component: () => import('../views/Templates.vue'),
+  },
+  {
+    path: '/sequences/schedules',
+    name: 'sequenceSchedules',
+    meta: { title: 'globals.terms.schedules', group: 'sequences' },
+    component: () => import('../views/Schedules.vue'),
+  },
+  {
+    path: '/sequences/schedules/:id',
+    name: 'sequenceScheduleForm',
+    meta: { title: 'globals.terms.schedules', group: 'sequences' },
+    component: () => import('../views/ScheduleForm.vue'),
+  },
+  {
+    path: '/sequences/analytics',
+    name: 'sequenceAnalytics',
+    meta: { title: 'analytics.title', group: 'sequences' },
+    component: () => import('../views/SequenceAnalytics.vue'),
+  },
+  {
+    path: '/sequences/:id',
+    name: 'sequence',
+    meta: { title: 'Sequence', group: 'sequences' },
+    component: () => import('../views/Sequence.vue'),
+  },
+  {
+    path: '/sequences/:sequenceId/steps/:stepId',
+    name: 'sequenceStepCampaign',
+    meta: { title: 'Step Campaign Setup', group: 'sequences' },
+    component: () => import('../views/SequenceStep.vue'),
   },
   {
     path: '/user/profile',

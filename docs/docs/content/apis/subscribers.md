@@ -11,6 +11,9 @@
 | POST   | [/api/public/subscription](#post-apipublicsubscription)                                 | Create a public subscription.                  |
 | PUT    | [/api/subscribers/lists](#put-apisubscriberslists)                                      | Modify subscriber list memberships.            |
 | PUT    | [/api/subscribers/query/lists](#put-apisubscribersquerylists)                           | Bulk modify list memberships using SQL/Search queries. |
+| PUT    | [/api/subscribers/sequences](#put-apisubscriberssequences)                              | Modify subscriber sequence memberships (enroll, disenroll, pause). |
+| PUT    | [/api/subscribers/query/sequences](#put-apisubscribersquerysequences)                  | Bulk modify sequence memberships using SQL/Search queries. |
+| GET    | [/api/subscribers/{subscriber_id}/sequences](#get-apisubscriberssubscriber_idsequences)  | Retrieve active sequence memberships for a subscriber. |
 | PUT    | [/api/subscribers/{subscriber_id}](#put-apisubscriberssubscriber_id)                    | Update a specific subscriber.                  |
 | PATCH  | [/api/subscribers/{subscriber_id}](#patch-apisubscriberssubscriber_id)                  | Partially update a specific subscriber.        |
 | PUT    | [/api/subscribers/{subscriber_id}/blocklist](#put-apisubscriberssubscriber_idblocklist) | Blocklist a specific subscriber.               |
@@ -42,15 +45,15 @@ Retrieve all subscribers.
 ##### Example Request
 
 ```shell
-curl -u 'api_username:access_token' 'http://localhost:9000/api/subscribers?page=1&per_page=100' 
+curl -u "username:token" 'http://localhost:9000/api/subscribers?page=1&per_page=100'
 ```
 
 ```shell
-curl -u 'api_username:access_token' 'http://localhost:9000/api/subscribers?list_id=1&list_id=2&page=1&per_page=100'
+curl -u "username:token" 'http://localhost:9000/api/subscribers?list_id=1&list_id=2&page=1&per_page=100'
 ```
 
 ```shell
-curl -u 'api_username:access_token' -X GET 'http://localhost:9000/api/subscribers' \
+curl -u "username:token" -X GET 'http://localhost:9000/api/subscribers' \
     --url-query 'page=1' \
     --url-query 'per_page=100' \
     --url-query "query=subscribers.name LIKE 'Test%' AND subscribers.attribs->>'city' = 'Bengaluru'"
@@ -149,7 +152,7 @@ Retrieve a specific subscriber.
 ##### Example Request
 
 ```shell
-curl -u 'api_username:access_token' 'http://localhost:9000/api/subscribers/1' 
+curl -u "username:token" 'http://localhost:9000/api/subscribers/1'
 ```
 
 ##### Example Response
@@ -201,7 +204,7 @@ Export a specific subscriber data that gives profile, list subscriptions, campai
 ##### Example Request
 
 ```shell
-curl -u 'api_username:access_token' 'http://localhost:9000/api/subscribers/1/export' 
+curl -u "username:token" 'http://localhost:9000/api/subscribers/1/export'
 ```
 
 ##### Example Response
@@ -250,7 +253,7 @@ Get a specific subscriber bounce records.
 ##### Example Request
 
 ```shell
-curl -u 'api_username:access_token' 'http://localhost:9000/api/subscribers/1/bounces' 
+curl -u "username:token" 'http://localhost:9000/api/subscribers/1/bounces'
 ```
 
 ##### Example Response
@@ -314,7 +317,7 @@ Create a new subscriber.
 ##### Example Request
 
 ```shell
-curl -u 'api_username:access_token' 'http://localhost:9000/api/subscribers' -H 'Content-Type: application/json' \
+curl -u "username:token" 'http://localhost:9000/api/subscribers' -H 'Content-Type: application/json' \
     --data '{"email":"subscriber@domain.com","name":"The Subscriber","status":"enabled","lists":[1],"attribs":{"city":"Bengaluru","projects":3,"stack":{"languages":["go","python"]}}}'
 ```
 
@@ -349,7 +352,7 @@ Sends opt-in confirmation email to subscribers.
 ##### Example Request
 
 ```shell
-curl -u 'api_username:access_token' 'http://localhost:9000/api/subscribers/11/optin' -H 'Content-Type: application/json' \
+curl -u "username:token" 'http://localhost:9000/api/subscribers/11/optin' -H 'Content-Type: application/json' \
 --data {}
 ```
 
@@ -416,7 +419,7 @@ Modify subscriber list memberships.
 ##### Example Request
 
 ```shell
-curl -u 'api_username:access_token' -X PUT 'http://localhost:9000/api/subscribers/lists' \
+curl -u "username:token" -X PUT 'http://localhost:9000/api/subscribers/lists' \
 -H 'Content-Type: application/json' \
 --data-raw '{"ids": [1, 2, 3], "action": "add", "target_list_ids": [4, 5, 6], "status": "confirmed"}'
 ```
@@ -428,6 +431,108 @@ curl -u 'api_username:access_token' -X PUT 'http://localhost:9000/api/subscriber
     "data": true
 } 
 ```
+______________________________________________________________________
+
+#### PUT /api/subscribers/sequences
+
+Modify subscriber sequence memberships (enroll, disenroll, or pause subscribers in target cold outreach sequences).
+
+##### Parameters
+
+| Name | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `action` | string | Yes | Action to apply: `add`/`enroll`, `remove`/`disenroll`, or `pause`. |
+| `contact_ids` | number[] | No | Array of subscriber IDs to modify. |
+| `target_sequence_ids` | number[] | Yes | Array of target sequence IDs to enroll/disenroll/pause. |
+| `status` | string | No | Initial status for enrollment: `scheduled`, `in_progress`, or `paused`. Default is `scheduled`. |
+
+##### Example Request
+
+```shell
+curl -u "username:token" -X PUT 'http://localhost:9000/api/subscribers/sequences' \
+  -H 'Content-Type: application/json' \
+  --data-raw '{
+    "action": "add",
+    "contact_ids": [101, 102],
+    "target_sequence_ids": [1, 2],
+    "status": "scheduled"
+  }'
+```
+
+##### Example Response
+
+```json
+{
+    "data": true
+}
+```
+
+______________________________________________________________________
+
+#### PUT /api/subscribers/query/sequences
+
+Modify sequence memberships for multiple subscribers dynamically using a search query and/or SQL expression.
+
+##### Parameters
+
+| Name | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `action` | string | Yes | Action to apply: `add`/`enroll`, `remove`/`disenroll`, or `pause`. |
+| `target_sequence_ids` | number[] | Yes | Array of sequence IDs to enroll/disenroll subscribers in. |
+| `query` | string | No | SQL expression to filter subscribers (e.g., `subscribers.attribs->>'industry' = 'Software'`). |
+| `search` | string | No | Free-text search query. |
+| `status` | string | No | Initial status when enrolling: `scheduled` or `in_progress`. |
+
+##### Example Request
+
+```shell
+curl -u "username:token" -X PUT 'http://localhost:9000/api/subscribers/query/sequences' \
+  -H 'Content-Type: application/json' \
+  --data-raw '{
+    "query": "subscribers.attribs->>'\''industry'\'' = '\''Software'\''",
+    "action": "add",
+    "target_sequence_ids": [1]
+  }'
+```
+
+##### Example Response
+
+```json
+{
+    "data": true
+}
+```
+
+______________________________________________________________________
+
+#### GET /api/subscribers/{subscriber_id}/sequences
+
+Retrieve active sequence memberships and state machine progress for a specific subscriber.
+
+##### Example Request
+
+```shell
+curl -u "username:token" 'http://localhost:9000/api/subscribers/101/sequences'
+```
+
+##### Example Response
+
+```json
+{
+  "data": [
+    {
+      "sequence_id": 1,
+      "subscriber_id": 101,
+      "email_id": 2,
+      "waha_session": "sales-wa-1",
+      "status": "in_progress",
+      "current_step": 2,
+      "next_send_at": "2026-08-12T10:00:00Z"
+    }
+  ]
+}
+```
+
 ______________________________________________________________________
 
 #### PUT /api/subscribers/query/lists
@@ -450,7 +555,7 @@ Modify list memberships for multiple subscribers dynamically using a search quer
 
 ###### Subscribing Query Matches to a List
 ```shell
-curl -u 'api_username:access_token' -X PUT 'http://localhost:9000/api/subscribers/query/lists' \
+curl -u "username:token" -X PUT 'http://localhost:9000/api/subscribers/query/lists' \
     -H 'Content-Type: application/json' \
     --data-raw '{
       "query": "subscribers.email LIKE '\''%@domain.com'\''",
@@ -463,7 +568,7 @@ curl -u 'api_username:access_token' -X PUT 'http://localhost:9000/api/subscriber
 
 ###### Removing Disqualified Subscribers from a List
 ```shell
-curl -u 'api_username:access_token' -X PUT 'http://localhost:9000/api/subscribers/query/lists' \
+curl -u "username:token" -X PUT 'http://localhost:9000/api/subscribers/query/lists' \
     -H 'Content-Type: application/json' \
     --data-raw '{
       "query": "NOT subscribers.email LIKE '\''%@domain.com'\''",
@@ -507,7 +612,7 @@ Partially update a subscriber. Only fields present in the request body are updat
 ##### Example Request
 
 ```shell
-curl -u 'api_username:access_token' -X PATCH 'http://localhost:9000/api/subscribers/1' \
+curl -u "username:token" -X PATCH 'http://localhost:9000/api/subscribers/1' \
     -H 'Content-Type: application/json' \
     --data '{"name":"Updated Name"}'
 ```
@@ -552,7 +657,7 @@ Blocklist a specific subscriber.
 ##### Example Request
 
 ```shell
-curl -u 'api_username:access_token' -X PUT 'http://localhost:9000/api/subscribers/9/blocklist'
+curl -u "username:token" -X PUT 'http://localhost:9000/api/subscribers/9/blocklist'
 ```
 
 ##### Example Response
@@ -578,7 +683,7 @@ Blocklist multiple subscriber.
 ##### Example Request
 
 ```shell
-curl -u 'api_username:access_token' -X PUT 'http://localhost:8080/api/subscribers/blocklist' -H 'Content-Type: application/json' --data-raw '{"ids":[2,1]}'
+curl -u "username:token" -X PUT 'http://localhost:8080/api/subscribers/blocklist' -H 'Content-Type: application/json' --data-raw '{"ids":[2,1]}'
 ```
 
 ##### Example Response
@@ -607,7 +712,7 @@ Blocklist subscribers based on SQL expression.
 ##### Example Request
 
 ```shell
-curl -u 'api_username:access_token' -X POST 'http://localhost:9000/api/subscribers/query/blocklist' \
+curl -u "username:token" -X POST 'http://localhost:9000/api/subscribers/query/blocklist' \
 -H 'Content-Type: application/json' \
 --data-raw '{"query":"subscribers.name LIKE \'John Doe\' AND subscribers.attribs->>'\''city'\'' = '\''Bengaluru'\''"}'
 ```
@@ -635,7 +740,7 @@ Delete a specific subscriber.
 ##### Example Request
 
 ```shell
-curl -u 'api_username:access_token' -X DELETE 'http://localhost:9000/api/subscribers/9'
+curl -u "username:token" -X DELETE 'http://localhost:9000/api/subscribers/9'
 ```
 
 ##### Example Response
@@ -661,7 +766,7 @@ Delete a subscriber's bounce records
 ##### Example Request
 
 ```shell
-curl -u 'api_username:access_token' -X DELETE 'http://localhost:9000/api/subscribers/9/bounces'
+curl -u "username:token" -X DELETE 'http://localhost:9000/api/subscribers/9/bounces'
 ```
 
 ##### Example Response
@@ -687,7 +792,7 @@ Delete one or more subscribers.
 ##### Example Request
 
 ```shell
-curl -u 'api_username:access_token' -X DELETE 'http://localhost:9000/api/subscribers?id=10&id=11'
+curl -u "username:token" -X DELETE 'http://localhost:9000/api/subscribers?id=10&id=11'
 ```
 
 ##### Example Response
@@ -716,7 +821,7 @@ Delete subscribers based on SQL expression.
 ##### Example Request
 
 ```shell
-curl -u 'api_username:access_token' -X POST 'http://localhost:9000/api/subscribers/query/delete' \
+curl -u "username:token" -X POST 'http://localhost:9000/api/subscribers/query/delete' \
 -H 'Content-Type: application/json' \
 --data-raw '{"query":"subscribers.name LIKE \'John Doe\' AND subscribers.attribs->>'\''city'\'' = '\''Bengaluru'\''"}'
 ```

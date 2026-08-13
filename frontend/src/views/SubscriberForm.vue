@@ -25,23 +25,14 @@
         </b-field>
 
         <div class="columns">
-          <div class="column is-8">
+          <div class="column is-6">
             <b-field :label="$t('globals.fields.name')" label-position="on-border">
               <b-input :maxlength="200" v-model="form.name" name="name" :placeholder="$t('globals.fields.name')" />
             </b-field>
           </div>
-          <div class="column is-4">
-            <b-field :label="$t('globals.fields.status')" label-position="on-border"
-              :message="$t('subscribers.blocklistedHelp')">
-              <b-select v-model="form.status" name="status" :placeholder="$t('globals.fields.status')" required
-                expanded>
-                <option value="enabled">
-                  {{ $t('subscribers.status.enabled') }}
-                </option>
-                <option value="blocklisted">
-                  {{ $t('subscribers.status.blocklisted') }}
-                </option>
-              </b-select>
+          <div class="column is-6">
+            <b-field label="Phone Number" label-position="on-border">
+              <b-input :maxlength="50" v-model="form.phone" name="phone" placeholder="+15550192834" />
             </b-field>
           </div>
         </div>

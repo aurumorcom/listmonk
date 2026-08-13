@@ -35,7 +35,10 @@ type campReq struct {
 	MediaIDs []int `json:"media"`
 
 	// This is only relevant to campaign test requests.
+	SubscriberID     int            `json:"subscriber_id"`
 	SubscriberEmails pq.StringArray `json:"subscribers"`
+	TestEmail        string         `json:"test_email"`
+	TestPhone        string         `json:"test_phone"`
 }
 
 // campContentReq wraps params coming from API requests for converting
@@ -538,34 +541,32 @@ func (a *App) TestCampaign(c echo.Context) error {
 	} else {
 		req = c
 	}
-	if len(req.SubscriberEmails) == 0 {
-		return echo.NewHTTPError(http.StatusBadRequest, a.i18n.T("campaigns.noSubsToTest"))
-	}
 
-	// Sanitize subscriber e-mails.
-	for i := range req.SubscriberEmails {
-		req.SubscriberEmails[i] = strings.ToLower(strings.TrimSpace(req.SubscriberEmails[i]))
-	}
-
-	// Get the subscribers from the DB by their e-mails.
-	subs, err := a.core.GetSubscribersByEmail(req.SubscriberEmails)
-	if err != nil {
-		return err
-	}
-
-	// Exclude subscribers from lists that the user doesn't have access to.
 	user := auth.GetUser(c)
-	validSubs := subs[:0]
-	for _, s := range subs {
-		if err := a.hasSubPerm(user, []int{s.ID}); err == nil {
-			validSubs = append(validSubs, s)
+
+	var subs []models.Subscriber
+	if req.SubscriberID > 0 {
+		if s, err := a.core.GetSubscriber(req.SubscriberID, "", ""); err == nil {
+			subs = append(subs, s)
+		}
+	} else if len(req.SubscriberEmails) > 0 {
+		// Sanitize subscriber e-mails.
+		for i := range req.SubscriberEmails {
+			req.SubscriberEmails[i] = strings.ToLower(strings.TrimSpace(req.SubscriberEmails[i]))
+		}
+
+		// Get the subscribers from the DB by their e-mails.
+		if sList, err := a.core.GetSubscribersByEmail(req.SubscriberEmails); err == nil {
+			for _, s := range sList {
+				if err := a.hasSubPerm(user, []int{s.ID}); err == nil {
+					subs = append(subs, s)
+				}
+			}
 		}
 	}
-	subs = validSubs
 
-	// No subscribers.
 	if len(subs) == 0 {
-		return echo.NewHTTPError(http.StatusBadRequest, a.i18n.T("campaigns.noKnownSubsToTest"))
+		subs = []models.Subscriber{dummySubscriber}
 	}
 
 	// Get the campaign from the DB for previewing.
@@ -591,9 +592,22 @@ func (a *App) TestCampaign(c echo.Context) error {
 		}
 	}
 
+	// Target delivery destination (editing user email/phone or explicit test override)
+	targetEmail := req.TestEmail
+	if targetEmail == "" && user.Email.Valid && user.Email.String != "" {
+		targetEmail = user.Email.String
+	}
+	targetPhone := req.TestPhone
+
 	// Send the test messages.
 	for _, s := range subs {
 		sub := s
+		if targetEmail != "" {
+			sub.Email = targetEmail
+		}
+		if targetPhone != "" {
+			sub.Phone = null.StringFrom(targetPhone)
+		}
 
 		if err := a.sendTestMessage(sub, &camp); err != nil {
 			a.log.Printf("error sending test message: %v", err)

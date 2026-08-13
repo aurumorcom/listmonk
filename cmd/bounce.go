@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/knadh/listmonk/internal/auth"
+	"github.com/knadh/listmonk/internal/sequence"
 	"github.com/knadh/listmonk/models"
 	"github.com/labstack/echo/v4"
 )
@@ -309,4 +310,32 @@ func (a *App) validateBounceFields(b models.Bounce) (models.Bounce, error) {
 	}
 
 	return b, nil
+}
+
+// WAHAWebhook handles delivery status webhooks from WAHA.
+func (a *App) WAHAWebhook(c echo.Context) error {
+	type wahaPayload struct {
+		Event   string `json:"event"`
+		Payload struct {
+			Ack   int    `json:"ack"`
+			From  string `json:"from"`
+			To    string `json:"to"`
+			Error string `json:"error"`
+			Body  string `json:"body"`
+		} `json:"payload"`
+	}
+
+	var req wahaPayload
+	if err := c.Bind(&req); err != nil {
+		return c.NoContent(http.StatusOK)
+	}
+
+	if req.Event == "message.ack" && req.Payload.Ack == -1 {
+		a.log.Printf("WAHA delivery failure for %s: %s", req.Payload.To, req.Payload.Error)
+	} else if req.Event == "message" && req.Payload.From != "" {
+		l := sequence.NewReplyListener(a.core, a.log)
+		_ = l.ProcessReplyWithBody(req.Payload.From, true, req.Payload.Body)
+	}
+
+	return c.NoContent(http.StatusOK)
 }

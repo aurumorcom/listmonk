@@ -8,7 +8,7 @@
     "serve": "vite preview",
     "lint": "eslint --ext .js,.vue --ignore-path .gitignore src",
     "prebuild": "eslint --ext .js,.vue --ignore-path .gitignore src",
-    "postinstall": "cp node_modules/altcha/dist/altcha.umd.cjs ../static/public/static/altcha.umd.js"
+    "postinstall": "node -e \"const fs=require('fs'),path=require('path'); const dst='../static/public/static/altcha.umd.js'; fs.mkdirSync(path.dirname(dst),{recursive:true}); const candidates=['node_modules/altcha/dist_external/altcha.umd.cjs','node_modules/altcha/dist/altcha.umd.cjs','node_modules/altcha/dist/altcha.js']; const src=candidates.find(p=>fs.existsSync(p)); if(src){ fs.copyFileSync(src,dst); console.log('[postinstall] Copied ' + src + ' -> ' + dst); } else { console.warn('[postinstall] Warning: altcha.umd.cjs not found in candidates:', candidates); }\""
   },
   "dependencies": {
     "@codemirror/commands": "^6.8.1",
@@ -61,6 +61,5 @@
   },
   "resolutions": {
     "jackspeak": "2.1.1"
-  },
-  "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
+  }
 }

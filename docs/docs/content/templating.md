@@ -13,15 +13,26 @@ Campaign templates are used in an e-mail campaigns. These template are created a
 ## Transactional templates
 Transactional templates are used for sending arbitrary transactional messages using the transactional API. These template are created and managed on the UI under `Campaigns -> Templates`.
 
+## Prompt templates
+Prompt templates are specialized templates used for AI model generation (such as in automated multi-step cold outreach sequences and Bifrost AI integrations). These templates are managed under `Sequences -> Templates` (or `Campaigns -> Templates`).
+
+A prompt template consists of two HTML and Go-template fields:
+- **System Prompt**: System-level instructions and background context provided to the AI model.
+- **User Prompt**: The main prompt structure evaluated dynamically for each target recipient.
+
+Both fields feature full HTML syntax highlighting and support Go template expressions, Sprig functions, subscriber attributes, and sequence step history references.
+
 ## Template expressions
 
-There are several template functions and expressions that can be used in campaign and template bodies. They are written in the form `{{ .Subscriber.Email }}`, that is, an expression between double curly braces `{{` and `}}`. Template expressions are supported in:
+There are several template functions and expressions that can be used in campaign, template, and prompt bodies. They are written in the form `{{ .Subscriber.Email }}`, that is, an expression between double curly braces `{{` and `}}`. Template expressions are supported in:
 
 - Campaign body and alt body
 - Campaign subject
 - Campaign headers
 - Transactional message body and alt body
 - Transactional message subject
+- System Prompt (`system_prompt`)
+- User Prompt (`body` when `type = "prompt"`)
 
 ### Subscriber fields
 
@@ -45,6 +56,17 @@ There are several template functions and expressions that can be used in campaig
 | `{{ .Campaign.Name }}`      | Internal name of the campaign                            |
 | `{{ .Campaign.Subject }}`   | E-mail subject of the campaign                           |
 | `{{ .Campaign.FromEmail }}` | The e-mail address from which the campaign is being sent |
+
+### Sequence Step History (Prompt Templates)
+
+When executing multi-step sequences with AI prompt templates, outputs from previous sequence steps are stored in the recipient's history and can be dynamically referenced in subsequent prompt templates:
+
+| Expression                   | Description                                                                 |
+| ---------------------------- | --------------------------------------------------------------------------- |
+| `{{ .Step1.subject }}`       | The subject line generated or sent in Step 1                                |
+| `{{ .Step1.content }}`       | The message body content generated or sent in Step 1                       |
+| `{{ .Step2.message }}`       | The message content generated or sent in Step 2                             |
+| `{{ .StepN.messenger }}`     | The messenger channel (`email` or `waha`) used in Step N                    |
 
 ### Functions
 

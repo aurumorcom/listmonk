@@ -121,3 +121,5 @@
 .mdi-refresh:before { content: '󰑐'; } /* '\f0450' */
 .mdi-logout-variant:before { content: '󰗽'; } /* '\f05fd' */
 .mdi-wrench-outline:before { content: '󰯠'; } /* '\f0be0' */
+.mdi-account-box-outline:before { content: '\e818'; }
+.mdi-run:before { content: '\e80b'; }

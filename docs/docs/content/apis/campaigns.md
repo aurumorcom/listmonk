@@ -24,7 +24,7 @@ Retrieve all campaigns.
 ##### Example Request
 
 ```shell
- curl -u "api_user:token" -X GET 'http://localhost:9000/api/campaigns?page=1&per_page=100'
+ curl -u "username:token" -X GET 'http://localhost:9000/api/campaigns?page=1&per_page=100'
 ```
 
 ##### Parameters
@@ -102,7 +102,7 @@ Retrieve a specific campaign.
 ##### Example Request
 
 ```shell
-curl -u "api_user:token" -X GET 'http://localhost:9000/api/campaigns/1'
+curl -u "username:token" -X GET 'http://localhost:9000/api/campaigns/1'
 ```
 
 ##### Example Response
@@ -158,7 +158,7 @@ Preview a specific campaign.
 ##### Example Request
 
 ```shell
-curl -u "api_user:token" -X GET 'http://localhost:9000/api/campaigns/1/preview'
+curl -u "username:token" -X GET 'http://localhost:9000/api/campaigns/1/preview'
 ```
 
 ##### Example Response
@@ -183,7 +183,7 @@ Retrieve stats of specified campaigns.
 ##### Example Request
 
 ```shell
-curl -u "api_user:token" -X GET 'http://localhost:9000/api/campaigns/running/stats?campaign_id=1'
+curl -u "username:token" -X GET 'http://localhost:9000/api/campaigns/running/stats?campaign_id=1'
 ```
 
 ##### Example Response
@@ -213,7 +213,7 @@ Retrieve stats of specified campaigns.
 ##### Example Request
 
 ```shell
-curl -u "api_user:token" -X GET 'http://localhost:9000/api/campaigns/analytics/views?id=1&from=2024-08-04&to=2024-08-12'
+curl -u "username:token" -X GET 'http://localhost:9000/api/campaigns/analytics/views?id=1&from=2024-08-04&to=2024-08-12'
 ```
 
 ##### Example Response
@@ -253,7 +253,7 @@ curl -u "api_user:token" -X GET 'http://localhost:9000/api/campaigns/analytics/v
 ##### Example Request
 
 ```shell
-curl -u "api_user:token" -X GET 'http://localhost:9000/api/campaigns/analytics/links?id=1&from=2024-08-04T18%3A30%3A00.624Z&to=2024-08-12T18%3A29%3A00.624Z'
+curl -u "username:token" -X GET 'http://localhost:9000/api/campaigns/analytics/links?id=1&from=2024-08-04T18%3A30%3A00.624Z&to=2024-08-12T18%3A29%3A00.624Z'
 ```
 
 ##### Example Response
@@ -310,7 +310,7 @@ Create a new campaign.
 ##### Example request
 
 ```shell
-curl -u "api_user:token" 'http://localhost:9000/api/campaigns' -X POST -H 'Content-Type: application/json;charset=utf-8' --data-raw '{"name":"Test campaign","subject":"Hello, world","lists":[1],"from_email":"listmonk <noreply@listmonk.yoursite.com>","content_type":"richtext","messenger":"email","type":"regular","tags":["test"],"template_id":1}'
+curl -u "username:token" 'http://localhost:9000/api/campaigns' -X POST -H 'Content-Type: application/json;charset=utf-8' --data-raw '{"name":"Test campaign","subject":"Hello, world","lists":[1],"from_email":"listmonk <noreply@listmonk.yoursite.com>","content_type":"richtext","messenger":"email","type":"regular","tags":["test"],"template_id":1}'
 ```
 
 ##### Example response
@@ -404,7 +404,7 @@ Change status of a campaign.
 ##### Example Request
 
 ```shell
-curl -u "api_user:token" -X PUT 'http://localhost:9000/api/campaigns/1/status' \
+curl -u "username:token" -X PUT 'http://localhost:9000/api/campaigns/1/status' \
 --header 'Content-Type: application/json' \
 --data-raw '{"status":"scheduled"}'
 ```
@@ -467,7 +467,7 @@ Publish campaign to public archive.
 
 ```shell
 
-curl -u "api_user:token" -X PUT 'http://localhost:8080/api/campaigns/33/archive' 
+curl -u "username:token" -X PUT 'http://localhost:8080/api/campaigns/33/archive'
 --header 'Content-Type: application/json' 
 --data-raw '{"archive":true,"archive_template_id":1,"archive_meta":{},"archive_slug":"my-newsletter-old-edition"}'
 ```
@@ -500,7 +500,7 @@ Delete a campaign.
 ##### Example Request
 
 ```shell
-curl -u "api_user:token" -X DELETE 'http://localhost:9000/api/campaigns/34'
+curl -u "username:token" -X DELETE 'http://localhost:9000/api/campaigns/34'
 ```
 
 ##### Example Response
@@ -527,13 +527,13 @@ Delete multiple campaigns by IDs or by a search query.
 ##### Example Request (by IDs)
 
 ```shell
-curl -u "api_user:token" -X DELETE 'http://localhost:9000/api/campaigns?id=10&id=11&id=12'
+curl -u "username:token" -X DELETE 'http://localhost:9000/api/campaigns?id=10&id=11&id=12'
 ```
 
 ##### Example Request (by search query)
 
 ```shell
-curl -u "api_user:token" -X DELETE 'http://localhost:9000/api/campaigns?query=test%20campaign'
+curl -u "username:token" -X DELETE 'http://localhost:9000/api/campaigns?query=test%20campaign'
 ```
 
 ##### Example Response

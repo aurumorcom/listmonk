@@ -1,13 +1,18 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"html"
 	"html/template"
 	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
 
+	"github.com/knadh/listmonk/internal/manager"
 	"github.com/knadh/listmonk/models"
 	"github.com/labstack/echo/v4"
 )
@@ -69,8 +74,19 @@ func (a *App) PreviewTemplate(c echo.Context) error {
 		return err
 	}
 
+	subID, _ := strconv.Atoi(c.FormValue("subscriber_id"))
+	if subID == 0 {
+		subID, _ = strconv.Atoi(c.QueryParam("subscriber_id"))
+	}
+	sub := dummySubscriber
+	if subID > 0 {
+		if s, err := a.core.GetSubscriber(subID, "", ""); err == nil {
+			sub = s
+		}
+	}
+
 	// Render the template.
-	out, err := a.previewTemplate(tpl)
+	out, err := a.previewTemplate(tpl, sub)
 	if err != nil {
 		return err
 	}
@@ -81,8 +97,9 @@ func (a *App) PreviewTemplate(c echo.Context) error {
 // PreviewTemplateBody renders the HTML preview of a template given its type and body.
 func (a *App) PreviewTemplateBody(c echo.Context) error {
 	tpl := models.Template{
-		Type: c.FormValue("template_type"),
-		Body: c.FormValue("body"),
+		Type:         c.FormValue("template_type"),
+		SystemPrompt: c.FormValue("system_prompt"),
+		Body:         c.FormValue("body"),
 	}
 
 	// Body is posted with the request.
@@ -95,8 +112,16 @@ func (a *App) PreviewTemplateBody(c echo.Context) error {
 			a.i18n.Ts("templates.placeholderHelp", "placeholder", tplTag))
 	}
 
+	subID, _ := strconv.Atoi(c.FormValue("subscriber_id"))
+	sub := dummySubscriber
+	if subID > 0 {
+		if s, err := a.core.GetSubscriber(subID, "", ""); err == nil {
+			sub = s
+		}
+	}
+
 	// Render the template.
-	out, err := a.previewTemplate(tpl)
+	out, err := a.previewTemplate(tpl, sub)
 	if err != nil {
 		return err
 	}
@@ -130,7 +155,7 @@ func (a *App) CreateTemplate(c echo.Context) error {
 	}
 
 	// Create the template the in the DB.
-	out, err := a.core.CreateTemplate(o.Name, o.Type, o.Subject, []byte(o.Body), o.BodySource)
+	out, err := a.core.CreateTemplate(o.Name, o.Type, o.Subject, o.SystemPrompt, []byte(o.Body), o.BodySource)
 	if err != nil {
 		return err
 	}
@@ -171,7 +196,7 @@ func (a *App) UpdateTemplate(c echo.Context) error {
 
 	// Update the template in the DB.
 	id := getID(c)
-	out, err := a.core.UpdateTemplate(id, o.Name, o.Subject, []byte(o.Body), o.BodySource)
+	out, err := a.core.UpdateTemplate(id, o.Name, o.Subject, o.SystemPrompt, []byte(o.Body), o.BodySource)
 	if err != nil {
 		return err
 	}
@@ -229,10 +254,70 @@ func (a *App) validateTemplate(o models.Template) error {
 	return nil
 }
 
-// previewTemplate renders the HTML preview of a template.
-func (a *App) previewTemplate(tpl models.Template) ([]byte, error) {
+// previewTemplate renders the HTML preview of a template with contact context and signature precedence.
+func (a *App) previewTemplate(tpl models.Template, sub models.Subscriber) ([]byte, error) {
 	var out []byte
-	if tpl.Type == models.TemplateTypeCampaign || tpl.Type == models.TemplateTypeCampaignVisual {
+	if tpl.Type == models.TemplateTypePrompt {
+		if err := tpl.Compile(a.manager.GenericTemplateFuncs()); err != nil {
+			return nil, echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		}
+		scope := manager.ExtractTemplateScope(sub)
+		sysPromptStr := tpl.SystemPrompt
+		if tpl.SystemPromptTpl != nil {
+			var sb bytes.Buffer
+			if err := tpl.SystemPromptTpl.Execute(&sb, scope); err == nil {
+				sysPromptStr = sb.String()
+			}
+		}
+		userPromptStr := tpl.Body
+		if tpl.UserPromptTpl != nil {
+			var ub bytes.Buffer
+			if err := tpl.UserPromptTpl.Execute(&ub, scope); err == nil {
+				userPromptStr = ub.String()
+			}
+		} else if tpl.Tpl != nil {
+			var ub bytes.Buffer
+			if err := tpl.Tpl.Execute(&ub, scope); err == nil {
+				userPromptStr = ub.String()
+			}
+		}
+
+		if bc := a.manager.BifrostClient(); bc != nil {
+			aiBody, err := bc.GeneratePromptWithFormat(bc.TimeoutContext(), sysPromptStr, userPromptStr, manager.EmailResponseFormat())
+			if err == nil && aiBody != "" {
+				cleanBody := manager.CleanJSONResponse(aiBody)
+				var emailOut manager.EmailStructuredOutput
+				if err := json.Unmarshal([]byte(cleanBody), &emailOut); err == nil && emailOut.Content != "" {
+					var globalSig string
+					if st, err := a.core.GetSettings(); err == nil {
+						globalSig = st.AppGlobalSignature
+					}
+					sig := manager.ResolveSignatureAdvanced(manager.SignatureOpts{
+						Subscriber: sub,
+						GlobalSig:  globalSig,
+					})
+					finalContent := manager.FormatPlainTextWithSignature(emailOut.Content, sig)
+					return []byte(fmt.Sprintf("<!DOCTYPE html><html><body style='margin: 0; padding: 1.5em; background-color: #f9fafb;'><div style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #111827; white-space: pre-wrap; background: #ffffff; padding: 1.5em; border-radius: 6px; border: 1px solid #e5e7eb;'>%s</div></body></html>", html.EscapeString(finalContent))), nil
+				}
+				return []byte(fmt.Sprintf("<!DOCTYPE html><html><body style='margin: 0; padding: 1.5em; background-color: #f9fafb;'><div style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #111827; white-space: pre-wrap; background: #ffffff; padding: 1.5em; border-radius: 6px; border: 1px solid #e5e7eb;'>%s</div></body></html>", html.EscapeString(aiBody))), nil
+			}
+		}
+
+		var globalSig string
+		if st, err := a.core.GetSettings(); err == nil {
+			globalSig = st.AppGlobalSignature
+		}
+		sig := manager.ResolveSignatureAdvanced(manager.SignatureOpts{
+			Subscriber: sub,
+			GlobalSig:  globalSig,
+		})
+		renderedBody := userPromptStr
+		if sysPromptStr != "" {
+			renderedBody = fmt.Sprintf("System Prompt:\n%s\n\nUser Prompt:\n%s", sysPromptStr, userPromptStr)
+		}
+		finalContent := manager.FormatPlainTextWithSignature(renderedBody, sig)
+		return []byte(fmt.Sprintf("<!DOCTYPE html><html><body style='margin: 0; padding: 1.5em; background-color: #f9fafb;'><div style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #111827; white-space: pre-wrap; background: #ffffff; padding: 1.5em; border-radius: 6px; border: 1px solid #e5e7eb;'>%s</div></body></html>", html.EscapeString(finalContent))), nil
+	} else if tpl.Type == models.TemplateTypeCampaign || tpl.Type == models.TemplateTypeCampaignVisual {
 		camp := models.Campaign{
 			UUID:         dummyUUID,
 			Name:         a.i18n.T("templates.dummyName"),
@@ -248,7 +333,7 @@ func (a *App) previewTemplate(tpl models.Template) ([]byte, error) {
 		}
 
 		// Render the message body.
-		msg, err := a.manager.NewCampaignMessage(&camp, dummySubscriber)
+		msg, err := a.manager.NewCampaignMessage(&camp, sub)
 		if err != nil {
 			return nil, echo.NewHTTPError(http.StatusBadRequest,
 				a.i18n.Ts("templates.errorRendering", "error", err.Error()))
@@ -265,7 +350,7 @@ func (a *App) previewTemplate(tpl models.Template) ([]byte, error) {
 		}
 
 		// Render the message.
-		if err := m.Render(dummySubscriber, &tpl, a.manager.GenericTemplateFuncs()); err != nil {
+		if err := m.Render(sub, &tpl, a.manager.GenericTemplateFuncs()); err != nil {
 			return nil, echo.NewHTTPError(http.StatusBadRequest, err.Error())
 		}
 		out = m.Body

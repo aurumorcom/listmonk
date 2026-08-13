@@ -20,6 +20,10 @@ export default defineConfig(({ _, mode }) => {
       assetsDir: 'static',
     },
     server: {
+      watch: {
+        usePolling: true,
+      },
+      host: '0.0.0.0',
       port: env.LISTMONK_FRONTEND_PORT || 8080,
       proxy: {
         '^/$': {

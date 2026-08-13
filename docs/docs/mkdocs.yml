@@ -59,13 +59,16 @@ nav:
     - "Introduction": apis/apis.md
     - "SDKs and libs": apis/sdks.md
     - "Subscribers": apis/subscribers.md
+    - "Contacts": apis/contacts.md
     - "Lists": apis/lists.md
     - "Import": apis/import.md
     - "Campaigns": apis/campaigns.md
+    - "Sequences": apis/sequences.md
     - "Media": apis/media.md
     - "Templates": apis/templates.md
     - "Transactional": apis/transactional.md
     - "Bounces": apis/bounces.md
+    - "Webhooks": apis/webhooks.md
   - "Maintenance":
     - "Performance": maintenance/performance.md
   - "Contributions":

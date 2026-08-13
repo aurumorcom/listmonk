@@ -169,6 +169,39 @@ export const getSubscribers = async (params) => http.get(
   },
 );
 
+// Contacts.
+export const getContacts = async (params) => http.get(
+  '/api/contacts',
+  {
+    params,
+    loading: models.subscribers,
+    store: models.subscribers,
+    camelCase: (keyPath) => !keyPath.startsWith('.results.*.attribs'),
+  },
+);
+
+export const getContact = async (id) => http.get(
+  `/api/contacts/${id}`,
+  { loading: models.subscribers },
+);
+
+export const createContact = (data) => http.post(
+  '/api/contacts',
+  data,
+  { loading: models.subscribers },
+);
+
+export const updateContact = (data) => http.put(
+  `/api/contacts/${data.id}`,
+  data,
+  { loading: models.subscribers },
+);
+
+export const deleteContacts = (params) => http.delete(
+  '/api/contacts',
+  { params, loading: models.subscribers },
+);
+
 export const getSubscriber = async (id) => http.get(
   `/api/subscribers/${id}`,
   { loading: models.subscribers },
@@ -443,6 +476,12 @@ export const testSMTP = async (data) => http.post(
   { loading: models.settings, disableToast: true },
 );
 
+export const testWebhook = async (data) => http.post(
+  '/api/webhooks/test',
+  data,
+  { loading: models.settings, disableToast: true },
+);
+
 export const getLogs = async () => http.get(
   '/api/logs',
   { loading: models.logs, camelCase: false },
@@ -574,3 +613,30 @@ export const disableTOTP = (id, data) => http.delete(
   `/api/users/${id}/twofa`,
   { data },
 );
+
+// Schedules
+export const getSchedules = () => http.get('/api/schedules');
+export const getSchedule = (id) => http.get(`/api/schedules/${id}`);
+export const createSchedule = (data) => http.post('/api/schedules', data);
+export const updateSchedule = (id, data) => http.put(`/api/schedules/${id}`, data);
+export const setDefaultSchedule = (id) => http.put(`/api/schedules/${id}/default`);
+export const deleteSchedule = (id) => http.delete(`/api/schedules/${id}`);
+
+// Sequences
+export const getSequences = () => http.get('/api/sequences');
+export const getSequenceAnalytics = () => http.get('/api/sequences/analytics');
+export const getSequence = (id) => http.get(`/api/sequences/${id}`);
+export const createSequence = (data) => http.post('/api/sequences', data);
+export const updateSequence = (id, data) => http.put(`/api/sequences/${id}`, data);
+export const changeSequenceStatus = (id, status) => http.put(`/api/sequences/${id}/status`, { status });
+export const updateSequenceArchive = (id, data) => http.put(`/api/sequences/${id}/archive`, data);
+export const testSequence = (id, data) => http.post(`/api/sequences/${id}/test`, data);
+export const previewSequence = (id) => http.get(`/api/sequences/${id}/preview`);
+export const deleteSequence = (id) => http.delete(`/api/sequences/${id}`);
+export const deleteSequences = (params) => http.delete('/api/sequences', { params });
+export const getSequenceSteps = (id) => http.get(`/api/sequences/${id}/steps`);
+export const saveSequenceSteps = (id, data) => http.post(`/api/sequences/${id}/steps`, data);
+export const enrollSequenceSubscribers = (id, data) => http.post(`/api/sequences/${id}/enroll`, data);
+export const manageContactSequences = (id, data) => http.put(`/api/contacts/sequences${id ? `/${id}` : ''}`, data);
+export const manageContactSequencesByQuery = (data) => http.put('/api/contacts/query/sequences', data);
+export const getContactSequences = (id) => http.get(`/api/contacts/${id}/sequences`);

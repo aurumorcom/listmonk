@@ -9,6 +9,7 @@ type Settings struct {
 	AppLogoURL                    string   `json:"app.logo_url"`
 	AppFaviconURL                 string   `json:"app.favicon_url"`
 	AppFromEmail                  string   `json:"app.from_email"`
+	AppGlobalSignature            string   `json:"app.global_signature"`
 	AppNotifyEmails               []string `json:"app.notify_emails"`
 	EnablePublicSubPage           bool     `json:"app.enable_public_subscription_page"`
 	EnablePublicArchive           bool     `json:"app.enable_public_archive"`
@@ -83,6 +84,7 @@ type Settings struct {
 
 	SMTP []struct {
 		Name          string              `json:"name"`
+		User          string              `json:"user"`
 		UUID          string              `json:"uuid"`
 		Enabled       bool                `json:"enabled"`
 		Host          string              `json:"host"`
@@ -100,6 +102,8 @@ type Settings struct {
 		TLSType       string              `json:"tls_type"`
 		TLSSkipVerify bool                `json:"tls_skip_verify"`
 		FromAddresses []string            `json:"from_addresses"`
+		EmailsPerDay  int                 `json:"emails_per_day"`
+		EmailsPerHour int                 `json:"emails_per_hour"`
 	} `json:"smtp"`
 
 	Messengers []struct {
@@ -113,6 +117,8 @@ type Settings struct {
 		Timeout       string `json:"timeout"`
 		MaxMsgRetries int    `json:"max_msg_retries"`
 	} `json:"messengers"`
+
+	WAHAMessengers []WAHAMessenger `json:"waha_messengers"`
 
 	BounceEnabled        bool `json:"bounce.enabled"`
 	BounceEnableWebhooks bool `json:"bounce.webhooks_enabled"`
@@ -165,4 +171,29 @@ type Settings struct {
 	AdminCustomJS   string `json:"appearance.admin.custom_js"`
 	PublicCustomCSS string `json:"appearance.public.custom_css"`
 	PublicCustomJS  string `json:"appearance.public.custom_js"`
+}
+
+// WAHAMessenger represents individual WAHA messenger configuration settings.
+type WAHAMessenger struct {
+	UUID              string   `json:"uuid"`
+	Enabled           bool     `json:"enabled"`
+	Name              string   `json:"name"`
+	RootURL           string   `json:"root_url"`
+	APIKey            string   `json:"api_key,omitempty"`
+	Session           string   `json:"session"`
+	PhoneAttribute    string   `json:"phone_attribute"`
+	TypingDelayMs     int      `json:"typing_delay_ms"`
+	TargetWPM         int      `json:"target_wpm"`
+	WPMStd            float64  `json:"wpm_std"`
+	KeyboardLayout    string   `json:"keyboard_layout"`
+	TypingMode        string   `json:"typing_mode"`
+	MaxTypingDelaySec int      `json:"max_typing_delay_sec"`
+	MaxConns          int      `json:"max_conns"`
+	Timeout           string   `json:"timeout"`
+	MaxMsgRetries     int      `json:"max_msg_retries"`
+	MessagesPerDay    int      `json:"messages_per_day"`
+	MessagesPerHour   int      `json:"messages_per_hour"`
+	UserID            null.Int `json:"user_id"`
+	User              string   `json:"user"`
+	Signature         string   `json:"signature"`
 }

@@ -35,13 +35,13 @@ Retrieve lists.
 
 ```shell
 # Get all lists
-curl -u "api_user:token" -X GET 'http://localhost:9000/api/lists?page=1&per_page=100'
+curl -u "username:token" -X GET 'http://localhost:9000/api/lists?page=1&per_page=100'
 
 # Get only active lists
-curl -u "api_user:token" -X GET 'http://localhost:9000/api/lists?status=active&per_page=100'
+curl -u "username:token" -X GET 'http://localhost:9000/api/lists?status=active&per_page=100'
 
 # Get archived lists with minimal data
-curl -u "api_user:token" -X GET 'http://localhost:9000/api/lists?status=archived&minimal=true&per_page=all'
+curl -u "username:token" -X GET 'http://localhost:9000/api/lists?status=archived&minimal=true&per_page=all'
 ```
 
 ##### Example Response
@@ -123,7 +123,7 @@ Retrieve a specific list.
 ##### Example Request
 
 ```shell
-curl -u "api_user:token" -X GET 'http://localhost:9000/api/lists/5'
+curl -u "username:token" -X GET 'http://localhost:9000/api/lists/5'
 ```
 
 ##### Example Response
@@ -165,7 +165,7 @@ Create a new list.
 ##### Example Request
 
 ```shell
-curl -u "api_user:token" -X POST 'http://localhost:9000/api/lists'
+curl -u "username:token" -X POST 'http://localhost:9000/api/lists'
 ```
 
 ##### Example Response
@@ -209,7 +209,7 @@ Update a list.
 ##### Example Request
 
 ```shell
-curl -u "api_user:token" -X PUT 'http://localhost:9000/api/lists/5' \
+curl -u "username:token" -X PUT 'http://localhost:9000/api/lists/5' \
 --form 'name=modified test list' \
 --form 'type=private'
 ```
@@ -249,7 +249,7 @@ Delete a specific list.
 ##### Example Request
 
 ```shell
-curl -u 'api_username:access_token' -X DELETE 'http://localhost:9000/api/lists/1'
+curl -u "username:token" -X DELETE 'http://localhost:9000/api/lists/1'
 ```
 
 ##### Example Response
@@ -278,13 +278,13 @@ Delete multiple lists by IDs or by a search query.
 ##### Example Request (by IDs)
 
 ```shell
-curl -u "api_user:token" -X DELETE 'http://localhost:9000/api/lists?id=10&id=11&id=12'
+curl -u "username:token" -X DELETE 'http://localhost:9000/api/lists?id=10&id=11&id=12'
 ```
 
 ##### Example Request (by search query)
 
 ```shell
-curl -u "api_user:token" -X DELETE 'http://localhost:9000/api/lists?query=test%20list'
+curl -u "username:token" -X DELETE 'http://localhost:9000/api/lists?query=test%20list'
 ```
 
 ##### Example Response
