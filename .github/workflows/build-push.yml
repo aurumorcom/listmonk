@@ -1,0 +1,71 @@
+name: Build & Push Docker Image
+
+on:
+  push:
+    branches:
+      - main
+      - master
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.1"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine Version and Tags
+        id: meta
+        run: |
+          # Retrieve latest tag or fallback to v6.2.0
+          RAW_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v6.2.0")
+          
+          # Strip leading 'v' if present (e.g. v6.2.0 -> 6.2.0)
+          BASE_VERSION=$(echo "$RAW_TAG" | sed 's/^v//')
+          
+          # Append incrementing run number (e.g. 6.2.0-rc.1, 6.2.0-rc.2, etc.)
+          RC_VERSION="${BASE_VERSION}-rc.${{ github.run_number }}"
+          
+          echo "base_version=${BASE_VERSION}" >> $GITHUB_OUTPUT
+          echo "rc_version=${RC_VERSION}" >> $GITHUB_OUTPUT
+          echo "Calculated RC Version: ${RC_VERSION}"
+
+      - name: Build listmonk Binary & Assets
+        run: make dist
+        env:
+          LISTMONK_VERSION: ${{ steps.meta.outputs.rc_version }}
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ghcr.io/aurumorcom/listmonk:latest
+            ghcr.io/aurumorcom/listmonk:${{ steps.meta.outputs.rc_version }}
