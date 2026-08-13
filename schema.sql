@@ -480,9 +480,11 @@ CREATE TABLE schedules (
     use_contact_timezone BOOLEAN NOT NULL DEFAULT TRUE,
     skip_holidays        BOOLEAN NOT NULL DEFAULT TRUE,
     sending_windows      JSONB NOT NULL DEFAULT '{}',
+    is_default           BOOLEAN NOT NULL DEFAULT false,
     created_at           TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at           TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+CREATE UNIQUE INDEX schedules_is_default_idx ON schedules (is_default) WHERE is_default = true;
 
 -- sequences
 DROP TABLE IF EXISTS sequences CASCADE;
@@ -490,12 +492,17 @@ CREATE TABLE sequences (
     id                SERIAL PRIMARY KEY,
     uuid              UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
     name              TEXT NOT NULL,
+    description       TEXT NOT NULL DEFAULT '',
     status            TEXT NOT NULL DEFAULT 'active',
     schedule_id       INTEGER NULL REFERENCES schedules(id) ON DELETE SET NULL,
     send_window       JSONB NOT NULL DEFAULT '{}',
     email_ids         INTEGER[] NOT NULL DEFAULT '{}',
     waha_sessions     TEXT[] NOT NULL DEFAULT '{}',
     load_balance_mode TEXT NOT NULL DEFAULT 'round_robin',
+    archive           BOOLEAN NOT NULL DEFAULT false,
+    archive_template_id INTEGER NULL REFERENCES templates(id) ON DELETE SET NULL,
+    archive_slug      TEXT NULL,
+    archive_meta      JSONB NOT NULL DEFAULT '{}',
     created_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -546,4 +553,35 @@ CREATE TABLE sequence_contacts (
 );
 CREATE INDEX idx_sequence_contacts_next_send ON sequence_contacts(status, next_send_at);
 CREATE INDEX idx_sequence_contacts_sender ON sequence_contacts(sequence_id, email_id, waha_session);
+
+-- webhook_endpoints
+DROP TABLE IF EXISTS webhook_endpoints CASCADE;
+CREATE TABLE webhook_endpoints (
+    id          SERIAL PRIMARY KEY,
+    name        TEXT NOT NULL,
+    url         TEXT NOT NULL,
+    secret      TEXT NOT NULL,
+    events      TEXT[] NOT NULL DEFAULT '{}',
+    enabled     BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- webhook_logs
+DROP TABLE IF EXISTS webhook_logs CASCADE;
+CREATE TABLE webhook_logs (
+    id            BIGSERIAL PRIMARY KEY,
+    endpoint_id   INT REFERENCES webhook_endpoints(id) ON DELETE CASCADE,
+    event_type    TEXT NOT NULL,
+    payload       JSONB NOT NULL,
+    status        TEXT NOT NULL DEFAULT 'pending',
+    attempts      INT NOT NULL DEFAULT 0,
+    max_attempts  INT NOT NULL DEFAULT 5,
+    next_retry_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    response_code INT NOT NULL DEFAULT 0,
+    response_body TEXT NOT NULL DEFAULT '',
+    created_at    TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at    TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+CREATE INDEX idx_webhook_logs_pending ON webhook_logs(status, next_retry_at) WHERE status = 'pending';
 
