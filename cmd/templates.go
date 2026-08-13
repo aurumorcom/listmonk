@@ -65,6 +65,22 @@ func (a *App) GetTemplates(c echo.Context) error {
 	return c.JSON(http.StatusOK, okResp{out})
 }
 
+// getSubscriberForPreview resolves the preview contact for template/campaign/sequence rendering.
+// If subID > 0, it attempts to fetch that specific subscriber.
+// Otherwise, it attempts to fetch the subscriber with the most populated attributes from the DB.
+// If no subscribers exist in the database, it falls back to dummySubscriber.
+func (a *App) getSubscriberForPreview(subID int) models.Subscriber {
+	if subID > 0 {
+		if sub, err := a.core.GetSubscriber(subID, "", ""); err == nil {
+			return sub
+		}
+	}
+	if sub, err := a.core.GetMostPopulatedSubscriberForPreview(); err == nil {
+		return sub
+	}
+	return dummySubscriber
+}
+
 // PreviewTemplate renders the HTML preview of a template in the DB.
 func (a *App) PreviewTemplate(c echo.Context) error {
 	// Fetch one template from the DB.
@@ -78,12 +94,7 @@ func (a *App) PreviewTemplate(c echo.Context) error {
 	if subID == 0 {
 		subID, _ = strconv.Atoi(c.QueryParam("subscriber_id"))
 	}
-	sub := dummySubscriber
-	if subID > 0 {
-		if s, err := a.core.GetSubscriber(subID, "", ""); err == nil {
-			sub = s
-		}
-	}
+	sub := a.getSubscriberForPreview(subID)
 
 	// Render the template.
 	out, err := a.previewTemplate(tpl, sub)
@@ -113,12 +124,10 @@ func (a *App) PreviewTemplateBody(c echo.Context) error {
 	}
 
 	subID, _ := strconv.Atoi(c.FormValue("subscriber_id"))
-	sub := dummySubscriber
-	if subID > 0 {
-		if s, err := a.core.GetSubscriber(subID, "", ""); err == nil {
-			sub = s
-		}
+	if subID == 0 {
+		subID, _ = strconv.Atoi(c.QueryParam("subscriber_id"))
 	}
+	sub := a.getSubscriberForPreview(subID)
 
 	// Render the template.
 	out, err := a.previewTemplate(tpl, sub)
