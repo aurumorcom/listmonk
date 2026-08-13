@@ -1,23 +1,23 @@
 -- sequences
 
 -- name: get-sequences
-SELECT id, uuid, name, status, schedule_id, send_window, created_at, updated_at
+SELECT id, uuid, name, description, status, schedule_id, send_window, email_ids, waha_sessions, load_balance_mode, archive, archive_template_id, archive_slug, archive_meta, created_at, updated_at
 FROM sequences
 ORDER BY id DESC;
 
 -- name: get-sequence
-SELECT id, uuid, name, status, schedule_id, send_window, created_at, updated_at
+SELECT id, uuid, name, description, status, schedule_id, send_window, email_ids, waha_sessions, load_balance_mode, archive, archive_template_id, archive_slug, archive_meta, created_at, updated_at
 FROM sequences
 WHERE id = $1 OR uuid::text = $2;
 
 -- name: create-sequence
-INSERT INTO sequences (uuid, name, status, schedule_id, send_window)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id, uuid, name, status, schedule_id, send_window, created_at, updated_at;
+INSERT INTO sequences (uuid, name, description, status, schedule_id, send_window, email_ids, waha_sessions, load_balance_mode, archive, archive_template_id, archive_slug, archive_meta)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+RETURNING id, uuid, name, description, status, schedule_id, send_window, email_ids, waha_sessions, load_balance_mode, archive, archive_template_id, archive_slug, archive_meta, created_at, updated_at;
 
 -- name: update-sequence
 UPDATE sequences
-SET name = $2, status = $3, schedule_id = $4, send_window = $5, updated_at = NOW()
+SET name = $2, description = $3, status = $4, schedule_id = $5, send_window = $6, email_ids = $7, waha_sessions = $8, load_balance_mode = $9, archive = $10, archive_template_id = $11, archive_slug = $12, archive_meta = $13, updated_at = NOW()
 WHERE id = $1;
 
 -- name: delete-sequence
