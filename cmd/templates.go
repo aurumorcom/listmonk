@@ -314,6 +314,9 @@ func (a *App) previewTemplate(tpl models.Template, sub models.Subscriber) ([]byt
 			GlobalSig:  globalSig,
 		})
 		renderedBody := userPromptStr
+		if sysPromptStr != "" {
+			renderedBody = fmt.Sprintf("<div style='margin-bottom: 1em;'><strong>System Prompt:</strong><br/>%s</div><div><strong>User Prompt:</strong><br/>%s</div>", sysPromptStr, userPromptStr)
+		}
 		if sig != "" {
 			renderedBody = fmt.Sprintf("%s<br/><br/>%s", renderedBody, sig)
 		}
