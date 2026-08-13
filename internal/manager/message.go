@@ -51,8 +51,8 @@ func (m *CampaignMessage) render() error {
 			if err := m.Campaign.Tpl.Execute(&userBuf, scope); err == nil {
 				userPromptStr := userBuf.String()
 
-				// Run JIT generation via Bifrost SDK
-				aiBody, err := m.pipe.m.bifrostClient.GeneratePrompt(m.pipe.m.bifrostClient.TimeoutContext(), sysPromptStr, userPromptStr)
+				// Run JIT generation via Bifrost SDK with EmailResponseFormat guide
+				aiBody, err := m.pipe.m.bifrostClient.GeneratePromptWithFormat(m.pipe.m.bifrostClient.TimeoutContext(), sysPromptStr, userPromptStr, EmailResponseFormat())
 				if err == nil && aiBody != "" {
 					cleanBody := CleanJSONResponse(aiBody)
 					var structOut EmailStructuredOutput
@@ -60,13 +60,10 @@ func (m *CampaignMessage) render() error {
 						if structOut.Subject != "" {
 							m.subject = structOut.Subject
 						}
-						finalContent := structOut.Content
 						sig := ResolveSignatureAdvanced(SignatureOpts{
 							Subscriber: m.Subscriber,
 						})
-						if sig != "" {
-							finalContent = fmt.Sprintf("%s<br/><br/>%s", finalContent, sig)
-						}
+						finalContent := FormatPlainTextWithSignature(structOut.Content, sig)
 						m.body = []byte(finalContent)
 						return nil
 					}
