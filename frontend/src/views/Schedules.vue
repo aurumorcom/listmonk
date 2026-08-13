@@ -190,12 +190,10 @@ export default {
       this.loadSchedules();
     },
     makeScheduleDefault(sched) {
-      this.schedules = this.schedules.map((s) => ({
-        ...s,
-        isDefault: s.id === sched.id,
-        is_default: s.id === sched.id,
-      }));
-      this.$utils.toast(`Schedule '${sched.name}' set as default`);
+      this.$api.setDefaultSchedule(sched.id).then(() => {
+        this.$utils.toast(`Schedule '${sched.name}' set as default`);
+        this.loadSchedules();
+      });
     },
     cloneSchedule(name, sched) {
       const data = {

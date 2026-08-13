@@ -56,8 +56,7 @@
           <div class="columns" v-if="form.type === 'prompt'">
             <div class="column is-12">
               <b-field :label="$t('templates.systemPrompt')" label-position="on-border">
-                <b-input type="textarea" v-model="form.system_prompt" name="system_prompt"
-                  :placeholder="$t('templates.systemPrompt')" rows="3" />
+                <code-editor lang="html" v-model="form.system_prompt" name="system_prompt" />
               </b-field>
             </div>
           </div>
@@ -69,7 +68,7 @@
             </b-field>
 
             <b-field v-else-if="form.type === 'prompt'" :label="$t('templates.userPrompt')" label-position="on-border">
-              <code-editor lang="markdown" v-model="form.body" name="body" />
+              <code-editor lang="html" v-model="form.body" name="body" />
             </b-field>
 
             <b-field v-else :label="$t('templates.rawHTML')" label-position="on-border">

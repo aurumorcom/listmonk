@@ -58,6 +58,10 @@
             <waha-settings :form="form" :key="key" />
           </b-tab-item><!-- waha -->
 
+          <b-tab-item label="Webhooks">
+            <webhook-settings :form="form" :key="key" />
+          </b-tab-item><!-- webhooks -->
+
           <b-tab-item :label="$t('settings.appearance.name')">
             <appearance-settings :form="form" :key="key" />
           </b-tab-item><!-- appearance -->
@@ -76,6 +80,7 @@ import GeneralSettings from './settings/general.vue';
 import MediaSettings from './settings/media.vue';
 import MessengerSettings from './settings/messengers.vue';
 import WahaSettings from './settings/waha.vue';
+import WebhookSettings from './settings/webhooks.vue';
 import PerformanceSettings from './settings/performance.vue';
 import PrivacySettings from './settings/privacy.vue';
 import SecuritySettings from './settings/security.vue';
@@ -92,6 +97,7 @@ export default Vue.extend({
     BounceSettings,
     MessengerSettings,
     WahaSettings,
+    WebhookSettings,
     AppearanceSettings,
   },
 
@@ -263,6 +269,20 @@ export default Vue.extend({
               max_typing_delay_sec: 30,
               messages_per_day: 0,
               messages_per_hour: 0,
+            },
+          ];
+        }
+
+        // Ensure webhooks exists and has default item if empty
+        if (!d.webhooks || !Array.isArray(d.webhooks) || d.webhooks.length === 0) {
+          d.webhooks = [
+            {
+              name: '',
+              enabled: true,
+              url: '',
+              secret: '',
+              events: ['subscriber.created', 'subscriber.updated', 'contact.created', 'contact.updated'],
+              strHeaders: '',
             },
           ];
         }

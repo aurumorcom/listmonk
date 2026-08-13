@@ -40,10 +40,14 @@
       <b-tab-item label="Sequence" icon="rocket-launch-outline" value="sequence">
         <section class="wrap">
           <div class="columns">
-            <div class="column is-7">
+            <div class="column is-12">
               <form @submit.prevent="onFormSubmit">
                 <b-field label="Name" label-position="on-border">
                   <b-input v-model="form.name" required placeholder="Name" :maxlength="200" />
+                </b-field>
+
+                <b-field label="Description" label-position="on-border">
+                  <b-input v-model="form.description" type="textarea" placeholder="Description" rows="2" />
                 </b-field>
 
                 <b-field label="Schedule *" label-position="on-border">
@@ -79,21 +83,6 @@
                   </b-button>
                 </b-field>
               </form>
-            </div>
-
-            <!-- Side Information Box (Matching Campaign.vue) -->
-            <div class="column is-4 is-offset-1">
-              <br />
-              <div class="box">
-                <h3 class="title is-size-6">
-                  Sequence Overview
-                </h3>
-                <p class="is-size-7 mb-2"><strong>Timezone:</strong> {{ selectedSchedule ? (selectedSchedule.timezone || 'UTC') : 'UTC' }}</p>
-                <p class="is-size-7 mb-2"><strong>Schedule:</strong> {{ selectedSchedule ? selectedSchedule.name : 'None selected' }}</p>
-                <p class="is-size-7 mb-2"><strong>Contact TZ Override:</strong> {{ selectedSchedule && selectedSchedule.use_contact_timezone ? 'Enabled' : 'Disabled' }}</p>
-                <p class="is-size-7 mb-2"><strong>Skip Holidays:</strong> {{ selectedSchedule && selectedSchedule.skip_holidays ? 'Yes' : 'No' }}</p>
-                <p class="is-size-7 mb-2"><strong>Pacing:</strong> Fully Calculative (Auto)</p>
-              </div>
             </div>
           </div>
         </section>
@@ -266,17 +255,85 @@
           </b-field>
         </section>
       </b-tab-item>
+
+      <!-- TAB 4: Archive -->
+      <b-tab-item :label="$t('campaigns.archive')" icon="newspaper-variant-outline" value="archive" :disabled="isNew">
+        <section class="wrap">
+          <div class="columns">
+            <div class="column is-4">
+              <b-field :label="$t('campaigns.archiveEnable')" data-cy="btn-archive"
+                :message="$t('campaigns.archiveHelp')">
+                <div class="columns">
+                  <div class="column">
+                    <b-switch data-cy="btn-archive" v-model="form.archive" />
+                  </div>
+                  <div class="column is-12" v-if="form.uuid && serverConfig">
+                    <a :href="`${serverConfig.root_url}/archive/${form.uuid}`" target="_blank" rel="noopener noreferer"
+                      :class="{ 'has-text-grey-light': !form.archive }" :aria-label="$t('campaigns.archive')">
+                      <b-icon icon="link-variant" />
+                      {{ serverConfig.root_url }}/archive/{{ form.uuid }}
+                    </a>
+                  </div>
+                </div>
+              </b-field>
+            </div>
+            <div class="column is-8">
+              <b-field :label="$tc('globals.terms.template')" label-position="on-border">
+                <b-select :placeholder="$tc('globals.terms.template')" v-model="form.archive_template_id" name="template"
+                  :disabled="!form.archive" required>
+                  <template v-for="t in templates">
+                    <option :value="t.id" :key="t.id" v-if="t.type === 'campaign'">
+                      {{ t.name }}
+                    </option>
+                  </template>
+                </b-select>
+              </b-field>
+              <b-field grouped position="is-right">
+                <b-field v-if="form.archive && (!form.archiveMetaStr || form.archiveMetaStr === '{}')">
+                  <a class="button is-primary" href="#" @click.prevent="onFillArchiveMeta" aria-label="{}"><b-icon
+                      icon="code" /></a>
+                </b-field>
+                <b-field v-if="form.archive">
+                  <b-button @click="onToggleArchivePreview" type="is-primary" icon-left="file-find-outline"
+                    data-cy="btn-preview">
+                    {{ $t('campaigns.preview') }}
+                  </b-button>
+                </b-field>
+              </b-field>
+            </div>
+          </div>
+          <b-field>
+            <b-field :label="$t('campaigns.archiveSlug')" label-position="on-border"
+              :message="$t('campaigns.archiveSlugHelp')">
+              <b-input :maxlength="200" v-model="form.archive_slug" name="archive_slug"
+                data-cy="archive-slug" :disabled="!form.archive" />
+            </b-field>
+          </b-field>
+          <b-field :label="$t('campaigns.archiveMeta')" :message="$t('campaigns.archiveMetaHelp')"
+            label-position="on-border">
+            <b-input v-model="form.archiveMetaStr" name="archive_meta" type="textarea" data-cy="archive-meta"
+              :disabled="!form.archive" rows="15" />
+          </b-field>
+        </section>
+      </b-tab-item>
     </b-tabs>
+
+    <campaign-preview v-if="isPreviewingArchive" @close="onToggleArchivePreview" type="campaign" :id="form.id"
+      :archive-meta="form.archiveMetaStr" :title="form.name"
+      :template-id="form.archive_template_id" is-post is-archive />
   </section>
 </template>
 
 <script>
+import { mapState } from 'vuex';
+import CampaignPreview from '../components/CampaignPreview.vue';
 import CopyText from '../components/CopyText.vue';
 import EmptyPlaceholder from '../components/EmptyPlaceholder.vue';
 
 export default {
   name: 'Sequence',
   components: {
+    CampaignPreview,
     EmptyPlaceholder,
     CopyText,
   },
@@ -286,7 +343,9 @@ export default {
       activeTab: 'sequence',
       loading: false,
       isHeadersVisible: false,
+      isPreviewingArchive: false,
       schedules: [],
+      templates: [],
       daysOfWeek: [
         { key: 'mon', label: 'Monday' },
         { key: 'tue', label: 'Tuesday' },
@@ -301,11 +360,17 @@ export default {
         id: null,
         uuid: '',
         name: '',
+        description: '',
         status: 'active',
         schedule_id: null,
         tags: [],
         headersStr: '[]',
         attribsStr: '{}',
+        archive: false,
+        archive_template_id: null,
+        archive_slug: '',
+        archiveMetaStr: '{}',
+        archive_meta: {},
       },
       steps: [
         {
@@ -327,6 +392,7 @@ export default {
     }
 
     this.loadSchedules();
+    this.getTemplates();
 
     const { id } = this.$route.params;
     if (id && id !== 'new') {
@@ -370,6 +436,24 @@ export default {
         }
       });
     },
+    getTemplates() {
+      this.$api.getTemplates().then((res) => {
+        this.templates = Array.isArray(res) ? res : (res.data || []);
+        if (!this.form.archive_template_id && this.templates.length) {
+          const tpl = this.templates.find((t) => t.type === 'campaign');
+          if (tpl) {
+            this.form.archive_template_id = tpl.id;
+          }
+        }
+      });
+    },
+    onToggleArchivePreview() {
+      this.isPreviewingArchive = !this.isPreviewingArchive;
+    },
+    onFillArchiveMeta() {
+      const archiveStr = `{"email": "email@domain.com", "name": "${this.$t('globals.fields.name')}", "attribs": {}}`;
+      this.form.archiveMetaStr = this.$utils.getPref('campaign.archiveMetaStr') || JSON.stringify(JSON.parse(archiveStr), null, 4);
+    },
     onShowHeaders() {
       this.isHeadersVisible = true;
     },
@@ -405,6 +489,12 @@ export default {
       this.$api.getSequence(id).then((res) => {
         const d = res.data || res;
         this.form = { ...this.form, ...d };
+        this.form.description = d.description || '';
+        this.form.archive = !!d.archive;
+        this.form.archive_template_id = d.archive_template_id || null;
+        this.form.archive_slug = d.archive_slug || '';
+        this.form.archiveMetaStr = d.archive_meta ? JSON.stringify(d.archive_meta, null, 4) : '{}';
+
         if (typeof this.form.tags === 'string') {
           this.form.tags = this.form.tags ? this.form.tags.split(',') : [];
         }
@@ -501,6 +591,16 @@ export default {
       }
     },
     save(mode = 'save') {
+      if (this.form.archive && this.form.archiveMetaStr) {
+        try {
+          this.form.archive_meta = JSON.parse(this.form.archiveMetaStr);
+        } catch (e) {
+          this.$utils.toast(this.$t('campaigns.invalidArchiveMetaJSON'), 'is-danger');
+          this.loading = false;
+          return Promise.reject(e);
+        }
+      }
+
       this.loading = true;
       const action = this.isNew
         ? this.$api.createSequence(this.form)
@@ -533,6 +633,7 @@ export default {
     },
   },
   computed: {
+    ...mapState(['serverConfig']),
     selectedSchedule() {
       if (!this.form.schedule_id) return null;
       return this.schedules.find((s) => s.id === this.form.schedule_id) || null;
