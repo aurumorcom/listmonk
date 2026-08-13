@@ -112,6 +112,7 @@ type Status struct {
 type SubReq struct {
 	models.Subscriber
 	Lists          []int    `json:"lists"`
+	Sequences      []int    `json:"sequences"`
 	ListUUIDs      []string `json:"list_uuids"`
 	PreconfirmSubs bool     `json:"preconfirm_subscriptions"`
 }
