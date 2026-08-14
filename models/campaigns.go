@@ -104,6 +104,88 @@ type CampaignMeta struct {
 	Sent      int       `db:"sent" json:"sent"`
 }
 
+// CampaignViewStats aggregates detailed view/open telemetry separating human from bot traffic.
+type CampaignViewStats struct {
+	Total         int `json:"total"`
+	Unique        int `json:"unique"`
+	HumanTotal    int `json:"human_total"`
+	HumanUnique   int `json:"human_unique"`
+	BotTotal      int `json:"bot_total"`
+	ProxyMPPTotal int `json:"proxy_mpp_total"`
+}
+
+// CampaignClickStats aggregates detailed click telemetry separating human from bot traffic.
+type CampaignClickStats struct {
+	Total       int     `json:"total"`
+	Unique      int     `json:"unique"`
+	HumanTotal  int     `json:"human_total"`
+	HumanUnique int     `json:"human_unique"`
+	BotClicks   int     `json:"bot_clicks"`
+	CTOR        float64 `json:"ctor"` // Click-to-Open Rate: (HumanUniqueClicks / HumanUniqueViews) * 100
+}
+
+// CampaignBotStats aggregates bot-detected telemetry.
+type CampaignBotStats struct {
+	TotalBotEvents   int            `json:"total_bot_events"`
+	ScannersDetected int            `json:"scanners_detected"`
+	HoneypotTriggers int            `json:"honeypot_triggers"`
+	BotTypeBreakdown map[string]int `json:"bot_type_breakdown"`
+}
+
+// DeviceBreakdown provides dimensional slicing by device type, OS, and browser.
+type DeviceBreakdown struct {
+	DeviceType   string `json:"device_type"`
+	OS           string `json:"os"`
+	Browser      string `json:"browser"`
+	Clicks       int    `json:"clicks"`
+	UniqueClicks int    `json:"unique_clicks"`
+	Views        int    `json:"views"`
+	UniqueViews  int    `json:"unique_views"`
+}
+
+// LocationBreakdown provides dimensional slicing by country, region, city, and ASN network.
+type LocationBreakdown struct {
+	Country      string `json:"country"`
+	Region       string `json:"region"`
+	City         string `json:"city"`
+	ASN          string `json:"asn"`
+	Clicks       int    `json:"clicks"`
+	UniqueClicks int    `json:"unique_clicks"`
+	Views        int    `json:"views"`
+	UniqueViews  int    `json:"unique_views"`
+}
+
+// VariantPerformance tracks A/B test variant metrics.
+type VariantPerformance struct {
+	VariantID    string  `json:"variant_id"`
+	Sent         int     `json:"sent"`
+	UniqueOpens  int     `json:"unique_opens"`
+	UniqueClicks int     `json:"unique_clicks"`
+	CTOR         float64 `json:"ctor"`
+}
+
+// CampaignBreakdownStats aggregates multidimensional slices for a campaign.
+type CampaignBreakdownStats struct {
+	Devices   []DeviceBreakdown       `json:"devices,omitempty"`
+	Locations []LocationBreakdown     `json:"locations,omitempty"`
+	Links     []CampaignAnalyticsLink `json:"links,omitempty"`
+	Variants  []VariantPerformance    `json:"variants,omitempty"`
+	Bots      CampaignBotStats        `json:"bots"`
+}
+
+// CampaignAnalytics is the canonical analytics model across campaigns and sequences.
+type CampaignAnalytics struct {
+	CampaignID   int                    `json:"campaign_id,omitempty"`
+	CampaignUUID string                 `json:"campaign_uuid,omitempty"`
+	CampaignName string                 `json:"campaign_name,omitempty"`
+	Sent         int                    `json:"sent"`
+	ToSend       int                    `json:"to_send"`
+	Bounces      int                    `json:"bounces"`
+	Views        CampaignViewStats      `json:"views"`
+	Clicks       CampaignClickStats     `json:"clicks"`
+	Breakdowns   CampaignBreakdownStats `json:"breakdowns"`
+}
+
 // GetIDs returns the list of campaign IDs.
 func (camps Campaigns) GetIDs() []int {
 	IDs := make([]int, len(camps))
