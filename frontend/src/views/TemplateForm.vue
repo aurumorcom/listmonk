@@ -55,8 +55,13 @@
 
           <div class="columns" v-if="form.type === 'prompt'">
             <div class="column is-12">
-              <b-field :label="$t('templates.systemPrompt')" label-position="on-border">
-                <code-editor lang="html" v-model="form.system_prompt" name="system_prompt" />
+              <b-field :label="$t('templates.parentLayout')" label-position="on-border">
+                <b-select v-model="form.parent_template_id" expanded>
+                  <option :value="null">None (Raw Output / No Wrapper)</option>
+                  <option v-for="t in htmlTemplates" :key="t.id" :value="t.id">
+                    {{ t.name }} ({{ t.type }})
+                  </option>
+                </b-select>
               </b-field>
             </div>
           </div>
@@ -67,7 +72,7 @@
                 @change="onChangeVisualEditor" height="70vh" />
             </b-field>
 
-            <b-field v-else-if="form.type === 'prompt'" :label="$t('templates.userPrompt')" label-position="on-border">
+            <b-field v-else-if="form.type === 'prompt'" :label="$t('templates.systemPrompt')" label-position="on-border">
               <code-editor lang="html" v-model="form.body" name="body" />
             </b-field>
 
@@ -96,7 +101,7 @@
       </div>
     </form>
     <campaign-preview v-if="previewItem" is-post type="template" :title="previewItem.name"
-      :template-type="previewItem.type" :body="form.body" @close="onTogglePreview" />
+      :template-type="previewItem.type" :parent-template-id="form.parent_template_id" :body="form.body" @close="onTogglePreview" />
   </section>
 </template>
 
@@ -127,12 +132,13 @@ export default Vue.extend({
       form: {
         name: '',
         subject: '',
-        system_prompt: '',
+        parent_template_id: null,
         type: 'campaign',
         optin: '',
         body: null,
         bodySource: null,
       },
+      htmlTemplates: [],
       previewItem: null,
       egPlaceholder: '{{ template "content" . }}',
     };
@@ -165,7 +171,7 @@ export default Vue.extend({
         name: this.form.name,
         type: this.form.type,
         subject: this.form.subject,
-        system_prompt: this.form.system_prompt || '',
+        parent_template_id: this.form.parent_template_id || null,
         body: this.form.body,
         body_source: this.form.bodySource,
       };
@@ -183,7 +189,7 @@ export default Vue.extend({
         name: this.form.name,
         type: this.form.type,
         subject: this.form.subject,
-        system_prompt: this.form.system_prompt || '',
+        parent_template_id: this.form.parent_template_id || null,
         body: this.form.body,
         body_source: this.form.bodySource,
       };
@@ -206,10 +212,20 @@ export default Vue.extend({
   },
 
   mounted() {
-    this.form = { ...this.$props.data };
+    this.form = {
+      ...this.$props.data,
+      parent_template_id: this.$props.data.parent_template_id || null,
+    };
+
+    this.$api.getTemplates().then((res) => {
+      const list = Array.isArray(res) ? res : (res.data || []);
+      this.htmlTemplates = list.filter((t) => t.type === 'campaign' || t.type === 'campaign_visual');
+    });
 
     this.$nextTick(() => {
-      this.$refs.focus.focus();
+      if (this.$refs.focus) {
+        this.$refs.focus.focus();
+      }
     });
 
     window.addEventListener('keydown', this.onPreviewShortcut);

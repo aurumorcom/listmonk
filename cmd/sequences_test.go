@@ -550,3 +550,142 @@ func TestSchedule_IsDefaultField(t *testing.T) {
 
 	t.Log("Successfully verified Schedule IsDefault field")
 }
+
+func TestSeededTeamDemoSequence_Structure(t *testing.T) {
+	steps := []models.SequenceStep{
+		{
+			StepNumber:   1,
+			DelaySeconds: 0,
+			Messenger:    "waha",
+			Condition:    models.SequenceConditionAlways,
+			Subject:      "Step 1: Incoming Transmission",
+			Body:         "🛸 *Incoming Transmission from HQ...*\n\nHey {{ .Subscriber.FirstName }}! We have a top-secret mission prepared for {{ .Subscriber.Email }}.\n\n👁️ Leave this chat unread and nothing happens... Open it to give us the Blue Ticks, and we’ll immediately beam the payload to your inbox!",
+		},
+		{
+			StepNumber:   2,
+			DelaySeconds: 0,
+			Messenger:    "waha",
+			Condition:    models.SequenceConditionIfRead,
+			Subject:      "Step 2: Read Caught",
+			Body:         "We just beamed an urgent mission email to {{ .Subscriber.Email }}! 🛸\n\n🏃‍♂️ Sprint over to your inbox and click the button before carrier pigeons eat the bandwidth!",
+		},
+		{
+			StepNumber:   3,
+			DelaySeconds: 10,
+			Messenger:    "email",
+			Condition:    models.SequenceConditionAlways,
+			Subject:      "🧪 [Team Demo] Click this link to trigger Step 4 on WhatsApp!",
+			Body:         "<p>Hi {{ .Subscriber.FirstName }}!</p><p>You triggered the <code>if_read</code> Blue Tick response!</p><p><a href=\"https://example.com/demo@TrackLink\">👉 CLICK ME TO TRIGGER WHATSAPP STEP 4 👈</a></p>",
+		},
+		{
+			StepNumber:   4,
+			DelaySeconds: 0,
+			Messenger:    "waha",
+			Condition:    models.SequenceConditionIfClicked,
+			Subject:      "Step 4: Click Registered",
+			Body:         "🎯 *CLICK EVENT REGISTERED IN REAL-TIME!*\n\n{{ .Subscriber.FirstName }}, you clicked the button like a 10x engineer! 🍪 Listmonk saw your click immediately.",
+		},
+		{
+			StepNumber:   5,
+			DelaySeconds: 45,
+			Messenger:    "waha",
+			Condition:    models.SequenceConditionIfNotRead,
+			Subject:      "Step 5: AFK Check",
+			Body:         "☕ *AFK Alert!*\n\nStill waiting on that email click, {{ .Subscriber.FirstName }}! Don't leave the demo hanging!",
+		},
+		{
+			StepNumber:   6,
+			DelaySeconds: 30,
+			Messenger:    "email",
+			Condition:    models.SequenceConditionAlways,
+			Subject:      "🏆 [Demo Complete] You conquered the 2-minute sequence!",
+			Body:         "<h2>🎉 Demo Complete!</h2><p>You have tested WAHA Blue Tick reads, email handoffs, and link clicks in under 2 minutes.</p>",
+		},
+	}
+
+	if len(steps) != 6 {
+		t.Fatalf("expected 6 seeded sequence steps, got %d", len(steps))
+	}
+
+	for i, step := range steps {
+		expectedStepNum := i + 1
+		if step.StepNumber != expectedStepNum {
+			t.Errorf("step %d: expected StepNumber %d, got %d", i, expectedStepNum, step.StepNumber)
+		}
+		if step.Subject == "" {
+			t.Errorf("step %d: subject must not be empty", expectedStepNum)
+		}
+		if step.Body == "" {
+			t.Errorf("step %d: body must not be empty", expectedStepNum)
+		}
+	}
+
+	if steps[0].Messenger != "waha" || steps[0].Condition != models.SequenceConditionAlways || steps[0].DelaySeconds != 0 {
+		t.Errorf("step 1 mismatch: %+v", steps[0])
+	}
+	if steps[1].Messenger != "waha" || steps[1].Condition != models.SequenceConditionIfRead || steps[1].DelaySeconds != 0 {
+		t.Errorf("step 2 mismatch: %+v", steps[1])
+	}
+	if steps[2].Messenger != "email" || steps[2].Condition != models.SequenceConditionAlways || steps[2].DelaySeconds != 10 {
+		t.Errorf("step 3 mismatch: %+v", steps[2])
+	}
+	if steps[3].Messenger != "waha" || steps[3].Condition != models.SequenceConditionIfClicked || steps[3].DelaySeconds != 0 {
+		t.Errorf("step 4 mismatch: %+v", steps[3])
+	}
+	if steps[4].Messenger != "waha" || steps[4].Condition != models.SequenceConditionIfNotRead || steps[4].DelaySeconds != 45 {
+		t.Errorf("step 5 mismatch: %+v", steps[4])
+	}
+	if steps[5].Messenger != "email" || steps[5].Condition != models.SequenceConditionAlways || steps[5].DelaySeconds != 30 {
+		t.Errorf("step 6 mismatch: %+v", steps[5])
+	}
+
+	t.Log("Successfully verified seeded team demo sequence structure")
+}
+
+func TestSeededTeamDemoSequence_InstantStep2Condition(t *testing.T) {
+	contactUnread := models.SequenceContact{
+		SequenceID:   1,
+		SubscriberID: 10,
+		CurrentStep:  2,
+		LastReadAt:   null.Time{},
+	}
+	contactRead := models.SequenceContact{
+		SequenceID:   1,
+		SubscriberID: 11,
+		CurrentStep:  2,
+		LastReadAt:   null.TimeFrom(time.Now()),
+	}
+
+	if sequence.EvaluateStepCondition(models.SequenceConditionIfRead, contactUnread) {
+		t.Errorf("expected if_read to be false for unread contact")
+	}
+	if !sequence.EvaluateStepCondition(models.SequenceConditionIfRead, contactRead) {
+		t.Errorf("expected if_read to be true for read contact")
+	}
+
+	t.Log("Successfully verified Step 2 if_read trigger condition")
+}
+
+func TestSeededTeamDemoSequence_InstantStep4Condition(t *testing.T) {
+	contactUnclicked := models.SequenceContact{
+		SequenceID:    1,
+		SubscriberID:  20,
+		CurrentStep:   4,
+		LastClickedAt: null.Time{},
+	}
+	contactClicked := models.SequenceContact{
+		SequenceID:    1,
+		SubscriberID:  21,
+		CurrentStep:   4,
+		LastClickedAt: null.TimeFrom(time.Now()),
+	}
+
+	if sequence.EvaluateStepCondition(models.SequenceConditionIfClicked, contactUnclicked) {
+		t.Errorf("expected if_clicked to be false for unclicked contact")
+	}
+	if !sequence.EvaluateStepCondition(models.SequenceConditionIfClicked, contactClicked) {
+		t.Errorf("expected if_clicked to be true for clicked contact")
+	}
+
+	t.Log("Successfully verified Step 4 if_clicked trigger condition")
+}

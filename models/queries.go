@@ -105,6 +105,9 @@ type Queries struct {
 	SetDefaultSchedule *sqlx.Stmt `query:"set-default-schedule"`
 	DeleteTemplate     *sqlx.Stmt `query:"delete-template"`
 
+	CreateSequence     *sqlx.Stmt `query:"create-sequence"`
+	CreateSequenceStep *sqlx.Stmt `query:"create-sequence-step"`
+
 	CreateLink        *sqlx.Stmt `query:"create-link"`
 	GetLinkURL        *sqlx.Stmt `query:"get-link-url"`
 	RegisterLinkClick *sqlx.Stmt `query:"register-link-click"`

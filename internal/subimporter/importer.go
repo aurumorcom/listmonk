@@ -29,6 +29,7 @@ import (
 	"github.com/lib/pq"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
+	null "gopkg.in/volatiletech/null.v6"
 )
 
 const (
@@ -132,6 +133,7 @@ var (
 	csvHeaders = map[string]bool{
 		"email":      true,
 		"name":       true,
+		"phone":      true,
 		"attributes": true}
 
 	regexCleanStr = regexp.MustCompile("[[:^ascii:]]")
@@ -559,6 +561,9 @@ func (s *Session) LoadCSV(srcPath string, delim rune) error {
 		if v, ok := row["name"]; ok {
 			sub.Name = v
 		}
+		if v, ok := row["phone"]; ok && strings.TrimSpace(v) != "" {
+			sub.Phone = null.StringFrom(strings.TrimSpace(v))
+		}
 
 		sub, err = s.im.ValidateFields(sub)
 		if err != nil {
@@ -663,6 +668,30 @@ func (im *Importer) ValidateFields(s SubReq) (SubReq, error) {
 		}
 
 		s.Name = strings.Join(parts, " ")
+	}
+
+	// Validate and sanitize phone if provided.
+	if s.Phone.Valid && strings.TrimSpace(s.Phone.String) != "" {
+		ph, err := utils.SanitizePhone(s.Phone.String)
+		if err != nil {
+			return s, errors.New(im.i18n.T("subscribers.invalidPhone"))
+		}
+		s.Phone = null.StringFrom(ph)
+	} else {
+		s.Phone = null.String{}
+	}
+
+	if s.Attribs != nil {
+		if rawPhone, ok := s.Attribs["phone"].(string); ok && strings.TrimSpace(rawPhone) != "" {
+			ph, err := utils.SanitizePhone(rawPhone)
+			if err != nil {
+				return s, errors.New(im.i18n.T("subscribers.invalidPhone"))
+			}
+			s.Attribs["phone"] = ph
+			if !s.Phone.Valid || s.Phone.String == "" {
+				s.Phone = null.StringFrom(ph)
+			}
+		}
 	}
 
 	return s, nil

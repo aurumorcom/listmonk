@@ -28,6 +28,7 @@ require (
 	github.com/knadh/stuffbin v1.3.0
 	github.com/labstack/echo/v4 v4.13.4
 	github.com/lib/pq v1.10.9
+	github.com/nyaruka/phonenumbers v1.8.1
 	github.com/paulbellamy/ratecounter v0.2.0
 	github.com/pquerna/otp v1.5.0
 	github.com/rhnvrm/simples3 v0.11.1
@@ -68,4 +69,5 @@ require (
 	golang.org/x/net v0.54.0 // indirect
 	golang.org/x/sys v0.45.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
+	google.golang.org/protobuf v1.36.11 // indirect
 )

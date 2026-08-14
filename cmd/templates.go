@@ -15,6 +15,7 @@ import (
 	"github.com/knadh/listmonk/internal/manager"
 	"github.com/knadh/listmonk/models"
 	"github.com/labstack/echo/v4"
+	null "gopkg.in/volatiletech/null.v6"
 )
 
 const (
@@ -107,10 +108,14 @@ func (a *App) PreviewTemplate(c echo.Context) error {
 
 // PreviewTemplateBody renders the HTML preview of a template given its type and body.
 func (a *App) PreviewTemplateBody(c echo.Context) error {
+	var parentID null.Int
+	if pID, err := strconv.Atoi(c.FormValue("parent_template_id")); err == nil && pID > 0 {
+		parentID = null.IntFrom(pID)
+	}
 	tpl := models.Template{
-		Type:         c.FormValue("template_type"),
-		SystemPrompt: c.FormValue("system_prompt"),
-		Body:         c.FormValue("body"),
+		Type:             c.FormValue("template_type"),
+		ParentTemplateID: parentID,
+		Body:             c.FormValue("body"),
 	}
 
 	// Body is posted with the request.
@@ -164,7 +169,7 @@ func (a *App) CreateTemplate(c echo.Context) error {
 	}
 
 	// Create the template the in the DB.
-	out, err := a.core.CreateTemplate(o.Name, o.Type, o.Subject, o.SystemPrompt, []byte(o.Body), o.BodySource)
+	out, err := a.core.CreateTemplate(o.Name, o.Type, o.Subject, []byte(o.Body), o.BodySource, o.ParentTemplateID)
 	if err != nil {
 		return err
 	}
@@ -205,7 +210,7 @@ func (a *App) UpdateTemplate(c echo.Context) error {
 
 	// Update the template in the DB.
 	id := getID(c)
-	out, err := a.core.UpdateTemplate(id, o.Name, o.Subject, o.SystemPrompt, []byte(o.Body), o.BodySource)
+	out, err := a.core.UpdateTemplate(id, o.Name, o.Subject, []byte(o.Body), o.BodySource, o.ParentTemplateID)
 	if err != nil {
 		return err
 	}
@@ -271,25 +276,16 @@ func (a *App) previewTemplate(tpl models.Template, sub models.Subscriber) ([]byt
 			return nil, echo.NewHTTPError(http.StatusBadRequest, err.Error())
 		}
 		scope := manager.ExtractTemplateScope(sub)
-		sysPromptStr := tpl.SystemPrompt
-		if tpl.SystemPromptTpl != nil {
+		sysPromptStr := tpl.Body
+		if tpl.SubjectTpl != nil {
 			var sb bytes.Buffer
-			if err := tpl.SystemPromptTpl.Execute(&sb, scope); err == nil {
+			if err := tpl.SubjectTpl.Execute(&sb, scope); err == nil {
 				sysPromptStr = sb.String()
 			}
 		}
-		userPromptStr := tpl.Body
-		if tpl.UserPromptTpl != nil {
-			var ub bytes.Buffer
-			if err := tpl.UserPromptTpl.Execute(&ub, scope); err == nil {
-				userPromptStr = ub.String()
-			}
-		} else if tpl.Tpl != nil {
-			var ub bytes.Buffer
-			if err := tpl.Tpl.Execute(&ub, scope); err == nil {
-				userPromptStr = ub.String()
-			}
-		}
+
+		userPromptStr := "Generate a preview message for " + sub.Name
+		var contentToWrap string
 
 		if bc := a.manager.BifrostClient(); bc != nil {
 			aiBody, err := bc.GeneratePromptWithFormat(bc.TimeoutContext(), sysPromptStr, userPromptStr, manager.EmailResponseFormat())
@@ -305,27 +301,46 @@ func (a *App) previewTemplate(tpl models.Template, sub models.Subscriber) ([]byt
 						Subscriber: sub,
 						GlobalSig:  globalSig,
 					})
-					finalContent := manager.FormatPlainTextWithSignature(emailOut.Content, sig)
-					return []byte(fmt.Sprintf("<!DOCTYPE html><html><body style='margin: 0; padding: 1.5em; background-color: #f9fafb;'><div style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #111827; white-space: pre-wrap; background: #ffffff; padding: 1.5em; border-radius: 6px; border: 1px solid #e5e7eb;'>%s</div></body></html>", html.EscapeString(finalContent))), nil
+					contentToWrap = manager.FormatPlainTextWithSignature(emailOut.Content, sig)
+				} else {
+					contentToWrap = aiBody
 				}
-				return []byte(fmt.Sprintf("<!DOCTYPE html><html><body style='margin: 0; padding: 1.5em; background-color: #f9fafb;'><div style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #111827; white-space: pre-wrap; background: #ffffff; padding: 1.5em; border-radius: 6px; border: 1px solid #e5e7eb;'>%s</div></body></html>", html.EscapeString(aiBody))), nil
 			}
 		}
 
-		var globalSig string
-		if st, err := a.core.GetSettings(); err == nil {
-			globalSig = st.AppGlobalSignature
+		if contentToWrap == "" {
+			var globalSig string
+			if st, err := a.core.GetSettings(); err == nil {
+				globalSig = st.AppGlobalSignature
+			}
+			sig := manager.ResolveSignatureAdvanced(manager.SignatureOpts{
+				Subscriber: sub,
+				GlobalSig:  globalSig,
+			})
+			renderedBody := fmt.Sprintf("System Prompt:\n%s\n\nSample User Task:\n%s", sysPromptStr, userPromptStr)
+			contentToWrap = manager.FormatPlainTextWithSignature(renderedBody, sig)
 		}
-		sig := manager.ResolveSignatureAdvanced(manager.SignatureOpts{
-			Subscriber: sub,
-			GlobalSig:  globalSig,
-		})
-		renderedBody := userPromptStr
-		if sysPromptStr != "" {
-			renderedBody = fmt.Sprintf("System Prompt:\n%s\n\nUser Prompt:\n%s", sysPromptStr, userPromptStr)
+
+		// If ParentTemplateID is set, wrap content in parent layout
+		if tpl.ParentTemplateID.Valid && tpl.ParentTemplateID.Int > 0 {
+			if parentTpl, err := a.core.GetTemplate(int(tpl.ParentTemplateID.Int), false); err == nil {
+				camp := models.Campaign{
+					UUID:         dummyUUID,
+					Name:         a.i18n.T("templates.dummyName"),
+					Subject:      a.i18n.T("templates.dummySubject"),
+					FromEmail:    "dummy-campaign@listmonk.app",
+					TemplateBody: parentTpl.Body,
+					Body:         contentToWrap,
+				}
+				if err := camp.CompileTemplate(a.manager.TemplateFuncs(&camp)); err == nil {
+					if msg, err := a.manager.NewCampaignMessage(&camp, sub); err == nil {
+						return msg.Body(), nil
+					}
+				}
+			}
 		}
-		finalContent := manager.FormatPlainTextWithSignature(renderedBody, sig)
-		return []byte(fmt.Sprintf("<!DOCTYPE html><html><body style='margin: 0; padding: 1.5em; background-color: #f9fafb;'><div style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #111827; white-space: pre-wrap; background: #ffffff; padding: 1.5em; border-radius: 6px; border: 1px solid #e5e7eb;'>%s</div></body></html>", html.EscapeString(finalContent))), nil
+
+		return []byte(fmt.Sprintf("<!DOCTYPE html><html><body style='margin: 0; padding: 1.5em; background-color: #f9fafb;'><div style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #111827; white-space: pre-wrap; background: #ffffff; padding: 1.5em; border-radius: 6px; border: 1px solid #e5e7eb;'>%s</div></body></html>", html.EscapeString(contentToWrap))), nil
 	} else if tpl.Type == models.TemplateTypeCampaign || tpl.Type == models.TemplateTypeCampaignVisual {
 		camp := models.Campaign{
 			UUID:         dummyUUID,

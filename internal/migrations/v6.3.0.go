@@ -67,10 +67,13 @@ func V6_3_0(db *sqlx.DB, fs stuffbin.FileSystem, ko *koanf.Koanf, lo *log.Logger
 		return err
 	}
 
-	// 4. Prompt Template & Bifrost AI support
+	// 4. Prompt Template & Bifrost AI support + Parent HTML Layout
 	if _, err := db.Exec(`
 		ALTER TYPE template_type ADD VALUE IF NOT EXISTS 'prompt';
-		ALTER TABLE templates ADD COLUMN IF NOT EXISTS system_prompt TEXT NOT NULL DEFAULT '';
+		ALTER TABLE templates
+			ADD COLUMN IF NOT EXISTS parent_template_id INTEGER NULL REFERENCES templates(id) ON DELETE SET NULL;
+		ALTER TABLE templates
+			DROP COLUMN IF EXISTS system_prompt;
 	`); err != nil {
 		return err
 	}

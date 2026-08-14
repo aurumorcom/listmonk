@@ -15,6 +15,7 @@ import (
 
 	"github.com/knadh/listmonk/internal/auth"
 	"github.com/knadh/listmonk/internal/notifs"
+	"github.com/knadh/listmonk/internal/utils"
 	"github.com/knadh/listmonk/models"
 	"github.com/labstack/echo/v4"
 	"github.com/lib/pq"
@@ -604,6 +605,13 @@ func (a *App) TestCampaign(c echo.Context) error {
 		targetEmail = user.Email.String
 	}
 	targetPhone := req.TestPhone
+	if targetPhone != "" {
+		if ph, err := utils.SanitizePhone(targetPhone); err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, a.i18n.T("subscribers.invalidPhone"))
+		} else {
+			targetPhone = ph
+		}
+	}
 
 	// Send the test messages.
 	for _, s := range subs {

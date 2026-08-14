@@ -38,7 +38,7 @@ func (m *CampaignMessage) render() error {
 	if m.pipe != nil && m.pipe.m != nil && m.pipe.m.bifrostClient != nil && m.Campaign != nil {
 		scope := ExtractTemplateScope(m.Subscriber)
 
-		sysPromptStr := m.Campaign.SystemPrompt
+		sysPromptStr := m.Campaign.TemplateBody
 		if m.Campaign.SystemPromptTpl != nil {
 			var sb bytes.Buffer
 			if err := m.Campaign.SystemPromptTpl.Execute(&sb, scope); err == nil {

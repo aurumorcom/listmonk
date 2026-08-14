@@ -14,9 +14,11 @@ import (
 	"github.com/knadh/listmonk/internal/i18n"
 	"github.com/knadh/listmonk/internal/notifs"
 	"github.com/knadh/listmonk/internal/subimporter"
+	"github.com/knadh/listmonk/internal/utils"
 	"github.com/knadh/listmonk/models"
 	"github.com/labstack/echo/v4"
 	"github.com/lib/pq"
+	null "gopkg.in/volatiletech/null.v6"
 )
 
 const (
@@ -328,6 +330,17 @@ func (a *App) UpdateSubscriber(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, a.i18n.T("subscribers.invalidName"))
 	}
 
+	// Sanitize and validate the phone field.
+	if req.Phone.Valid && strings.TrimSpace(req.Phone.String) != "" {
+		if ph, err := utils.SanitizePhone(req.Phone.String); err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, a.i18n.T("subscribers.invalidPhone"))
+		} else {
+			req.Phone = null.StringFrom(ph)
+		}
+	} else {
+		req.Phone = null.String{}
+	}
+
 	// Filter lists against the current user's permitted lists.
 	listIDs := user.FilterListsByPerm(auth.PermTypeManage, req.Lists)
 
@@ -415,6 +428,17 @@ func (a *App) PatchSubscriber(c echo.Context) error {
 
 	if req.Name != "" && !strHasLen(req.Name, 1, stdInputMaxLen) {
 		return echo.NewHTTPError(http.StatusBadRequest, a.i18n.T("subscribers.invalidName"))
+	}
+
+	// Sanitize and validate the phone field.
+	if req.Phone.Valid && strings.TrimSpace(req.Phone.String) != "" {
+		if ph, err := utils.SanitizePhone(req.Phone.String); err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, a.i18n.T("subscribers.invalidPhone"))
+		} else {
+			req.Phone = null.StringFrom(ph)
+		}
+	} else {
+		req.Phone = null.String{}
 	}
 
 	// If lists were explicitly sent, replace the existing subscriptions.

@@ -1,7 +1,7 @@
 -- templates
 -- name: get-templates
 -- Only if the second param ($2 - noBody) is true, body and body_source is returned.
-SELECT id, name, type, subject, system_prompt,
+SELECT id, name, type, subject, parent_template_id,
     (CASE WHEN $2 = false THEN body ELSE '' END) as body,
     (CASE WHEN $2 = false THEN body_source ELSE NULL END) as body_source,
     is_default, created_at, updated_at
@@ -9,15 +9,15 @@ SELECT id, name, type, subject, system_prompt,
     ORDER BY created_at;
 
 -- name: create-template
-INSERT INTO templates (name, type, subject, system_prompt, body, body_source) VALUES($1, $2, $3, $4, $5, $6) RETURNING id;
+INSERT INTO templates (name, type, subject, body, body_source, parent_template_id) VALUES($1, $2, $3, $4, $5, $6) RETURNING id;
 
 -- name: update-template
 UPDATE templates SET
     name=(CASE WHEN $2 != '' THEN $2 ELSE name END),
     subject=(CASE WHEN $3 != '' THEN $3 ELSE subject END),
-    system_prompt=(CASE WHEN $4 != '' THEN $4 ELSE system_prompt END),
-    body=(CASE WHEN $5 != '' THEN $5 ELSE body END),
-    body_source=(CASE WHEN $6 != '' THEN $6 ELSE body_source END),
+    body=(CASE WHEN $4 != '' THEN $4 ELSE body END),
+    body_source=(CASE WHEN $5 != '' THEN $5 ELSE body_source END),
+    parent_template_id=$6,
     updated_at=NOW()
 WHERE id = $1;
 

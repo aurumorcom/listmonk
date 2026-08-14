@@ -15,6 +15,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/knadh/listmonk/internal/utils"
 	"github.com/knadh/listmonk/models"
 )
 
@@ -128,7 +129,10 @@ func (w *Waha) Push(m models.Message) error {
 		return fmt.Errorf("subscriber %s missing phone attribute '%s'", m.Subscriber.UUID, w.o.PhoneAttribute)
 	}
 
-	chatID := formatChatID(phone)
+	chatID, err := formatChatID(phone)
+	if err != nil {
+		return fmt.Errorf("subscriber %s has invalid phone: %w", m.Subscriber.UUID, err)
+	}
 	session := w.o.Session
 	if m.MessengerSession != "" {
 		session = m.MessengerSession
@@ -349,14 +353,14 @@ const (
 	commonWordErrorMult   = 0.5
 	composedAccentErrMult = 2.0
 
-	speedBoostCommonWord  = 0.6
-	speedPenaltyComplex   = 1.3
-	speedBoostCloseKeys   = 0.5
-	speedBoostBigram      = 0.4
-	closeKeyThreshold     = 2.0
-	farKeyThreshold       = 4.0
-	farKeyPenalty         = 1.2
-	minSpeedMultiplier    = 0.15
+	speedBoostCommonWord = 0.6
+	speedPenaltyComplex  = 1.3
+	speedBoostCloseKeys  = 0.5
+	speedBoostBigram     = 0.4
+	closeKeyThreshold    = 2.0
+	farKeyThreshold      = 4.0
+	farKeyPenalty        = 1.2
+	minSpeedMultiplier   = 0.15
 
 	timeKeystrokeStd          = 0.03
 	timeBackspaceMean         = 0.12
@@ -798,13 +802,24 @@ func calculateHumanTypingDelay(body []byte, o Options) time.Duration {
 	return time.Duration(totalSec * float64(time.Second))
 }
 
-func formatChatID(phone string) string {
-	re := regexp.MustCompile(`[^\d]`)
-	cleaned := re.ReplaceAllString(phone, "")
-	if strings.HasSuffix(cleaned, "@c.us") {
-		return cleaned
+func formatChatID(phone string) (string, error) {
+	phone = strings.TrimSpace(phone)
+	if phone == "" {
+		return "", fmt.Errorf("empty phone number")
 	}
-	return cleaned + "@c.us"
+
+	target := phone
+	if strings.HasSuffix(target, "@c.us") {
+		target = strings.TrimSuffix(target, "@c.us")
+	}
+
+	sanitized, err := utils.SanitizePhone(target)
+	if err != nil {
+		return "", fmt.Errorf("invalid WhatsApp recipient phone '%s'", phone)
+	}
+
+	digits := strings.TrimPrefix(sanitized, "+")
+	return digits + "@c.us", nil
 }
 
 func extractPhone(attribs models.JSON, key string) string {

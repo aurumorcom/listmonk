@@ -31,8 +31,8 @@ There are several template functions and expressions that can be used in campaig
 - Campaign headers
 - Transactional message body and alt body
 - Transactional message subject
-- System Prompt (`system_prompt`)
-- User Prompt (`body` when `type = "prompt"`)
+- Prompt Templates (`body` when `type = "prompt"`)
+- Sequence Step User Prompt (`body`)
 
 ### Subscriber fields
 
