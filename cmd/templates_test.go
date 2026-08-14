@@ -76,7 +76,9 @@ func TestE2E_JIT_AI_Sequence_Contact(t *testing.T) {
 		Timeout:  5 * time.Second,
 	})
 
-	aiResult, err := bc.GeneratePrompt(bc.TimeoutContext(), "You are a sales rep", renderedPrompt.String())
+	ctx, cancel := bc.TimeoutContext()
+	aiResult, err := bc.GeneratePrompt(ctx, "You are a sales rep", renderedPrompt.String())
+	cancel()
 	if err != nil {
 		t.Fatalf("Bifrost AI prompt generation failed: %v", err)
 	}
@@ -148,7 +150,9 @@ func TestE2E_JIT_AI_Campaign_Subscriber(t *testing.T) {
 		Timeout:  5 * time.Second,
 	})
 
-	aiResult, err := bc.GeneratePrompt(bc.TimeoutContext(), "You are a marketing specialist", renderedPrompt.String())
+	ctx, cancel := bc.TimeoutContext()
+	aiResult, err := bc.GeneratePrompt(ctx, "You are a marketing specialist", renderedPrompt.String())
+	cancel()
 	if err != nil {
 		t.Fatalf("Bifrost AI prompt generation failed: %v", err)
 	}

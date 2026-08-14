@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/knadh/listmonk/internal/captcha"
+	"github.com/knadh/listmonk/internal/core"
 	"github.com/knadh/listmonk/internal/i18n"
 	"github.com/knadh/listmonk/internal/manager"
 	"github.com/knadh/listmonk/internal/notifs"
@@ -573,16 +574,48 @@ func (a *App) LinkRedirect(c echo.Context) error {
 		subUUID = ""
 	}
 
-	url, err := a.core.RegisterCampaignLinkClick(linkUUID, campUUID, subUUID)
+	// Extract headers and client metadata
+	headers := make(map[string]string)
+	for k, v := range c.Request().Header {
+		if len(v) > 0 {
+			headers[strings.ToLower(k)] = v[0]
+		}
+	}
+
+	isHoneypot := c.QueryParam("hp") == "1" || c.QueryParam("honeypot") == "1"
+	linkPos := c.QueryParam("pos")
+	variantID := c.QueryParam("v")
+	utms := make(map[string]string)
+	for _, utmKey := range []string{"utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"} {
+		if val := c.QueryParam(utmKey); val != "" {
+			utms[utmKey] = val
+		}
+	}
+
+	clientMeta := core.ParseClientMeta(
+		c.RealIP(),
+		c.Request().UserAgent(),
+		headers,
+		0,
+		isHoneypot,
+		nil,
+		variantID,
+		linkPos,
+		utms,
+	)
+
+	url, err := a.core.RegisterCampaignLinkClick(linkUUID, campUUID, subUUID, clientMeta)
 	if err != nil {
 		e := err.(*echo.HTTPError)
 		return c.Render(e.Code, tplMessage, makeMsgTpl(a.i18n.T("public.errorTitle"), "", e.Error()))
 	}
 
-	// Also record sequence click if campUUID represents a sequence
-	if sub, err := a.core.GetSubscriber(0, subUUID, ""); err == nil {
-		if seq, err := a.core.GetSequence(0, campUUID); err == nil {
-			_ = a.core.RecordSequenceClick(seq.ID, sub.ID)
+	// Record sequence click strictly for genuine human activity (bot activity is isolated)
+	if !clientMeta.IsBot {
+		if sub, err := a.core.GetSubscriber(0, subUUID, ""); err == nil {
+			if seq, err := a.core.GetSequence(0, campUUID); err == nil {
+				_ = a.core.RecordSequenceClick(seq.ID, sub.ID)
+			}
 		}
 	}
 
@@ -606,16 +639,39 @@ func (a *App) RegisterCampaignView(c echo.Context) error {
 		subUUID = ""
 	}
 
+	// Extract headers and client metadata
+	headers := make(map[string]string)
+	for k, v := range c.Request().Header {
+		if len(v) > 0 {
+			headers[strings.ToLower(k)] = v[0]
+		}
+	}
+
+	variantID := c.QueryParam("v")
+	clientMeta := core.ParseClientMeta(
+		c.RealIP(),
+		c.Request().UserAgent(),
+		headers,
+		0,
+		false,
+		nil,
+		variantID,
+		"",
+		nil,
+	)
+
 	// Exclude dummy hits from template previews.
 	campUUID := c.Param("campUUID")
 	if campUUID != dummyUUID && subUUID != dummyUUID {
-		if err := a.core.RegisterCampaignView(campUUID, subUUID); err != nil {
+		if err := a.core.RegisterCampaignView(campUUID, subUUID, clientMeta); err != nil {
 			a.log.Printf("error registering campaign view: %s", err)
 		}
-		// Also record sequence read if campUUID represents a sequence
-		if sub, err := a.core.GetSubscriber(0, subUUID, ""); err == nil {
-			if seq, err := a.core.GetSequence(0, campUUID); err == nil {
-				_ = a.core.RecordSequenceRead(seq.ID, sub.ID)
+		// Record sequence read strictly for genuine human activity (bot activity is isolated)
+		if !clientMeta.IsBot {
+			if sub, err := a.core.GetSubscriber(0, subUUID, ""); err == nil {
+				if seq, err := a.core.GetSequence(0, campUUID); err == nil {
+					_ = a.core.RecordSequenceRead(seq.ID, sub.ID)
+				}
 			}
 		}
 	}
