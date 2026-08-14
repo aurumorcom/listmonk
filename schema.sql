@@ -163,11 +163,25 @@ CREATE TABLE campaign_views (
 
     -- Subscribers may be deleted, but the view counts should remain.
     subscriber_id    INTEGER NULL REFERENCES subscribers(id) ON DELETE SET NULL ON UPDATE CASCADE,
+    ip_address       INET NULL,
+    geo_country      VARCHAR(2) NULL,
+    geo_region       VARCHAR(50) NULL,
+    geo_city         VARCHAR(100) NULL,
+    user_agent       TEXT NULL,
+    device_type      VARCHAR(20) NULL,
+    client_os        VARCHAR(50) NULL,
+    client_browser   VARCHAR(50) NULL,
+    is_proxy         BOOLEAN NOT NULL DEFAULT FALSE,
+    is_bot           BOOLEAN NOT NULL DEFAULT FALSE,
+    bot_type         VARCHAR(50) NULL,
+    sequence_step_id INTEGER NULL,
+    variant_id       VARCHAR(50) NULL,
     created_at       TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 DROP INDEX IF EXISTS idx_views_camp_id; CREATE INDEX idx_views_camp_id ON campaign_views(campaign_id);
 DROP INDEX IF EXISTS idx_views_subscriber_id; CREATE INDEX idx_views_subscriber_id ON campaign_views(subscriber_id);
 DROP INDEX IF EXISTS idx_views_date; CREATE INDEX idx_views_date ON campaign_views(created_at);
+DROP INDEX IF EXISTS idx_views_bot; CREATE INDEX idx_views_bot ON campaign_views(is_bot, campaign_id);
 
 -- media
 DROP TABLE IF EXISTS media CASCADE;
@@ -215,12 +229,29 @@ CREATE TABLE link_clicks (
 
     -- Subscribers may be deleted, but the link counts should remain.
     subscriber_id    INTEGER NULL REFERENCES subscribers(id) ON DELETE SET NULL ON UPDATE CASCADE,
+    ip_address       INET NULL,
+    geo_country      VARCHAR(2) NULL,
+    geo_region       VARCHAR(50) NULL,
+    geo_city         VARCHAR(100) NULL,
+    geo_asn          VARCHAR(255) NULL,
+    user_agent       TEXT NULL,
+    device_type      VARCHAR(20) NULL,
+    client_os        VARCHAR(50) NULL,
+    client_browser   VARCHAR(50) NULL,
+    email_client     VARCHAR(50) NULL,
+    is_bot           BOOLEAN NOT NULL DEFAULT FALSE,
+    bot_type         VARCHAR(50) NULL,
+    sequence_step_id INTEGER NULL,
+    variant_id       VARCHAR(50) NULL,
+    link_position    VARCHAR(50) NULL,
+    utm_params       JSONB DEFAULT '{}'::JSONB,
     created_at       TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 DROP INDEX IF EXISTS idx_clicks_camp_id; CREATE INDEX idx_clicks_camp_id ON link_clicks(campaign_id);
 DROP INDEX IF EXISTS idx_clicks_link_id; CREATE INDEX idx_clicks_link_id ON link_clicks(link_id);
 DROP INDEX IF EXISTS idx_clicks_sub_id; CREATE INDEX idx_clicks_sub_id ON link_clicks(subscriber_id);
 DROP INDEX IF EXISTS idx_clicks_date; CREATE INDEX idx_clicks_date ON link_clicks(created_at);
+DROP INDEX IF EXISTS idx_clicks_bot; CREATE INDEX idx_clicks_bot ON link_clicks(is_bot, campaign_id);
 
 -- settings
 DROP TABLE IF EXISTS settings CASCADE;
