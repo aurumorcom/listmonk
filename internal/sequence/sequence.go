@@ -203,7 +203,9 @@ func (m *Manager) ProcessBatch() error {
 						respFormat = manager.EmailResponseFormat()
 					}
 
-					aiBody, err := m.bifrostClient.GeneratePromptWithFormat(m.bifrostClient.TimeoutContext(), sysPromptStr, userPromptStr, respFormat)
+					ctx, cancel := m.bifrostClient.TimeoutContext()
+					aiBody, err := m.bifrostClient.GeneratePromptWithFormat(ctx, sysPromptStr, userPromptStr, respFormat)
+					cancel()
 					if err != nil {
 						m.log.Printf("Bifrost AI prompt generation failed for step %d, contact %d: %v", step.ID, contact.ID, err)
 						deferSend := null.TimeFrom(time.Now().Add(1 * time.Hour))
