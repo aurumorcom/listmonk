@@ -102,6 +102,7 @@ type Queries struct {
 	GetTemplates       *sqlx.Stmt `query:"get-templates"`
 	UpdateTemplate     *sqlx.Stmt `query:"update-template"`
 	SetDefaultTemplate *sqlx.Stmt `query:"set-default-template"`
+	CreateSchedule     *sqlx.Stmt `query:"create-schedule"`
 	SetDefaultSchedule *sqlx.Stmt `query:"set-default-schedule"`
 	DeleteTemplate     *sqlx.Stmt `query:"delete-template"`
 
