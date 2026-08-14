@@ -662,6 +662,19 @@ func (a *App) GetCampaignViewAnalytics(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, a.i18n.T("analytics.invalidDates"))
 	}
 
+	// Extended Campaign Analytics (overview, breakdowns, or bot analytics)
+	if typ == "overview" || typ == "analytics" {
+		var results []models.CampaignAnalytics
+		for _, id := range ids {
+			res, err := a.core.GetCampaignAnalytics(id, from, to)
+			if err != nil {
+				return err
+			}
+			results = append(results, *res)
+		}
+		return c.JSON(http.StatusOK, okResp{results})
+	}
+
 	// Campaign link stats.
 	if typ == "links" {
 		out, err := a.core.GetCampaignAnalyticsLinks(ids, typ, from, to)

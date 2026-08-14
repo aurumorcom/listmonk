@@ -100,18 +100,20 @@ type SequenceContact struct {
 
 // SequenceStepFunnel represents metrics for an individual sequence step in the conversion funnel.
 type SequenceStepFunnel struct {
-	StepNumber int    `json:"step_number"`
-	Subject    string `json:"subject"`
-	Messenger  string `json:"messenger"`
-	Reached    int    `json:"reached"`
-	Replied    int    `json:"replied"`
+	StepNumber int               `json:"step_number"`
+	Subject    string            `json:"subject"`
+	Messenger  string            `json:"messenger"`
+	Reached    int               `json:"reached"`
+	Replied    int               `json:"replied"`
+	Analytics  CampaignAnalytics `json:"analytics"`
 }
 
-// SequenceAnalytics aggregates metrics across cold outreach sequences.
+// SequenceAnalytics aggregates metrics across cold outreach sequences as a superset of CampaignAnalytics.
 type SequenceAnalytics struct {
-	ActiveContacts  int                  `json:"active_contacts"`
-	StepCompletions int                  `json:"step_completions"`
-	ReplyRate       float64              `json:"reply_rate"`
-	ConversionRate  float64              `json:"conversion_rate"`
-	Funnel          []SequenceStepFunnel `json:"funnel"`
+	ActiveContacts      int                  `json:"active_contacts"`
+	StepCompletions     int                  `json:"step_completions"`
+	ReplyRate           float64              `json:"reply_rate"`
+	ConversionRate      float64              `json:"conversion_rate"`
+	AggregatedAnalytics CampaignAnalytics    `json:"aggregated_analytics"`
+	Funnel              []SequenceStepFunnel `json:"funnel"`
 }

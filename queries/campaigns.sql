@@ -487,6 +487,24 @@ WITH view AS (
     LEFT JOIN subscribers ON (CASE WHEN $2::TEXT != '' THEN subscribers.uuid = $2::UUID ELSE FALSE END)
     WHERE campaigns.uuid = $1
 )
-INSERT INTO campaign_views (campaign_id, subscriber_id)
-    VALUES((SELECT campaign_id FROM view), (SELECT subscriber_id FROM view));
+INSERT INTO campaign_views (
+    campaign_id, subscriber_id, ip_address, geo_country, geo_region, geo_city,
+    user_agent, device_type, client_os, client_browser, is_proxy, is_bot, bot_type, sequence_step_id, variant_id
+) VALUES (
+    (SELECT campaign_id FROM view),
+    (SELECT subscriber_id FROM view),
+    NULLIF($3::TEXT, '')::INET,
+    NULLIF($4::TEXT, ''),
+    NULLIF($5::TEXT, ''),
+    NULLIF($6::TEXT, ''),
+    NULLIF($7::TEXT, ''),
+    NULLIF($8::TEXT, ''),
+    NULLIF($9::TEXT, ''),
+    NULLIF($10::TEXT, ''),
+    $11::BOOLEAN,
+    $12::BOOLEAN,
+    NULLIF($13::TEXT, ''),
+    $14::INTEGER,
+    NULLIF($15::TEXT, '')
+);
 

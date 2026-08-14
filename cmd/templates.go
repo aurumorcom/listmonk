@@ -288,7 +288,9 @@ func (a *App) previewTemplate(tpl models.Template, sub models.Subscriber) ([]byt
 		var contentToWrap string
 
 		if bc := a.manager.BifrostClient(); bc != nil {
-			aiBody, err := bc.GeneratePromptWithFormat(bc.TimeoutContext(), sysPromptStr, userPromptStr, manager.EmailResponseFormat())
+			ctx, cancel := bc.TimeoutContext()
+			aiBody, err := bc.GeneratePromptWithFormat(ctx, sysPromptStr, userPromptStr, manager.EmailResponseFormat())
+			cancel()
 			if err == nil && aiBody != "" {
 				cleanBody := manager.CleanJSONResponse(aiBody)
 				var emailOut manager.EmailStructuredOutput

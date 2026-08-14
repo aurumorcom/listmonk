@@ -301,6 +301,26 @@ func TestSequenceAnalytics_DataStructure(t *testing.T) {
 		StepCompletions: 45,
 		ReplyRate:       12.5,
 		ConversionRate:  8.3,
+		AggregatedAnalytics: models.CampaignAnalytics{
+			Sent:    100,
+			ToSend:  20,
+			Bounces: 2,
+			Views: models.CampaignViewStats{
+				Total:       80,
+				Unique:      60,
+				HumanTotal:  50,
+				HumanUnique: 45,
+				BotTotal:    30,
+			},
+			Clicks: models.CampaignClickStats{
+				Total:       35,
+				Unique:      25,
+				HumanTotal:  20,
+				HumanUnique: 18,
+				BotClicks:   15,
+				CTOR:        40.0,
+			},
+		},
 		Funnel: []models.SequenceStepFunnel{
 			{
 				StepNumber: 1,
@@ -308,6 +328,17 @@ func TestSequenceAnalytics_DataStructure(t *testing.T) {
 				Messenger:  "email",
 				Reached:    20,
 				Replied:    3,
+				Analytics: models.CampaignAnalytics{
+					Sent: 20,
+					Views: models.CampaignViewStats{
+						Total:       18,
+						HumanUnique: 12,
+					},
+					Clicks: models.CampaignClickStats{
+						Total:       8,
+						HumanUnique: 5,
+					},
+				},
 			},
 			{
 				StepNumber: 2,
@@ -328,7 +359,13 @@ func TestSequenceAnalytics_DataStructure(t *testing.T) {
 	if analytics.Funnel[0].Reached != 20 {
 		t.Fatalf("expected 20 reached for step 1, got %d", analytics.Funnel[0].Reached)
 	}
-	t.Log("Successfully verified SequenceAnalytics model aggregation structure")
+	if analytics.AggregatedAnalytics.Views.HumanUnique != 45 {
+		t.Fatalf("expected 45 human unique views in aggregated analytics, got %d", analytics.AggregatedAnalytics.Views.HumanUnique)
+	}
+	if analytics.Funnel[0].Analytics.Clicks.HumanUnique != 5 {
+		t.Fatalf("expected 5 human unique clicks in step 1 analytics, got %d", analytics.Funnel[0].Analytics.Clicks.HumanUnique)
+	}
+	t.Log("Successfully verified SequenceAnalytics superset model aggregation structure")
 }
 
 func TestUserChannelOwnership_And_CrossChannelLock(t *testing.T) {

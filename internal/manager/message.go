@@ -52,7 +52,9 @@ func (m *CampaignMessage) render() error {
 				userPromptStr := userBuf.String()
 
 				// Run JIT generation via Bifrost SDK with EmailResponseFormat guide
-				aiBody, err := m.pipe.m.bifrostClient.GeneratePromptWithFormat(m.pipe.m.bifrostClient.TimeoutContext(), sysPromptStr, userPromptStr, EmailResponseFormat())
+				ctx, cancel := m.pipe.m.bifrostClient.TimeoutContext()
+				aiBody, err := m.pipe.m.bifrostClient.GeneratePromptWithFormat(ctx, sysPromptStr, userPromptStr, EmailResponseFormat())
+				cancel()
 				if err == nil && aiBody != "" {
 					cleanBody := CleanJSONResponse(aiBody)
 					var structOut EmailStructuredOutput
