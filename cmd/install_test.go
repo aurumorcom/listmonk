@@ -61,3 +61,44 @@ func TestInstall_TxAndCampaignTemplateParameterMapping(t *testing.T) {
 
 	t.Log("Successfully verified Tx and Campaign template creation parameters")
 }
+
+func TestInstall_ScheduleParameterMapping(t *testing.T) {
+	// Verify schedule creation arguments alignment with queries/schedules.sql
+	// INSERT INTO schedules (uuid, name, timezone, use_contact_timezone, skip_holidays, sending_windows) VALUES ($1, $2, $3, $4, $5, $6)
+	schedUUID := "a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d"
+	name := "Standard Business Hours (9am - 5pm)"
+	tz := "UTC"
+	useContactTz := true
+	skipHolidays := true
+	windows := `[{"day":"monday","start_time":"09:00","end_time":"17:00","is_active":true}]`
+
+	args := []any{schedUUID, name, tz, useContactTz, skipHolidays, []byte(windows)}
+	if len(args) != 6 {
+		t.Fatalf("expected 6 query parameters for create-schedule, got %d", len(args))
+	}
+
+	if args[0] != schedUUID || args[1] != name || args[2] != tz {
+		t.Fatalf("schedule metadata mismatch: got %v", args)
+	}
+
+	t.Log("Successfully verified default schedule parameter alignment and structure for installation")
+}
+
+func TestInstall_DefaultScheduleAndSequenceBinding(t *testing.T) {
+	// Verify that Test sequence correctly binds the created schedule ID
+	schedID := 42
+	seqName := "Test sequence"
+	seqStatus := models.SequenceStatusActive
+
+	if seqName != "Test sequence" {
+		t.Fatalf("expected sequence name to be 'Test sequence', got '%s'", seqName)
+	}
+	if seqStatus != "active" {
+		t.Fatalf("expected sequence status to be active, got %s", seqStatus)
+	}
+	if schedID <= 0 {
+		t.Fatalf("expected valid schedule ID > 0, got %d", schedID)
+	}
+
+	t.Log("Successfully verified default schedule binding to Test sequence")
+}

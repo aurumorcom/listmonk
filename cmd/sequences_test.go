@@ -730,11 +730,11 @@ func TestSeededTeamDemoSequence_InstantStep4Condition(t *testing.T) {
 func TestInstall_SeededResources_Structure(t *testing.T) {
 	// Verify seeded sequence metadata
 	seqUUID := "00000000-0000-0000-0000-000000000001"
-	seqName := "Internal Team Demo (WhatsApp + Email in 2 Mins)"
-	seqDesc := "Rapid 6-step interactive sequence demonstrating instant WAHA read receipts, email handoffs, and link clicks"
+	seqName := "Test sequence"
+	seqDesc := "Sample multi-step outreach sequence with delivery window schedule and link tracking"
 
-	if seqUUID == "" || seqName == "" || seqDesc == "" {
-		t.Fatal("seeded sequence metadata cannot be empty")
+	if seqUUID == "" || seqName != "Test sequence" || seqDesc == "" {
+		t.Fatal("seeded sequence metadata mismatch")
 	}
 
 	// Verify sample campaign defaults

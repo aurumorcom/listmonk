@@ -72,11 +72,14 @@ func install(lastVer string, db *sqlx.DB, fs stuffbin.FileSystem, prompt, idempo
 	// Templates.
 	campTplID, archiveTplID := installTemplates(q)
 
+	// Schedules.
+	schedID := installSchedule(q)
+
 	// Sample campaign.
 	installCampaign(defList, campTplID, archiveTplID, q)
 
 	// Sample sequence.
-	installSequence(campTplID, archiveTplID, q)
+	installSequence(campTplID, archiveTplID, schedID, q)
 
 	// Setup admin user optionally.
 	var (
@@ -280,15 +283,43 @@ func installCampaign(defListID, campTplID, archiveTplID int, q *models.Queries) 
 	}
 }
 
-func installSequence(campTplID, archiveTplID int, q *models.Queries) {
+func installSchedule(q *models.Queries) int {
+	var sched models.Schedule
+	defaultWindows := json.RawMessage(`[
+		{"day": "monday", "start_time": "09:00", "end_time": "17:00", "is_active": true},
+		{"day": "tuesday", "start_time": "09:00", "end_time": "17:00", "is_active": true},
+		{"day": "wednesday", "start_time": "09:00", "end_time": "17:00", "is_active": true},
+		{"day": "thursday", "start_time": "09:00", "end_time": "17:00", "is_active": true},
+		{"day": "friday", "start_time": "09:00", "end_time": "17:00", "is_active": true}
+	]`)
+
+	if err := q.CreateSchedule.Get(&sched,
+		uuid.Must(uuid.NewV4()).String(),
+		"Standard Business Hours (9am - 5pm)",
+		"UTC",
+		true,
+		true,
+		defaultWindows,
+	); err != nil {
+		lo.Fatalf("error creating default schedule: %v", err)
+	}
+
+	if _, err := q.SetDefaultSchedule.Exec(sched.ID); err != nil {
+		lo.Fatalf("error setting default schedule: %v", err)
+	}
+
+	return sched.ID
+}
+
+func installSequence(campTplID, archiveTplID, schedID int, q *models.Queries) {
 	var seq models.Sequence
 	if err := q.CreateSequence.Get(&seq,
 		uuid.Must(uuid.NewV4()).String(),
-		"Internal Team Demo (WhatsApp + Email in 2 Mins)",
-		"Rapid 6-step interactive sequence demonstrating instant WAHA read receipts, email handoffs, and link clicks",
+		"Test sequence",
+		"Sample multi-step outreach sequence with delivery window schedule and link tracking",
 		models.SequenceStatusActive,
-		nil,
-		json.RawMessage(`{"days": ["mon","tue","wed","thu","fri","sat","sun"], "start_time": "00:00", "end_time": "23:59"}`),
+		schedID,
+		json.RawMessage(`{"days": ["mon","tue","wed","thu","fri"], "start_time": "09:00", "end_time": "17:00"}`),
 		pq.Int64Array{},
 		pq.StringArray{"default"},
 		false,
