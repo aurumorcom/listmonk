@@ -73,7 +73,7 @@ func install(lastVer string, db *sqlx.DB, fs stuffbin.FileSystem, prompt, idempo
 	campTplID, archiveTplID := installTemplates(q)
 
 	// Sample campaign.
-	installCampaign(campTplID, archiveTplID, q)
+	installCampaign(defList, campTplID, archiveTplID, q)
 
 	// Sample sequence.
 	installSequence(campTplID, archiveTplID, q)
@@ -243,9 +243,10 @@ func installTemplates(q *models.Queries) (int, int) {
 	return campTplID, archiveTplID
 }
 
-func installCampaign(campTplID, archiveTplID int, q *models.Queries) {
+func installCampaign(defListID, campTplID, archiveTplID int, q *models.Queries) {
 	// Sample campaign.
-	if _, err := q.CreateCampaign.Exec(uuid.Must(uuid.NewV4()),
+	var campID int
+	if err := q.CreateCampaign.Get(&campID, uuid.Must(uuid.NewV4()),
 		models.CampaignTypeRegular,
 		"Test campaign",
 		"Welcome to listmonk",
@@ -258,7 +259,7 @@ func installCampaign(campTplID, archiveTplID int, q *models.Queries) {
 		<pre>&lt;a href=&quot;https:/&zwnj;/listmonk.app&#064;TrackLink&quot;&gt;&lt;/a&gt;</pre>
 		<p>For help, refer to the <a href="https://listmonk.app/docs">documentation</a>.</p>
 		`,
-		nil,
+		"",
 		"richtext",
 		nil,
 		json.RawMessage("[]"),
@@ -266,17 +267,16 @@ func installCampaign(campTplID, archiveTplID int, q *models.Queries) {
 		pq.StringArray{"test-campaign"},
 		emailMsgr,
 		campTplID,
-		pq.Int64Array{1},
+		pq.Int64Array{int64(defListID)},
 		false,
 		"welcome-to-listmonk",
 		archiveTplID,
-		`{"name": "Subscriber"}`,
-		nil,
+		json.RawMessage(`{"name": "Subscriber"}`),
+		pq.Int64Array{},
 		nil,
 	); err != nil {
 		lo.Fatalf("error creating sample campaign: %v", err)
 	}
-
 }
 
 func installSequence(campTplID, archiveTplID int, q *models.Queries) {
