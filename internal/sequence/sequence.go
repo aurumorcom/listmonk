@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	htmltpl "html/template"
 	"log"
 	"net/textproto"
 	"strings"
@@ -180,41 +181,19 @@ func (m *Manager) ProcessBatch() error {
 			if err == nil && tpl.Type == models.TemplateTypePrompt {
 				scope := manager.ExtractTemplateScope(contact)
 
-				sysPromptStr := tpl.SystemPrompt
-				if tpl.SystemPromptTpl != nil {
+				sysPromptStr := tpl.Body
+				if st, err := txttpl.New("sys").Parse(sysPromptStr); err == nil {
 					var sb bytes.Buffer
-					if err := tpl.SystemPromptTpl.Execute(&sb, scope); err == nil {
+					if err := st.Execute(&sb, scope); err == nil {
 						sysPromptStr = sb.String()
-					}
-				} else if sysPromptStr != "" {
-					if st, err := txttpl.New("sys").Parse(sysPromptStr); err == nil {
-						var sb bytes.Buffer
-						if err := st.Execute(&sb, scope); err == nil {
-							sysPromptStr = sb.String()
-						}
 					}
 				}
 
 				userPromptStr := step.Body
-				if userPromptStr == "" {
-					userPromptStr = tpl.Body
-				}
-				if tpl.UserPromptTpl != nil {
+				if ut, err := txttpl.New("user").Parse(userPromptStr); err == nil {
 					var ub bytes.Buffer
-					if err := tpl.UserPromptTpl.Execute(&ub, scope); err == nil {
+					if err := ut.Execute(&ub, scope); err == nil {
 						userPromptStr = ub.String()
-					}
-				} else if tpl.Tpl != nil {
-					var ub bytes.Buffer
-					if err := tpl.Tpl.Execute(&ub, scope); err == nil {
-						userPromptStr = ub.String()
-					}
-				} else if userPromptStr != "" {
-					if ut, err := txttpl.New("user").Parse(userPromptStr); err == nil {
-						var ub bytes.Buffer
-						if err := ut.Execute(&ub, scope); err == nil {
-							userPromptStr = ub.String()
-						}
 					}
 				}
 
@@ -242,6 +221,7 @@ func (m *Manager) ProcessBatch() error {
 						}
 					} else {
 						var emailOut manager.EmailStructuredOutput
+						var finalContent string
 						if err := json.Unmarshal([]byte(cleanBody), &emailOut); err == nil && emailOut.Content != "" {
 							if emailOut.Subject != "" {
 								msg.Subject = emailOut.Subject
@@ -257,10 +237,35 @@ func (m *Manager) ProcessBatch() error {
 								Email:      activeEmail,
 								User:       assignedUser,
 							})
-							finalContent := manager.FormatPlainTextWithSignature(emailOut.Content, sig)
-							msg.Body = []byte(finalContent)
+							finalContent = manager.FormatPlainTextWithSignature(emailOut.Content, sig)
 						} else {
-							msg.Body = []byte(aiBody)
+							finalContent = aiBody
+						}
+
+						// If prompt template specifies a parent HTML layout wrapper, wrap content in parent template
+						if tpl.ParentTemplateID.Valid && tpl.ParentTemplateID.Int > 0 {
+							if parentTpl, err := m.core.GetTemplate(int(tpl.ParentTemplateID.Int), false); err == nil {
+								camp := models.Campaign{
+									UUID:         uuid.Must(uuid.NewV4()).String(),
+									Subject:      msg.Subject,
+									TemplateBody: parentTpl.Body,
+									Body:         finalContent,
+								}
+								if err := camp.CompileTemplate(htmltpl.FuncMap{}); err == nil {
+									var buf bytes.Buffer
+									if err := camp.Tpl.ExecuteTemplate(&buf, models.BaseTpl, scope); err == nil {
+										msg.Body = buf.Bytes()
+									} else {
+										msg.Body = []byte(finalContent)
+									}
+								} else {
+									msg.Body = []byte(finalContent)
+								}
+							} else {
+								msg.Body = []byte(finalContent)
+							}
+						} else {
+							msg.Body = []byte(finalContent)
 						}
 					}
 				}

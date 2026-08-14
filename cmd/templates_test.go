@@ -11,6 +11,7 @@ import (
 
 	"github.com/knadh/listmonk/internal/manager"
 	"github.com/knadh/listmonk/models"
+	null "gopkg.in/volatiletech/null.v6"
 )
 
 func TestE2E_JIT_AI_Sequence_Contact(t *testing.T) {
@@ -328,4 +329,20 @@ func TestE2E_MostPopulated_Subscriber_Preview_Selection(t *testing.T) {
 	}
 
 	t.Log("Successfully verified explicit subscriber ID selection, most-populated CRM contact fallback, and empty DB dummy fallback")
+}
+
+func TestTemplate_ParentTemplateID_Persistence(t *testing.T) {
+	tpl := models.Template{
+		Name: "Prompt with Parent Layout",
+		Type: models.TemplateTypePrompt,
+		Body: "You are a helpful assistant.",
+	}
+	if tpl.ParentTemplateID.Valid {
+		t.Errorf("expected ParentTemplateID to be null initially")
+	}
+
+	tpl.ParentTemplateID = null.IntFrom(42)
+	if !tpl.ParentTemplateID.Valid || tpl.ParentTemplateID.Int != 42 {
+		t.Errorf("expected ParentTemplateID to be valid and 42, got %v", tpl.ParentTemplateID)
+	}
 }

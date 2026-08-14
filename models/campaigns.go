@@ -64,7 +64,6 @@ type Campaign struct {
 	TemplateBody        string             `db:"template_body" json:"-"`
 	ArchiveTemplateBody string             `db:"archive_template_body" json:"-"`
 	TemplateType        string             `db:"template_type" json:"-"`
-	SystemPrompt        string             `db:"system_prompt" json:"-"`
 	Tpl                 *template.Template `json:"-"`
 	SubjectTpl          *txttpl.Template   `json:"-"`
 	SystemPromptTpl     *txttpl.Template   `json:"-"`
@@ -157,9 +156,9 @@ func (c *Campaign) CompileTemplate(f template.FuncMap) error {
 		c.SubjectTpl = subjTpl
 	}
 
-	// If system prompt is set, compile it.
-	if c.SystemPrompt != "" && hasTplExpr(c.SystemPrompt) {
-		sysPrompt := c.SystemPrompt
+	// If template is prompt type, compile template body as system prompt.
+	if c.TemplateType == TemplateTypePrompt && c.TemplateBody != "" && hasTplExpr(c.TemplateBody) {
+		sysPrompt := c.TemplateBody
 		for _, r := range regTplFuncs {
 			sysPrompt = r.regExp.ReplaceAllString(sysPrompt, r.replace)
 		}

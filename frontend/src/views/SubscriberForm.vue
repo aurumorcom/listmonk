@@ -31,8 +31,8 @@
             </b-field>
           </div>
           <div class="column is-6">
-            <b-field label="Phone Number" label-position="on-border">
-              <b-input :maxlength="50" v-model="form.phone" name="phone" placeholder="+15550192834" />
+            <b-field label="Phone Number" label-position="on-border" message="Include country code (e.g. +14155552671)">
+              <b-input :maxlength="50" v-model="form.phone" name="phone" placeholder="+14155552671" pattern="^\+?[1-9][0-9\s\-()]{6,18}$" />
             </b-field>
           </div>
         </div>

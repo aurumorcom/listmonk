@@ -79,17 +79,17 @@ DROP INDEX IF EXISTS idx_sub_lists_status; CREATE INDEX idx_sub_lists_status ON 
 -- templates
 DROP TABLE IF EXISTS templates CASCADE;
 CREATE TABLE templates (
-    id              SERIAL PRIMARY KEY,
-    name            TEXT NOT NULL,
-    type            template_type NOT NULL DEFAULT 'campaign',
-    subject         TEXT NOT NULL,
-    system_prompt   TEXT NOT NULL DEFAULT '',
-    body            TEXT NOT NULL,
-    body_source     TEXT NULL,
-    is_default      BOOLEAN NOT NULL DEFAULT false,
+    id                  SERIAL PRIMARY KEY,
+    name                TEXT NOT NULL,
+    type                template_type NOT NULL DEFAULT 'campaign',
+    subject             TEXT NOT NULL,
+    parent_template_id  INTEGER REFERENCES templates(id) ON DELETE SET NULL,
+    body                TEXT NOT NULL,
+    body_source         TEXT NULL,
+    is_default          BOOLEAN NOT NULL DEFAULT false,
 
-    created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    created_at          TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at          TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 CREATE UNIQUE INDEX ON templates (is_default) WHERE is_default = true;
 

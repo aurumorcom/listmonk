@@ -123,11 +123,11 @@ Create a template.
 | Name          | Type   | Required | Description                                                                   |
 |:--------------|:-------|:---------|:------------------------------------------------------------------------------|
 | name          | string | Yes      | Name of the template                                                          |
-| type          | string | Yes      | Type of the template (`campaign`, `campaign_visual`, `tx`, or `prompt`)        |
-| subject       | string |          | Subject line for the template (only for `tx`)                                 |
-| system_prompt | string |          | System prompt instructions (only for `prompt` templates)                      |
-| body_source   | string |          | If type is `campaign_visual`, the JSON source for the email-builder template |
-| body          | string | Yes      | HTML body / User prompt content of the template                               |
+| type               | string | Yes      | Type of the template (`campaign`, `campaign_visual`, `tx`, or `prompt`)        |
+| subject            | string |          | Subject line for the template (only for `tx`)                                 |
+| parent_template_id | int    |          | Optional Parent HTML Layout template ID (only for `prompt` templates)         |
+| body_source        | string |          | If type is `campaign_visual`, the JSON source for the email-builder template |
+| body               | string | Yes      | HTML body / System prompt content of the template                             |
 
 ##### Example Request
 

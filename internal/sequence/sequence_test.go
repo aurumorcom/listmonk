@@ -186,3 +186,28 @@ func TestSequenceManagerSetBifrostClient(t *testing.T) {
 		t.Errorf("expected bifrostClient to be set on sequence manager")
 	}
 }
+
+func TestSequence_ParentHTMLLayoutWrapping(t *testing.T) {
+	parentTpl := models.Template{
+		Base: models.Base{ID: 10},
+		Name: "Parent Layout",
+		Type: models.TemplateTypeCampaign,
+		Body: `<html><body><div class="card">{{ template "content" . }}</div></body></html>`,
+	}
+
+	aiContent := "<p>Generated AI Email Body</p>"
+	camp := models.Campaign{
+		UUID:         "test-uuid",
+		Subject:      "Test Subject",
+		TemplateBody: parentTpl.Body,
+		Body:         aiContent,
+	}
+
+	if err := camp.CompileTemplate(nil); err != nil {
+		t.Fatalf("failed to compile parent template wrapper: %v", err)
+	}
+
+	if camp.Tpl == nil {
+		t.Fatalf("expected compiled camp.Tpl")
+	}
+}

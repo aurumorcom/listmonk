@@ -14,27 +14,38 @@ import (
 
 func TestFormatChatID(t *testing.T) {
 	tests := []struct {
-		input    string
-		expected string
+		name      string
+		input     string
+		expected  string
+		expectErr bool
 	}{
-		{"+1 (555) 019-2834", "15550192834@c.us"},
-		{"15550192834@c.us", "15550192834@c.us"},
-		{"555-123-4567", "5551234567@c.us"},
+		{"formatted US phone", "+1 (415) 555-2671", "14155552671@c.us", false},
+		{"already formatted chat ID", "14155552671@c.us", "14155552671@c.us", false},
+		{"valid UK phone", "+44 20 7946 0958", "442079460958@c.us", false},
+		{"valid India phone", "+91 94723 80340", "919472380340@c.us", false},
+		{"invalid phone missing country code", "0712345678", "", true},
+		{"invalid random string", "invalid-phone", "", true},
+		{"empty phone", "", "", true},
 	}
 
 	for _, tt := range tests {
-		res := formatChatID(tt.input)
-		if res != tt.expected {
-			t.Errorf("formatChatID(%s) = %s; want %s", tt.input, res, tt.expected)
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			res, err := formatChatID(tt.input)
+			if (err != nil) != tt.expectErr {
+				t.Fatalf("formatChatID(%q) error = %v, expectErr %v", tt.input, err, tt.expectErr)
+			}
+			if res != tt.expected {
+				t.Errorf("formatChatID(%q) = %q; want %q", tt.input, res, tt.expected)
+			}
+		})
 	}
 }
 
 func TestExtractPhone(t *testing.T) {
-	attribs := models.JSON{"phone": "+15550192834"}
+	attribs := models.JSON{"phone": "+14155552671"}
 	res := extractPhone(attribs, "phone")
-	if res != "+15550192834" {
-		t.Errorf("extractPhone() = %s; want +15550192834", res)
+	if res != "+14155552671" {
+		t.Errorf("extractPhone() = %s; want +14155552671", res)
 	}
 
 	missing := extractPhone(attribs, "nonexistent")
@@ -151,7 +162,7 @@ func TestWahaPushSequence(t *testing.T) {
 		t.Fatalf("failed to create WAHA messenger: %v", err)
 	}
 
-	attribs := models.JSON{"phone": "+15550192834"}
+	attribs := models.JSON{"phone": "+14155552671"}
 	msg := models.Message{
 		Subscriber: models.Subscriber{
 			UUID:    "test-uuid",
