@@ -163,10 +163,9 @@ func NewBifrostClient(cfg BifrostConfig) *BifrostClient {
 	}
 }
 
-// TimeoutContext returns a new context with the configured Bifrost timeout.
-func (b *BifrostClient) TimeoutContext() context.Context {
-	ctx, _ := context.WithTimeout(context.Background(), b.cfg.Timeout)
-	return ctx
+// TimeoutContext returns a new context with the configured Bifrost timeout and its cancel function.
+func (b *BifrostClient) TimeoutContext() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), b.cfg.Timeout)
 }
 
 // CleanJSONResponse strips markdown code block fences (e.g. ```json ... ```) from LLM output.
