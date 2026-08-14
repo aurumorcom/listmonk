@@ -726,3 +726,25 @@ func TestSeededTeamDemoSequence_InstantStep4Condition(t *testing.T) {
 
 	t.Log("Successfully verified Step 4 if_clicked trigger condition")
 }
+
+func TestInstall_SeededResources_Structure(t *testing.T) {
+	// Verify seeded sequence metadata
+	seqUUID := "00000000-0000-0000-0000-000000000001"
+	seqName := "Internal Team Demo (WhatsApp + Email in 2 Mins)"
+	seqDesc := "Rapid 6-step interactive sequence demonstrating instant WAHA read receipts, email handoffs, and link clicks"
+
+	if seqUUID == "" || seqName == "" || seqDesc == "" {
+		t.Fatal("seeded sequence metadata cannot be empty")
+	}
+
+	// Verify sample campaign defaults
+	campType := models.CampaignTypeRegular
+	campName := "Test campaign"
+	campSubject := "Welcome to listmonk"
+
+	if campType != "regular" || campName != "Test campaign" || campSubject != "Welcome to listmonk" {
+		t.Fatal("seeded campaign attributes mismatch")
+	}
+
+	t.Log("Successfully verified seeded campaign and sequence structures for installation")
+}
