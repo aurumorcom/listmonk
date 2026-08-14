@@ -958,6 +958,17 @@ func CalculatePacedScheduleTimestamps(sched models.SequenceSchedule, loc *time.L
 func (c *Core) GetSequenceAnalytics() (*models.SequenceAnalytics, error) {
 	out := &models.SequenceAnalytics{
 		Funnel: []models.SequenceStepFunnel{},
+		AggregatedAnalytics: models.CampaignAnalytics{
+			Breakdowns: models.CampaignBreakdownStats{
+				Devices:   []models.DeviceBreakdown{},
+				Locations: []models.LocationBreakdown{},
+				Links:     []models.CampaignAnalyticsLink{},
+				Variants:  []models.VariantPerformance{},
+				Bots: models.CampaignBotStats{
+					BotTypeBreakdown: make(map[string]int),
+				},
+			},
+		},
 	}
 
 	// 1. Query active contacts (status 'scheduled' or 'in_progress')
@@ -983,9 +994,52 @@ func (c *Core) GetSequenceAnalytics() (*models.SequenceAnalytics, error) {
 		out.ConversionRate = (float64(totalFinished) / float64(totalEnrolled)) * 100.0
 	}
 
-	// 4. Query funnel steps
+	// 4. Query Aggregated Views across all sequence views
+	viewRow := c.db.QueryRowx(`
+		SELECT
+			COALESCE(COUNT(*), 0) AS total,
+			COALESCE(COUNT(DISTINCT subscriber_id), 0) AS unique_views,
+			COALESCE(COUNT(*) FILTER (WHERE is_bot = FALSE), 0) AS human_total,
+			COALESCE(COUNT(DISTINCT subscriber_id) FILTER (WHERE is_bot = FALSE), 0) AS human_unique,
+			COALESCE(COUNT(*) FILTER (WHERE is_bot = TRUE), 0) AS bot_total,
+			COALESCE(COUNT(*) FILTER (WHERE is_proxy = TRUE), 0) AS proxy_mpp_total
+		FROM campaign_views
+		WHERE sequence_step_id IS NOT NULL`)
+	_ = viewRow.Scan(
+		&out.AggregatedAnalytics.Views.Total,
+		&out.AggregatedAnalytics.Views.Unique,
+		&out.AggregatedAnalytics.Views.HumanTotal,
+		&out.AggregatedAnalytics.Views.HumanUnique,
+		&out.AggregatedAnalytics.Views.BotTotal,
+		&out.AggregatedAnalytics.Views.ProxyMPPTotal,
+	)
+
+	// 5. Query Aggregated Clicks across all sequence clicks
+	clickRow := c.db.QueryRowx(`
+		SELECT
+			COALESCE(COUNT(*), 0) AS total,
+			COALESCE(COUNT(DISTINCT subscriber_id), 0) AS unique_clicks,
+			COALESCE(COUNT(*) FILTER (WHERE is_bot = FALSE), 0) AS human_total,
+			COALESCE(COUNT(DISTINCT subscriber_id) FILTER (WHERE is_bot = FALSE), 0) AS human_unique,
+			COALESCE(COUNT(*) FILTER (WHERE is_bot = TRUE), 0) AS bot_clicks
+		FROM link_clicks
+		WHERE sequence_step_id IS NOT NULL`)
+	_ = clickRow.Scan(
+		&out.AggregatedAnalytics.Clicks.Total,
+		&out.AggregatedAnalytics.Clicks.Unique,
+		&out.AggregatedAnalytics.Clicks.HumanTotal,
+		&out.AggregatedAnalytics.Clicks.HumanUnique,
+		&out.AggregatedAnalytics.Clicks.BotClicks,
+	)
+
+	if out.AggregatedAnalytics.Views.HumanUnique > 0 {
+		out.AggregatedAnalytics.Clicks.CTOR = (float64(out.AggregatedAnalytics.Clicks.HumanUnique) / float64(out.AggregatedAnalytics.Views.HumanUnique)) * 100.0
+	}
+
+	// 6. Query funnel steps with step-level analytics
 	rows, err := c.db.Queryx(`
-		SELECT 
+		SELECT
+			st.id,
 			st.step_number,
 			COALESCE(st.subject, '') AS subject,
 			COALESCE(st.messenger, 'email') AS messenger,
@@ -997,8 +1051,37 @@ func (c *Core) GetSequenceAnalytics() (*models.SequenceAnalytics, error) {
 	if err == nil {
 		defer rows.Close()
 		for rows.Next() {
-			var f models.SequenceStepFunnel
-			if err := rows.Scan(&f.StepNumber, &f.Subject, &f.Messenger, &f.Reached, &f.Replied); err == nil {
+			var (
+				stepID int
+				f      models.SequenceStepFunnel
+			)
+			f.Analytics = models.CampaignAnalytics{
+				Breakdowns: models.CampaignBreakdownStats{
+					Bots: models.CampaignBotStats{
+						BotTypeBreakdown: make(map[string]int),
+					},
+				},
+			}
+			if err := rows.Scan(&stepID, &f.StepNumber, &f.Subject, &f.Messenger, &f.Reached, &f.Replied); err == nil {
+				// Query step-level views and clicks
+				_ = c.db.QueryRowx(`
+					SELECT
+						COALESCE(COUNT(*), 0) AS total,
+						COALESCE(COUNT(DISTINCT subscriber_id) FILTER (WHERE is_bot = FALSE), 0) AS human_unique
+					FROM campaign_views WHERE sequence_step_id = $1`, stepID).Scan(
+					&f.Analytics.Views.Total,
+					&f.Analytics.Views.HumanUnique,
+				)
+
+				_ = c.db.QueryRowx(`
+					SELECT
+						COALESCE(COUNT(*), 0) AS total,
+						COALESCE(COUNT(DISTINCT subscriber_id) FILTER (WHERE is_bot = FALSE), 0) AS human_unique
+					FROM link_clicks WHERE sequence_step_id = $1`, stepID).Scan(
+					&f.Analytics.Clicks.Total,
+					&f.Analytics.Clicks.HumanUnique,
+				)
+
 				out.Funnel = append(out.Funnel, f)
 			}
 		}

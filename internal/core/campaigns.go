@@ -2,6 +2,7 @@ package core
 
 import (
 	"database/sql"
+	"encoding/json"
 	"net/http"
 	"time"
 
@@ -422,9 +423,25 @@ func (c *Core) GetCampaignAnalyticsLinks(campIDs []int, typ, fromDate, toDate st
 	return out, nil
 }
 
-// RegisterCampaignView registers a subscriber's view on a campaign.
-func (c *Core) RegisterCampaignView(campUUID, subUUID string) error {
-	if _, err := c.q.RegisterCampaignView.Exec(campUUID, subUUID); err != nil {
+// RegisterCampaignView registers a subscriber's view on a campaign with client metadata.
+func (c *Core) RegisterCampaignView(campUUID, subUUID string, meta ClientMeta) error {
+	if _, err := c.q.RegisterCampaignView.Exec(
+		campUUID,
+		subUUID,
+		meta.IPAddress,
+		meta.GeoCountry,
+		meta.GeoRegion,
+		meta.GeoCity,
+		meta.UserAgent,
+		meta.DeviceType,
+		meta.ClientOS,
+		meta.ClientBrowser,
+		meta.IsProxy,
+		meta.IsBot,
+		meta.BotType,
+		meta.SequenceStepID,
+		meta.VariantID,
+	); err != nil {
 		if pqErr, ok := err.(*pq.Error); ok && pqErr.Column == "campaign_id" {
 			return nil
 		}
@@ -446,10 +463,39 @@ func (c *Core) GetLinkURL(linkUUID string) (string, error) {
 	return url, nil
 }
 
-// RegisterCampaignLinkClick registers a subscriber's link click on a campaign.
-func (c *Core) RegisterCampaignLinkClick(linkUUID, campUUID, subUUID string) (string, error) {
-	var url string
-	if err := c.q.RegisterLinkClick.Get(&url, linkUUID, campUUID, subUUID); err != nil {
+// RegisterCampaignLinkClick registers a subscriber's link click on a campaign with client metadata.
+func (c *Core) RegisterCampaignLinkClick(linkUUID, campUUID, subUUID string, meta ClientMeta) (string, error) {
+	var (
+		url      string
+		utmsJSON []byte
+	)
+	if len(meta.UTMParams) > 0 {
+		utmsJSON, _ = json.Marshal(meta.UTMParams)
+	} else {
+		utmsJSON = []byte("{}")
+	}
+
+	if err := c.q.RegisterLinkClick.Get(&url,
+		linkUUID,
+		campUUID,
+		subUUID,
+		meta.IPAddress,
+		meta.GeoCountry,
+		meta.GeoRegion,
+		meta.GeoCity,
+		meta.GeoASN,
+		meta.UserAgent,
+		meta.DeviceType,
+		meta.ClientOS,
+		meta.ClientBrowser,
+		meta.EmailClient,
+		meta.IsBot,
+		meta.BotType,
+		meta.SequenceStepID,
+		meta.VariantID,
+		meta.LinkPosition,
+		string(utmsJSON),
+	); err != nil {
 		if pqErr, ok := err.(*pq.Error); ok && pqErr.Column == "link_id" {
 			return "", echo.NewHTTPError(http.StatusBadRequest, c.i18n.Ts("public.invalidLink"))
 		}
