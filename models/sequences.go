@@ -68,17 +68,17 @@ type SequenceSteps []SequenceStep
 
 // SequenceStep represents an individual step in a sequence.
 type SequenceStep struct {
-	ID           int           `db:"id" json:"id"`
-	SequenceID   int           `db:"sequence_id" json:"sequence_id"`
-	StepNumber   int           `db:"step_number" json:"step_number"`
-	DelaySeconds int           `db:"delay_seconds" json:"delay_seconds"`
-	Messenger    string        `db:"messenger" json:"messenger"`
-	Condition    string        `db:"condition" json:"condition"`
-	Subject      string        `db:"subject" json:"subject"`
-	Body         string        `db:"body" json:"body"`
-	EmailType    string        `db:"email_type" json:"email_type"`
-	TemplateID   null.Int      `db:"template_id" json:"template_id"`
-	MediaIDs     pq.Int64Array `db:"media_ids" json:"media_ids"`
+	ID         int           `db:"id" json:"id"`
+	SequenceID int           `db:"sequence_id" json:"sequence_id"`
+	StepNumber int           `db:"step_number" json:"step_number"`
+	Delay      string        `db:"delay" json:"delay"`
+	Messenger  string        `db:"messenger" json:"messenger"`
+	Condition  string        `db:"condition" json:"condition"`
+	Subject    string        `db:"subject" json:"subject"`
+	Body       string        `db:"body" json:"body"`
+	EmailType  string        `db:"email_type" json:"email_type"`
+	TemplateID null.Int      `db:"template_id" json:"template_id"`
+	MediaIDs   pq.Int64Array `db:"media_ids" json:"media_ids"`
 }
 
 // SequenceContacts represents a slice of SequenceContact.
