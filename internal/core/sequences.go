@@ -161,11 +161,16 @@ func (c *Core) syncSequenceLists(seqID int, listIDs []int, status string) error 
 	}
 
 	if status == models.SequenceStatusActive && len(listIDs) > 0 {
-		// Backfill/auto-enroll all active confirmed subscribers in target lists
+		// Backfill/auto-enroll all active subscribers in target lists
 		_, err = c.db.Exec(`INSERT INTO sequence_contacts (sequence_id, subscriber_id, status, current_step, next_send_at)
 			SELECT DISTINCT sl.sequence_id, subl.subscriber_id, 'scheduled', 1, NOW()
 			FROM sequence_lists sl
-			JOIN subscriber_lists subl ON subl.list_id = sl.list_id AND subl.status = 'subscribed'
+			JOIN lists l ON l.id = sl.list_id
+			JOIN subscriber_lists subl ON subl.list_id = sl.list_id
+				AND (
+					(l.optin = 'double' AND subl.status = 'confirmed') OR
+					(l.optin != 'double' AND subl.status != 'unsubscribed')
+				)
 			JOIN subscribers s ON s.id = subl.subscriber_id AND s.status = 'enabled'
 			WHERE sl.sequence_id = $1
 			ON CONFLICT (sequence_id, subscriber_id) DO NOTHING`, seqID)
@@ -181,7 +186,12 @@ func (c *Core) syncSequenceLists(seqID int, listIDs []int, status string) error 
 		  AND sc.status IN ('scheduled', 'in_progress')
 		  AND NOT EXISTS (
 		      SELECT 1 FROM sequence_lists sl
-		      JOIN subscriber_lists subl ON subl.list_id = sl.list_id AND subl.status = 'subscribed'
+		      JOIN lists l ON l.id = sl.list_id
+		      JOIN subscriber_lists subl ON subl.list_id = sl.list_id
+		          AND (
+		              (l.optin = 'double' AND subl.status = 'confirmed') OR
+		              (l.optin != 'double' AND subl.status != 'unsubscribed')
+		          )
 		      WHERE sl.sequence_id = sc.sequence_id AND subl.subscriber_id = sc.subscriber_id
 		  )`, seqID)
 	return err
@@ -195,8 +205,13 @@ func (c *Core) EnrollSubscribersByList(subIDs []int, listIDs []int) error {
 	_, err := c.db.Exec(`INSERT INTO sequence_contacts (sequence_id, subscriber_id, status, current_step, next_send_at)
 		SELECT DISTINCT sl.sequence_id, s.id, 'scheduled', 1, NOW()
 		FROM subscribers s
-		JOIN subscriber_lists subl ON subl.subscriber_id = s.id AND subl.status = 'subscribed'
+		JOIN subscriber_lists subl ON subl.subscriber_id = s.id
 		JOIN sequence_lists sl ON sl.list_id = subl.list_id
+		JOIN lists l ON l.id = sl.list_id
+			AND (
+				(l.optin = 'double' AND subl.status = 'confirmed') OR
+				(l.optin != 'double' AND subl.status != 'unsubscribed')
+			)
 		JOIN sequences seq ON seq.id = sl.sequence_id AND seq.status = 'active'
 		WHERE s.id = ANY($1::INT[]) AND subl.list_id = ANY($2::INT[]) AND s.status = 'enabled'
 		ON CONFLICT (sequence_id, subscriber_id) DO NOTHING`, pq.Array(subIDs), pq.Array(listIDs))
@@ -221,7 +236,12 @@ func (c *Core) OptOutSubscribersByList(subIDs []int, listIDs []int) error {
 		  )
 		  AND NOT EXISTS (
 		      SELECT 1 FROM sequence_lists sl2
-		      JOIN subscriber_lists subl ON subl.list_id = sl2.list_id AND subl.status = 'subscribed'
+		      JOIN lists l2 ON l2.id = sl2.list_id
+		      JOIN subscriber_lists subl ON subl.list_id = sl2.list_id
+		          AND (
+		              (l2.optin = 'double' AND subl.status = 'confirmed') OR
+		              (l2.optin != 'double' AND subl.status != 'unsubscribed')
+		          )
 		      WHERE sl2.sequence_id = sc.sequence_id AND subl.subscriber_id = sc.subscriber_id
 		  )`, pq.Array(subIDs), pq.Array(listIDs))
 	if err != nil {
@@ -246,11 +266,16 @@ func (c *Core) UpdateSequenceStatus(id int, status string) (*models.Sequence, er
 	}
 
 	if status == models.SequenceStatusActive {
-		// Auto-enroll all active confirmed subscribers in target lists on activation
+		// Auto-enroll all active subscribers in target lists on activation
 		_, _ = c.db.Exec(`INSERT INTO sequence_contacts (sequence_id, subscriber_id, status, current_step, next_send_at)
 			SELECT DISTINCT sl.sequence_id, subl.subscriber_id, 'scheduled', 1, NOW()
 			FROM sequence_lists sl
-			JOIN subscriber_lists subl ON subl.list_id = sl.list_id AND subl.status = 'subscribed'
+			JOIN lists l ON l.id = sl.list_id
+			JOIN subscriber_lists subl ON subl.list_id = sl.list_id
+				AND (
+					(l.optin = 'double' AND subl.status = 'confirmed') OR
+					(l.optin != 'double' AND subl.status != 'unsubscribed')
+				)
 			JOIN subscribers s ON s.id = subl.subscriber_id AND s.status = 'enabled'
 			WHERE sl.sequence_id = $1
 			ON CONFLICT (sequence_id, subscriber_id) DO NOTHING`, id)
