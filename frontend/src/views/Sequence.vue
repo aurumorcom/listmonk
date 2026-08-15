@@ -274,13 +274,25 @@
                     <a :href="`${serverConfig.root_url}/archive/${form.uuid}`" target="_blank" rel="noopener noreferer"
                       :class="{ 'has-text-grey-light': !form.archive }" :aria-label="$t('campaigns.archive')">
                       <b-icon icon="link-variant" />
-                      {{ serverConfig.root_url }}/archive/{{ form.uuid }}
                     </a>
                   </div>
                 </div>
               </b-field>
             </div>
             <div class="column is-8">
+              <b-field grouped position="is-right">
+                <b-field v-if="!isNew">
+                  <b-button @click="save('save')" :loading="loading" type="is-primary"
+                    icon-left="content-save-outline" data-cy="btn-save">
+                    {{ $t('globals.buttons.saveChanges') }}
+                  </b-button>
+                </b-field>
+              </b-field>
+            </div>
+          </div>
+
+          <div class="columns">
+            <div class="column is-6">
               <b-field :label="$tc('globals.terms.template')" label-position="on-border">
                 <b-select :placeholder="$tc('globals.terms.template')" v-model="form.archive_template_id" name="template"
                   :disabled="!form.archive" required>
@@ -291,6 +303,9 @@
                   </template>
                 </b-select>
               </b-field>
+            </div>
+
+            <div class="column is-6">
               <b-field grouped position="is-right">
                 <b-field v-if="form.archive && (!form.archiveMetaStr || form.archiveMetaStr === '{}')">
                   <a class="button is-primary" href="#" @click.prevent="onFillArchiveMeta" aria-label="{}"><b-icon
@@ -305,6 +320,7 @@
               </b-field>
             </div>
           </div>
+
           <b-field>
             <b-field :label="$t('campaigns.archiveSlug')" label-position="on-border"
               :message="$t('campaigns.archiveSlugHelp')">
@@ -315,7 +331,7 @@
           <b-field :label="$t('campaigns.archiveMeta')" :message="$t('campaigns.archiveMetaHelp')"
             label-position="on-border">
             <b-input v-model="form.archiveMetaStr" name="archive_meta" type="textarea" data-cy="archive-meta"
-              :disabled="!form.archive" rows="15" />
+              :disabled="!form.archive" rows="20" />
           </b-field>
         </section>
       </b-tab-item>
