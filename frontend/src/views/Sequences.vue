@@ -89,15 +89,16 @@
         </div>
       </b-table-column>
 
-      <!-- Column 3: Schedule (Replacing Lists) -->
-      <b-table-column v-slot="props" cell-class="lists" field="schedule" label="Schedule" width="15%">
-        <ul>
-          <li>
-            <router-link :to="{ name: 'sequenceSchedules' }">
-              {{ getScheduleName(props.row.schedule_id) }}
+      <!-- Column 3: Lists -->
+      <b-table-column v-slot="props" cell-class="lists" field="lists" :label="$t('globals.terms.lists')" width="15%">
+        <ul v-if="props.row.lists && props.row.lists.length">
+          <li v-for="l in props.row.lists" :key="l.id">
+            <router-link :to="{ name: 'subscribers_list', params: { listID: l.id } }">
+              {{ l.name }}
             </router-link>
           </li>
         </ul>
+        <span v-else class="has-text-grey-light is-italic">&mdash;</span>
       </b-table-column>
 
       <!-- Column 4: Timestamps -->

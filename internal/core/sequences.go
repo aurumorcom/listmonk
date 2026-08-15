@@ -22,7 +22,16 @@ import (
 // GetSequences returns a list of all sequences.
 func (c *Core) GetSequences() ([]models.Sequence, error) {
 	var out []models.Sequence
-	err := c.db.Select(&out, "SELECT id, uuid, name, description, status, schedule_id, send_window, email_ids, waha_sessions, archive, archive_template_id, archive_slug, archive_meta, created_at, updated_at FROM sequences ORDER BY id DESC")
+	err := c.db.Select(&out, `SELECT s.id, s.uuid, s.name, s.description, s.status, s.schedule_id, s.send_window, s.email_ids, s.waha_sessions, s.archive, s.archive_template_id, s.archive_slug, s.archive_meta, s.created_at, s.updated_at,
+	(
+		SELECT COALESCE(ARRAY_TO_JSON(ARRAY_AGG(l)), '[]') FROM (
+			SELECT COALESCE(sequence_lists.list_id, 0) AS id,
+			sequence_lists.list_name AS name
+			FROM sequence_lists WHERE sequence_lists.sequence_id = s.id
+		) l
+	) AS lists
+	FROM sequences s
+	ORDER BY s.id DESC`)
 	if err != nil {
 		c.log.Printf("error querying sequences: %v", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, c.i18n.Ts("public.errorProcessingRequest"))
@@ -41,7 +50,16 @@ func (c *Core) GetSequences() ([]models.Sequence, error) {
 // GetSequence returns a sequence by ID or UUID.
 func (c *Core) GetSequence(id int, uid string) (*models.Sequence, error) {
 	var seq models.Sequence
-	err := c.db.Get(&seq, "SELECT id, uuid, name, description, status, schedule_id, send_window, email_ids, waha_sessions, archive, archive_template_id, archive_slug, archive_meta, created_at, updated_at FROM sequences WHERE id = $1 OR uuid::text = $2", id, uid)
+	err := c.db.Get(&seq, `SELECT s.id, s.uuid, s.name, s.description, s.status, s.schedule_id, s.send_window, s.email_ids, s.waha_sessions, s.archive, s.archive_template_id, s.archive_slug, s.archive_meta, s.created_at, s.updated_at,
+	(
+		SELECT COALESCE(ARRAY_TO_JSON(ARRAY_AGG(l)), '[]') FROM (
+			SELECT COALESCE(sequence_lists.list_id, 0) AS id,
+			sequence_lists.list_name AS name
+			FROM sequence_lists WHERE sequence_lists.sequence_id = s.id
+		) l
+	) AS lists
+	FROM sequences s
+	WHERE s.id = $1 OR s.uuid::text = $2`, id, uid)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, echo.NewHTTPError(http.StatusNotFound, c.i18n.Ts("globals.messages.notFound"))
@@ -59,7 +77,7 @@ func (c *Core) GetSequence(id int, uid string) (*models.Sequence, error) {
 }
 
 // CreateSequence creates a new sequence.
-func (c *Core) CreateSequence(seq models.Sequence) (*models.Sequence, error) {
+func (c *Core) CreateSequence(seq models.Sequence, listIDs ...[]int) (*models.Sequence, error) {
 	if seq.UUID == "" {
 		seq.UUID = uuid.Must(uuid.NewV4()).String()
 	}
@@ -81,6 +99,15 @@ func (c *Core) CreateSequence(seq models.Sequence) (*models.Sequence, error) {
 		c.log.Printf("error creating sequence: %v", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, c.i18n.Ts("public.errorProcessingRequest"))
 	}
+
+	var targetLists []int
+	if len(listIDs) > 0 && listIDs[0] != nil {
+		targetLists = listIDs[0]
+	}
+	if err := c.syncSequenceLists(out.ID, targetLists, seq.Status); err != nil {
+		c.log.Printf("error syncing sequence lists on create: %v", err)
+	}
+
 	res, _ := c.GetSequence(out.ID, "")
 	if res != nil {
 		_ = c.DispatchWebhookEvent("sequence.created", res)
@@ -89,7 +116,7 @@ func (c *Core) CreateSequence(seq models.Sequence) (*models.Sequence, error) {
 }
 
 // UpdateSequence updates an existing sequence.
-func (c *Core) UpdateSequence(seq models.Sequence) (*models.Sequence, error) {
+func (c *Core) UpdateSequence(seq models.Sequence, listIDs ...[]int) (*models.Sequence, error) {
 	if len(seq.EmailIDs) == 0 {
 		seq.EmailIDs = pq.Int64Array{}
 	}
@@ -110,7 +137,98 @@ func (c *Core) UpdateSequence(seq models.Sequence) (*models.Sequence, error) {
 		c.log.Printf("error updating sequence: %v", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, c.i18n.Ts("public.errorProcessingRequest"))
 	}
+
+	if len(listIDs) > 0 && listIDs[0] != nil {
+		if err := c.syncSequenceLists(seq.ID, listIDs[0], seq.Status); err != nil {
+			c.log.Printf("error syncing sequence lists on update: %v", err)
+		}
+	}
+
 	return c.GetSequence(seq.ID, "")
+}
+
+func (c *Core) syncSequenceLists(seqID int, listIDs []int, status string) error {
+	_, err := c.db.Exec("DELETE FROM sequence_lists WHERE sequence_id = $1", seqID)
+	if err != nil {
+		return err
+	}
+	if len(listIDs) > 0 {
+		_, err = c.db.Exec(`INSERT INTO sequence_lists (sequence_id, list_id, list_name)
+			SELECT $1, id, name FROM lists WHERE id = ANY($2::INT[])`, seqID, pq.Array(listIDs))
+		if err != nil {
+			return err
+		}
+	}
+
+	if status == models.SequenceStatusActive && len(listIDs) > 0 {
+		// Backfill/auto-enroll all active confirmed subscribers in target lists
+		_, err = c.db.Exec(`INSERT INTO sequence_contacts (sequence_id, subscriber_id, status, current_step, next_send_at)
+			SELECT DISTINCT sl.sequence_id, subl.subscriber_id, 'scheduled', 1, NOW()
+			FROM sequence_lists sl
+			JOIN subscriber_lists subl ON subl.list_id = sl.list_id AND subl.status = 'subscribed'
+			JOIN subscribers s ON s.id = subl.subscriber_id AND s.status = 'enabled'
+			WHERE sl.sequence_id = $1
+			ON CONFLICT (sequence_id, subscriber_id) DO NOTHING`, seqID)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Opt out any in-flight contacts who are no longer associated with any active list for this sequence
+	_, err = c.db.Exec(`UPDATE sequence_contacts sc
+		SET status = 'opted_out'
+		WHERE sc.sequence_id = $1
+		  AND sc.status IN ('scheduled', 'in_progress')
+		  AND NOT EXISTS (
+		      SELECT 1 FROM sequence_lists sl
+		      JOIN subscriber_lists subl ON subl.list_id = sl.list_id AND subl.status = 'subscribed'
+		      WHERE sl.sequence_id = sc.sequence_id AND subl.subscriber_id = sc.subscriber_id
+		  )`, seqID)
+	return err
+}
+
+// EnrollSubscribersByList enrolls active subscribers for given list IDs into all active sequences targeting those lists.
+func (c *Core) EnrollSubscribersByList(subIDs []int, listIDs []int) error {
+	if len(subIDs) == 0 || len(listIDs) == 0 {
+		return nil
+	}
+	_, err := c.db.Exec(`INSERT INTO sequence_contacts (sequence_id, subscriber_id, status, current_step, next_send_at)
+		SELECT DISTINCT sl.sequence_id, s.id, 'scheduled', 1, NOW()
+		FROM subscribers s
+		JOIN subscriber_lists subl ON subl.subscriber_id = s.id AND subl.status = 'subscribed'
+		JOIN sequence_lists sl ON sl.list_id = subl.list_id
+		JOIN sequences seq ON seq.id = sl.sequence_id AND seq.status = 'active'
+		WHERE s.id = ANY($1::INT[]) AND subl.list_id = ANY($2::INT[]) AND s.status = 'enabled'
+		ON CONFLICT (sequence_id, subscriber_id) DO NOTHING`, pq.Array(subIDs), pq.Array(listIDs))
+	if err != nil {
+		c.log.Printf("error auto-enrolling subscribers by list into active sequences: %v", err)
+		return err
+	}
+	return nil
+}
+
+// OptOutSubscribersByList marks sequence contacts as opted_out if they no longer belong to any active list attached to the sequence.
+func (c *Core) OptOutSubscribersByList(subIDs []int, listIDs []int) error {
+	if len(subIDs) == 0 || len(listIDs) == 0 {
+		return nil
+	}
+	_, err := c.db.Exec(`UPDATE sequence_contacts sc
+		SET status = 'opted_out'
+		WHERE sc.subscriber_id = ANY($1::INT[])
+		  AND sc.status IN ('scheduled', 'in_progress')
+		  AND sc.sequence_id IN (
+		      SELECT sl.sequence_id FROM sequence_lists sl WHERE sl.list_id = ANY($2::INT[])
+		  )
+		  AND NOT EXISTS (
+		      SELECT 1 FROM sequence_lists sl2
+		      JOIN subscriber_lists subl ON subl.list_id = sl2.list_id AND subl.status = 'subscribed'
+		      WHERE sl2.sequence_id = sc.sequence_id AND subl.subscriber_id = sc.subscriber_id
+		  )`, pq.Array(subIDs), pq.Array(listIDs))
+	if err != nil {
+		c.log.Printf("error opting out subscribers from sequences for removed lists: %v", err)
+		return err
+	}
+	return nil
 }
 
 // UpdateSequenceStatus updates a sequence's status.
@@ -125,6 +243,17 @@ func (c *Core) UpdateSequenceStatus(id int, status string) (*models.Sequence, er
 	if err != nil {
 		c.log.Printf("error updating sequence status: %v", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, c.i18n.Ts("public.errorProcessingRequest"))
+	}
+
+	if status == models.SequenceStatusActive {
+		// Auto-enroll all active confirmed subscribers in target lists on activation
+		_, _ = c.db.Exec(`INSERT INTO sequence_contacts (sequence_id, subscriber_id, status, current_step, next_send_at)
+			SELECT DISTINCT sl.sequence_id, subl.subscriber_id, 'scheduled', 1, NOW()
+			FROM sequence_lists sl
+			JOIN subscriber_lists subl ON subl.list_id = sl.list_id AND subl.status = 'subscribed'
+			JOIN subscribers s ON s.id = subl.subscriber_id AND s.status = 'enabled'
+			WHERE sl.sequence_id = $1
+			ON CONFLICT (sequence_id, subscriber_id) DO NOTHING`, id)
 	}
 
 	res, err := c.GetSequence(id, "")
