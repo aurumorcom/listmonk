@@ -603,15 +603,26 @@ func (a *App) TestCampaign(c echo.Context) error {
 	for _, target := range targets {
 		sub := sampleSub
 		target = strings.TrimSpace(target)
+		targetMessenger := camp.Messenger
+
 		if strings.Contains(target, "@") {
 			sub.Email = strings.ToLower(target)
+			if targetMessenger == "" || targetMessenger == "whatsapp" || targetMessenger == "waha" || strings.HasPrefix(targetMessenger, "whatsapp-") || strings.HasPrefix(targetMessenger, "waha-") {
+				targetMessenger = "email"
+			}
 		} else if ph, err := utils.SanitizePhone(target); err == nil {
 			sub.Phone = null.StringFrom(ph)
+			if targetMessenger == "" || targetMessenger == "email" || strings.HasPrefix(targetMessenger, "email-") {
+				targetMessenger = "whatsapp"
+			}
 		} else {
 			sub.Email = target
 		}
 
-		if err := a.sendTestMessage(sub, &camp); err != nil {
+		testCamp := camp
+		testCamp.Messenger = targetMessenger
+
+		if err := a.sendTestMessage(sub, &testCamp); err != nil {
 			a.log.Printf("error sending test message: %v", err)
 			return echo.NewHTTPError(http.StatusInternalServerError,
 				a.i18n.Ts("campaigns.errorSendTest", "error", err.Error()))

@@ -733,12 +733,7 @@ func initSMTPMessengers() []manager.Messenger {
 		lo.Fatalf("error initializing e-mail messenger: %v", err)
 	}
 
-	// If it's just one server, return the default "email" messenger.
-	if len(servers) == 1 {
-		return []manager.Messenger{msgr}
-	}
-
-	// If there are multiple servers, prepend the group "email" to be the first one.
+	// Always prepend the pooled group "email" to be the first one, while retaining any named dedicated messengers.
 	out = append([]manager.Messenger{msgr}, out...)
 
 	return out
@@ -822,6 +817,17 @@ func initWAHAMessengers(ko *koanf.Koanf) []manager.Messenger {
 		out = append(out, w)
 
 		lo.Printf("loaded WAHA messenger: %s", name)
+	}
+
+	var hasPrimaryWhatsApp bool
+	for _, m := range out {
+		if m.Name() == "whatsapp" || m.Name() == "waha" {
+			hasPrimaryWhatsApp = true
+			break
+		}
+	}
+	if !hasPrimaryWhatsApp && len(out) > 0 {
+		out = append([]manager.Messenger{out[0]}, out...)
 	}
 
 	return out

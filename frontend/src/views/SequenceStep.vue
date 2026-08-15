@@ -360,12 +360,8 @@ export default Vue.extend({
     },
     otherMessengers() {
       const msgs = (this.serverConfig && this.serverConfig.messengers) || [];
-      const custom = msgs.filter((m) => m !== 'email' && !m.startsWith('email-'));
-      const hasWA = custom.some((m) => m === 'whatsapp' || m === 'waha' || m.startsWith('whatsapp-') || m.startsWith('waha-'));
-      if (!hasWA) {
-        return ['whatsapp', ...custom];
-      }
-      return custom;
+      const custom = msgs.filter((m) => m !== 'email' && !m.startsWith('email-') && m !== 'whatsapp' && m !== 'waha');
+      return ['whatsapp', ...custom];
     },
   },
   mounted() {

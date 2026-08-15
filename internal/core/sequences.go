@@ -198,12 +198,69 @@ func (c *Core) syncSequenceLists(seqID int, listIDs []int, status string) error 
 }
 
 // EnrollSubscribersByList enrolls active subscribers for given list IDs into all active sequences targeting those lists.
-func (c *Core) EnrollSubscribersByList(subIDs []int, listIDs []int) error {
+func (c *Core) EnrollSubscribersByList(subIDs []int, listIDs []int, userContext ...map[string]any) error {
 	if len(subIDs) == 0 || len(listIDs) == 0 {
 		return nil
 	}
-	_, err := c.db.Exec(`INSERT INTO sequence_contacts (sequence_id, subscriber_id, status, current_step, next_send_at)
-		SELECT DISTINCT sl.sequence_id, s.id, 'scheduled', 1, NOW()
+
+	var (
+		explicitEmailID     null.Int
+		explicitWahaSession null.String
+	)
+
+	if len(userContext) > 0 && len(userContext[0]) > 0 {
+		ctx := userContext[0]
+		if rawEID, ok := ctx["email_id"].(float64); ok && rawEID > 0 {
+			explicitEmailID = null.IntFrom(int(rawEID))
+		} else if rawEIDInt, ok := ctx["email_id"].(int); ok && rawEIDInt > 0 {
+			explicitEmailID = null.IntFrom(rawEIDInt)
+		}
+
+		if rawWS, ok := ctx["waha_session"].(string); ok && strings.TrimSpace(rawWS) != "" {
+			explicitWahaSession = null.StringFrom(strings.TrimSpace(rawWS))
+		}
+
+		var uid int
+		if rawID, ok := ctx["id"].(float64); ok && rawID > 0 {
+			uid = int(rawID)
+		} else if rawIDInt, ok := ctx["id"].(int); ok && rawIDInt > 0 {
+			uid = rawIDInt
+		} else if rawUID, ok := ctx["user_id"].(float64); ok && rawUID > 0 {
+			uid = int(rawUID)
+		} else if rawUIDInt, ok := ctx["user_id"].(int); ok && rawUIDInt > 0 {
+			uid = rawUIDInt
+		}
+
+		if uid > 0 {
+			var u auth.User
+			if err := c.db.Get(&u, "SELECT id, email_id, waha_session FROM users WHERE id = $1", uid); err == nil {
+				if u.EmailID.Valid && !explicitEmailID.Valid {
+					explicitEmailID = u.EmailID
+				}
+				if u.WahaSession.Valid && u.WahaSession.String != "" && (!explicitWahaSession.Valid || explicitWahaSession.String == "") {
+					explicitWahaSession = u.WahaSession
+				}
+			}
+			if !explicitEmailID.Valid {
+				var emailAccountID int
+				if err := c.db.Get(&emailAccountID, "SELECT id FROM emails WHERE user_id = $1 ORDER BY id ASC LIMIT 1", uid); err == nil && emailAccountID > 0 {
+					explicitEmailID = null.IntFrom(emailAccountID)
+				}
+			}
+		}
+	}
+
+	var mbVal any
+	if explicitEmailID.Valid {
+		mbVal = explicitEmailID.Int
+	}
+	var wsVal any
+	if explicitWahaSession.Valid && explicitWahaSession.String != "" {
+		wsVal = explicitWahaSession.String
+	}
+
+	_, err := c.db.Exec(`INSERT INTO sequence_contacts (sequence_id, subscriber_id, email_id, waha_session, status, current_step, next_send_at)
+		SELECT DISTINCT sl.sequence_id, s.id, $3, $4, 'scheduled', 1, NOW()
 		FROM subscribers s
 		JOIN subscriber_lists subl ON subl.subscriber_id = s.id
 		JOIN sequence_lists sl ON sl.list_id = subl.list_id
@@ -214,7 +271,10 @@ func (c *Core) EnrollSubscribersByList(subIDs []int, listIDs []int) error {
 			)
 		JOIN sequences seq ON seq.id = sl.sequence_id AND seq.status = 'active'
 		WHERE s.id = ANY($1::INT[]) AND subl.list_id = ANY($2::INT[]) AND s.status = 'enabled'
-		ON CONFLICT (sequence_id, subscriber_id) DO NOTHING`, pq.Array(subIDs), pq.Array(listIDs))
+		ON CONFLICT (sequence_id, subscriber_id) DO UPDATE SET
+			email_id = COALESCE(sequence_contacts.email_id, EXCLUDED.email_id),
+			waha_session = COALESCE(sequence_contacts.waha_session, EXCLUDED.waha_session)`,
+		pq.Array(subIDs), pq.Array(listIDs), mbVal, wsVal)
 	if err != nil {
 		c.log.Printf("error auto-enrolling subscribers by list into active sequences: %v", err)
 		return err

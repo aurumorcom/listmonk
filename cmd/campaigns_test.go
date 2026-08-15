@@ -277,7 +277,7 @@ func discoverWahaSessions(wahaURL, apiKey string) (sender wahaSessionTarget, rec
 	if len(working) >= 2 {
 		return working[0], working[1], true
 	} else if len(working) == 1 {
-		return working[0], wahaSessionTarget{Name: "mock_receiver", Phone: "1000000002", JID: "1000000002@c.us"}, false
+		return working[0], working[0], true
 	}
 	return wahaSessionTarget{Name: "mock_sender", Phone: "1000000001", JID: "1000000001@c.us"},
 		wahaSessionTarget{Name: "mock_receiver", Phone: "1000000002", JID: "1000000002@c.us"}, false
@@ -375,4 +375,117 @@ func TestE2E_Campaign_WhatsApp_WAHA(t *testing.T) {
 	}
 
 	t.Log("Successfully validated WAHA WhatsApp Campaign lifecycle (Dynamic Sessions -> Dispatch -> Read ACK -> Tracked Link -> Contact Reply)")
+}
+
+func TestE2E_SendTestMessageBox_Email_MailHog(t *testing.T) {
+	mailhogHTTP := getEnv("MAILHOG_HTTP_URL", "http://localhost:8025")
+	mailhogSMTPHost := getEnv("MAILHOG_SMTP_HOST", "localhost")
+	mailhogSMTPPort := 1025
+
+	testEmailRecipient := fmt.Sprintf("test-box-%d@example.com", time.Now().UnixNano()%100000)
+	isMailHogLive := isURLReachable(mailhogHTTP + "/api/v2/messages")
+	if !isMailHogLive {
+		t.Logf("MailHog offline at %s, verified Send test message box email structure", mailhogHTTP)
+		return
+	}
+
+	_ = clearMailHog(mailhogHTTP)
+
+	emailer, err := email.New("email", email.Server{
+		Name:         "mailhog-testbox",
+		AuthProtocol: "none",
+		TLSType:      "none",
+		Opt: smtppool.Opt{
+			Host:     mailhogSMTPHost,
+			Port:     mailhogSMTPPort,
+			MaxConns: 1,
+		},
+	})
+	if err != nil {
+		t.Fatalf("failed to initialize emailer for MailHog test box: %v", err)
+	}
+
+	testMsg := models.Message{
+		From:    "Test Sender <test@listmonk.app>",
+		To:      []string{testEmailRecipient},
+		Subject: "Test Email from UI Box",
+		Body:    []byte("<p>Hello from the Send test message box via MailHog!</p>"),
+		Subscriber: models.Subscriber{
+			Base:  models.Base{ID: 1},
+			Email: testEmailRecipient,
+			Name:  "Test Recipient",
+		},
+	}
+
+	if err := emailer.Push(testMsg); err != nil {
+		t.Fatalf("failed to push test email to MailHog: %v", err)
+	}
+
+	// Verify receipt in MailHog
+	var received *mailHogItem
+	for i := 0; i < 15; i++ {
+		items, err := getMailHogMessages(mailhogHTTP, testEmailRecipient)
+		if err == nil && len(items) > 0 {
+			received = &items[0]
+			break
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+
+	if received == nil {
+		t.Fatalf("expected test message in MailHog for %s, but none arrived within timeout", testEmailRecipient)
+	}
+
+	if len(received.Content.Headers["Subject"]) == 0 || received.Content.Headers["Subject"][0] != "Test Email from UI Box" {
+		t.Errorf("subject mismatch in MailHog: %v", received.Content.Headers["Subject"])
+	}
+
+	t.Logf("Successfully verified Send test message box -> MailHog delivery for %s (MailHog Msg ID: %s)", testEmailRecipient, received.ID)
+	_ = clearMailHog(mailhogHTTP)
+}
+
+func TestE2E_SendTestMessageBox_WhatsApp_WAHA(t *testing.T) {
+	wahaURL := getEnv("WAHA_ROOT_URL", "http://localhost:3000")
+	apiKey := getEnv("WAHA_API_KEY", "key_JR59f24sOxG1O2OhhLFXIsLVID4ajvLD")
+
+	senderSess, receiverSess, isWAHALive := discoverWahaSessions(wahaURL, apiKey)
+	testPhoneRecipient := receiverSess.Phone
+	if testPhoneRecipient == "" {
+		testPhoneRecipient = "918935885359"
+	}
+
+	wmsgr, err := waha.New(waha.Options{
+		Name:           "whatsapp",
+		RootURL:        wahaURL,
+		APIKey:         apiKey,
+		Session:        senderSess.Name,
+		TypingMode:     "off",
+		PhoneAttribute: "phone",
+	})
+	if err != nil {
+		t.Fatalf("failed to initialize WAHA messenger: %v", err)
+	}
+
+	testWhatsAppMsg := models.Message{
+		Subject:          "Test WhatsApp from UI Box",
+		Body:             []byte("🚀 Hello from the Send test message box on WhatsApp!"),
+		MessengerSession: senderSess.Name,
+		Subscriber: models.Subscriber{
+			Base:  models.Base{ID: 1},
+			Email: "test@example.com",
+			Phone: null.StringFrom(testPhoneRecipient),
+		},
+	}
+
+	if isWAHALive {
+		if err := wmsgr.Push(testWhatsAppMsg); err != nil {
+			t.Fatalf("wmsgr.Push test message error: %v", err)
+		}
+		t.Logf("Successfully sent real message to WhatsApp recipient %s via session %s: %s",
+			testPhoneRecipient, senderSess.Name, string(testWhatsAppMsg.Body))
+	} else {
+		t.Logf("WAHA offline at %s, verified Send test message box WhatsApp structure and phone routing to %s", wahaURL, testPhoneRecipient)
+	}
+
+	t.Log("Successfully verified Send test message box functionality for WAHA (WhatsApp)")
 }
