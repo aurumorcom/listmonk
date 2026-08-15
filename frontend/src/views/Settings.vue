@@ -217,10 +217,10 @@ export default Vue.extend({
         }
       }
 
-      for (let i = 0; i < (form.waha_messengers || []).length; i += 1) {
-        if (this.isDummy(form.waha_messengers[i].api_key)) {
-          form.waha_messengers[i].api_key = '';
-        } else if (this.hasDummy(form.waha_messengers[i].api_key)) {
+      for (let i = 0; i < (form.waha || []).length; i += 1) {
+        if (this.isDummy(form.waha[i].api_key)) {
+          form.waha[i].api_key = '';
+        } else if (this.hasDummy(form.waha[i].api_key)) {
           hasDummy = `waha #${i + 1}`;
         }
       }
@@ -228,6 +228,18 @@ export default Vue.extend({
       if (hasDummy) {
         this.$utils.toast(this.$t('globals.messages.passwordChangeFull', { name: hasDummy }), 'is-danger');
         return false;
+      }
+
+      // Sanitize user_id to null if empty
+      for (let i = 0; i < (form.smtp || []).length; i += 1) {
+        if (!form.smtp[i].user_id) {
+          form.smtp[i].user_id = null;
+        }
+      }
+      for (let i = 0; i < (form.waha || []).length; i += 1) {
+        if (!form.waha[i].user_id) {
+          form.waha[i].user_id = null;
+        }
       }
 
       // Domain blocklist array from multi-line strings.
@@ -262,13 +274,13 @@ export default Vue.extend({
           d.smtp[i].strEmailHeaders = JSON.stringify(d.smtp[i].email_headers, null, 4);
         }
 
-        // Ensure waha_messengers exists and has default item if empty
-        if (!d.waha_messengers || !Array.isArray(d.waha_messengers) || d.waha_messengers.length === 0) {
-          d.waha_messengers = [
+        // Ensure waha exists and has default item if empty
+        if (!d.waha || !Array.isArray(d.waha) || d.waha.length === 0) {
+          d.waha = [
             {
               name: 'whatsapp',
               enabled: true,
-              user_id: '',
+              user_id: null,
               user: '',
               root_url: 'http://waha:3000',
               api_key: '',

@@ -430,7 +430,7 @@ export default Vue.extend({
         tls_skip_verify: false,
         emails_per_day: 0,
         emails_per_hour: 0,
-        user_id: '',
+        user_id: null,
         signature: '',
         imap_enabled: false,
         imap_host: '',
