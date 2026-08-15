@@ -384,7 +384,7 @@ func (c *Core) GetContactSequences(contactID int) ([]models.SequenceContact, err
 func (c *Core) GetSequenceSteps(sequenceID int) ([]models.SequenceStep, error) {
 	var steps []models.SequenceStep
 	query := `SELECT
-		s.id, s.sequence_id, s.step_number, s.delay_seconds, s.messenger, s.condition,
+		s.id, s.sequence_id, s.step_number, s.delay, s.messenger, s.condition,
 		s.subject, s.body, COALESCE(s.email_type, '') AS email_type, s.template_id,
 		COALESCE(ARRAY_AGG(m.media_id) FILTER (WHERE m.media_id IS NOT NULL), '{}') AS media_ids
 	FROM sequence_steps s
@@ -415,6 +415,9 @@ func (c *Core) SaveSequenceSteps(sequenceID int, steps []models.SequenceStep) er
 	for i, s := range steps {
 		s.SequenceID = sequenceID
 		s.StepNumber = i + 1
+		if s.Delay == "" {
+			s.Delay = "0s"
+		}
 		if s.Messenger == "" {
 			s.Messenger = "email"
 		}
@@ -427,9 +430,9 @@ func (c *Core) SaveSequenceSteps(sequenceID int, steps []models.SequenceStep) er
 		}
 
 		var newID int
-		err := tx.Get(&newID, `INSERT INTO sequence_steps (sequence_id, step_number, delay_seconds, messenger, condition, subject, body, email_type, template_id)
+		err := tx.Get(&newID, `INSERT INTO sequence_steps (sequence_id, step_number, delay, messenger, condition, subject, body, email_type, template_id)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
-			s.SequenceID, s.StepNumber, s.DelaySeconds, s.Messenger, s.Condition, s.Subject, s.Body, s.EmailType, s.TemplateID)
+			s.SequenceID, s.StepNumber, s.Delay, s.Messenger, s.Condition, s.Subject, s.Body, s.EmailType, s.TemplateID)
 		if err != nil {
 			return err
 		}

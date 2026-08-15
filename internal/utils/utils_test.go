@@ -2,6 +2,7 @@ package utils
 
 import (
 	"testing"
+	"time"
 )
 
 func TestSanitizePhone(t *testing.T) {
@@ -120,6 +121,42 @@ func TestSanitizePhone(t *testing.T) {
 			}
 			if ValidatePhone(tt.input) == tt.expectErr {
 				t.Errorf("ValidatePhone(%q) = %v, want %v", tt.input, !tt.expectErr, !tt.expectErr)
+			}
+		})
+	}
+}
+
+func TestParseDuration(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected time.Duration
+		hasError bool
+	}{
+		{"45s", 45 * time.Second, false},
+		{"10s", 10 * time.Second, false},
+		{"30s", 30 * time.Second, false},
+		{"15m", 15 * time.Minute, false},
+		{"2h", 2 * time.Hour, false},
+		{"1d", 24 * time.Hour, false},
+		{"2d", 48 * time.Hour, false},
+		{"1w", 7 * 24 * time.Hour, false},
+		{"500ms", 500 * time.Millisecond, false},
+		{"0s", 0, false},
+		{"0", 0, false},
+		{"", 0, false},
+		{" 45S ", 45 * time.Second, false},
+		{"invalid", 0, true},
+		{"-5s", 0, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got, err := ParseDuration(tt.input)
+			if (err != nil) != tt.hasError {
+				t.Fatalf("ParseDuration(%q) error = %v, wantErr %v", tt.input, err, tt.hasError)
+			}
+			if got != tt.expected {
+				t.Errorf("ParseDuration(%q) = %v, want %v", tt.input, got, tt.expected)
 			}
 		})
 	}

@@ -278,7 +278,7 @@ export default Vue.extend({
             const stepList = Array.isArray(stepsRes) ? stepsRes : (stepsRes.data || []);
             const matchingSteps = stepList
               .map((st, idx) => {
-                const sNum = st.step_number || (idx + 1);
+                const sNum = st.stepNumber || st.step_number || (idx + 1);
                 const sName = `Step ${sNum}${st.subject ? `: ${st.subject}` : ''} (Seq #${targetSeqId})`;
                 return {
                   id: st.id || sNum,

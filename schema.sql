@@ -553,7 +553,7 @@ CREATE TABLE sequence_steps (
     id            SERIAL PRIMARY KEY,
     sequence_id   INTEGER NOT NULL REFERENCES sequences(id) ON DELETE CASCADE,
     step_number   INTEGER NOT NULL DEFAULT 1,
-    delay_seconds INTEGER NOT NULL DEFAULT 0,
+    delay         TEXT NOT NULL DEFAULT '0s',
     messenger     TEXT NOT NULL DEFAULT 'email',
     condition     TEXT NOT NULL DEFAULT 'always',
     subject       TEXT NOT NULL DEFAULT '',

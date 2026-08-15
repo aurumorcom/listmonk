@@ -6,10 +6,15 @@ import (
 	"net/mail"
 	"net/url"
 	"path"
+	"regexp"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/nyaruka/phonenumbers"
 )
+
+var durationRegex = regexp.MustCompile(`^(\d+)\s*(ms|s|m|h|d|w)?$`)
 
 // ErrInvalidEmail is returned by SanitizeEmail for malformed input.
 var ErrInvalidEmail = errors.New("invalid e-mail address")
@@ -126,4 +131,45 @@ func SanitizeURI(u string) string {
 	}
 
 	return path.Clean(p.Path)
+}
+
+// ParseDuration parses human duration strings like "45s", "15m", "2h", "1d", "1w".
+// An empty string, "0", or "0s" returns (0, nil).
+func ParseDuration(s string) (time.Duration, error) {
+	s = strings.ToLower(strings.TrimSpace(s))
+	if s == "" || s == "0" || s == "0s" || s == "0m" || s == "0h" || s == "0d" || s == "0w" {
+		return 0, nil
+	}
+
+	match := durationRegex.FindStringSubmatch(s)
+	if match == nil {
+		return 0, errors.New("invalid duration format")
+	}
+
+	val, err := strconv.ParseInt(match[1], 10, 64)
+	if err != nil {
+		return 0, err
+	}
+
+	unit := match[2]
+	if unit == "" {
+		unit = "s"
+	}
+
+	switch unit {
+	case "ms":
+		return time.Duration(val) * time.Millisecond, nil
+	case "s":
+		return time.Duration(val) * time.Second, nil
+	case "m":
+		return time.Duration(val) * time.Minute, nil
+	case "h":
+		return time.Duration(val) * time.Hour, nil
+	case "d":
+		return time.Duration(val) * 24 * time.Hour, nil
+	case "w":
+		return time.Duration(val) * 7 * 24 * time.Hour, nil
+	default:
+		return 0, errors.New("unsupported duration unit")
+	}
 }

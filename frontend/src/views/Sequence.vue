@@ -138,11 +138,11 @@
               <div>
                 <p>
                   <a href="#" @click.prevent="openEditStepCampaign(props.row, props.index)">
-                    Step {{ props.row.step_number || (props.index + 1) }}{{ props.row.name ? `: ${props.row.name}` : '' }}
-                    <copy-text :text="props.row.name || `Step ${props.row.step_number || (props.index + 1)}`" hide-text />
+                    Step {{ props.row.stepNumber || props.row.step_number || (props.index + 1) }}{{ props.row.name ? `: ${props.row.name}` : '' }}
+                    <copy-text :text="props.row.name || `Step ${props.row.stepNumber || props.row.step_number || (props.index + 1)}`" hide-text />
                   </a>
-                  <b-tag v-if="props.row.delay_seconds > 0" class="is-small ml-1" type="is-light">
-                    <b-icon icon="clock-outline" size="is-small" /> {{ formatStepDuration(props.row.delay_seconds) }}
+                  <b-tag v-if="props.row.delay && props.row.delay !== '0s'" class="is-small ml-1" type="is-light">
+                    <b-icon icon="clock-outline" size="is-small" /> {{ props.row.delay }}
                   </b-tag>
                 </p>
                 <p class="is-size-7 has-text-grey" v-if="props.row.subject">
@@ -400,7 +400,7 @@ export default {
       steps: [
         {
           step_number: 1,
-          delay_seconds: 0,
+          delay: '0s',
           messenger: 'email',
           condition: 'always',
           subject: '',
@@ -563,7 +563,7 @@ export default {
     openEditStepCampaign(step, idx) {
       this.$router.push({
         name: 'sequenceStepCampaign',
-        params: { sequenceId: this.form.id, stepId: step.step_number || idx + 1 },
+        params: { sequenceId: this.form.id, stepId: step.stepNumber || step.step_number || idx + 1 },
       });
     },
     cloneStep(idx) {
@@ -571,7 +571,7 @@ export default {
       const cloned = {
         ...JSON.parse(JSON.stringify(target)),
         step_number: this.steps.length + 1,
-        delay_seconds: (target.delay_seconds || 0) + 86400,
+        delay: target.delay || (target.delay_seconds ? `${target.delay_seconds}s` : '0s'),
         subject: `Copy of ${target.subject || 'Step'}`,
       };
       this.steps.push(cloned);
@@ -611,9 +611,23 @@ export default {
     reindexSteps() {
       this.steps = this.steps.map((s, idx) => ({ ...s, step_number: idx + 1 }));
     },
+    normalizeStepsPayload() {
+      return this.steps.map((s, idx) => ({
+        step_number: s.stepNumber || s.step_number || idx + 1,
+        delay: s.delay || (s.delay_seconds ? `${s.delay_seconds}s` : '0s'),
+        messenger: s.messenger || 'email',
+        condition: s.condition || 'always',
+        subject: s.subject || '',
+        body: s.body || '',
+        email_type: s.emailType || s.email_type || '',
+        template_id: s.templateId !== undefined ? s.templateId : (s.template_id || null),
+        media_ids: s.mediaIds || s.media_ids || [],
+      }));
+    },
     saveStepsToBackend() {
       if (!this.form.id) return;
-      this.$api.saveSequenceSteps(this.form.id, { steps: this.steps }).then(() => {
+      const normalized = this.normalizeStepsPayload();
+      this.$api.saveSequenceSteps(this.form.id, { steps: normalized }).then(() => {
         this.$utils.toast('Step configuration saved.');
       });
     },
@@ -651,7 +665,8 @@ export default {
       return action.then((res) => {
         const id = res.id || (res.data && res.data.id) || this.form.id;
         this.form.id = id;
-        return this.$api.saveSequenceSteps(id, { steps: this.steps }).then(() => {
+        const normalized = this.normalizeStepsPayload();
+        return this.$api.saveSequenceSteps(id, { steps: normalized }).then(() => {
           this.loading = false;
           this.isNew = false;
           this.$utils.toast('Sequence saved successfully');
