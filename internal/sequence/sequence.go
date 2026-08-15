@@ -143,7 +143,14 @@ func (m *Manager) ProcessBatch() error {
 		// Pick messenger
 		msgr, ok := m.messengers[step.Messenger]
 		if !ok {
-			msgr, ok = m.messengers["email"]
+			if step.Messenger == "whatsapp" {
+				msgr, ok = m.messengers["waha"]
+			} else if step.Messenger == "waha" {
+				msgr, ok = m.messengers["whatsapp"]
+			}
+			if !ok {
+				msgr, ok = m.messengers["email"]
+			}
 			if !ok {
 				m.log.Printf("no suitable messenger found for step %d (%s)", step.ID, step.Messenger)
 				continue
@@ -199,7 +206,8 @@ func (m *Manager) ProcessBatch() error {
 
 				if m.bifrostClient != nil {
 					var respFormat *manager.BifrostResponseFormat
-					if step.Messenger != "waha" && msgr.Name() != "waha" {
+					isWhatsApp := step.Messenger == "whatsapp" || step.Messenger == "waha" || msgr.Name() == "whatsapp" || msgr.Name() == "waha"
+					if !isWhatsApp {
 						respFormat = manager.EmailResponseFormat()
 					}
 
@@ -214,7 +222,7 @@ func (m *Manager) ProcessBatch() error {
 					}
 
 					cleanBody := manager.CleanJSONResponse(aiBody)
-					if step.Messenger == "waha" || msgr.Name() == "waha" {
+					if isWhatsApp {
 						var msgOut manager.MessageStructuredOutput
 						if err := json.Unmarshal([]byte(cleanBody), &msgOut); err == nil && msgOut.Message != "" {
 							msg.Body = []byte(msgOut.Message)
@@ -278,7 +286,7 @@ func (m *Manager) ProcessBatch() error {
 			msg.From = activeEmail.Email
 		}
 
-		if (step.Messenger == "waha" || msgr.Name() == "waha") && sub.WahaSession.Valid {
+		if (step.Messenger == "whatsapp" || step.Messenger == "waha" || msgr.Name() == "whatsapp" || msgr.Name() == "waha") && sub.WahaSession.Valid {
 			msg.MessengerSession = sub.WahaSession.String
 		}
 
