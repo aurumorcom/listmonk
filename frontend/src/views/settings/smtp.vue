@@ -18,6 +18,9 @@
           </div><!-- first column -->
 
           <div class="column" :class="{ disabled: !item.enabled }">
+            <!-- Section 1: SMTP -->
+            <h5 class="title is-6 mb-3 has-text-weight-bold">SMTP</h5>
+
             <div class="columns">
               <div class="column is-9">
                 <b-field :label="$t('settings.mailserver.host')" label-position="on-border"
@@ -170,8 +173,78 @@
               </div>
             </div>
 
-            <hr />
-            <!-- Extended User & Signature Section -->
+            <!-- Channel Signature (Kept in SMTP Section) -->
+            <div class="columns">
+              <div class="column">
+                <b-field label="Channel Signature" label-position="on-border" message="Default signature for messages sent via this email account">
+                  <b-input v-model="item.signature" type="textarea" placeholder="Best regards,\nSales Team" />
+                </b-field>
+              </div>
+            </div>
+
+            <hr class="my-5" />
+
+            <!-- Section 2: IMAP -->
+            <h5 class="title is-6 mb-3 has-text-weight-bold">IMAP</h5>
+            <b-field class="mb-3">
+              <b-switch v-model="item.imap_enabled">
+                Enable IMAP Inbox Polling
+              </b-switch>
+            </b-field>
+            <template v-if="item.imap_enabled">
+              <div class="columns">
+                <div class="column is-9">
+                  <b-field :label="$t('settings.mailserver.host')" label-position="on-border">
+                    <b-input v-model="item.imap_host" placeholder="imap.gmail.com" :maxlength="200" />
+                  </b-field>
+                </div>
+                <div class="column">
+                  <b-field :label="$t('settings.mailserver.port')" label-position="on-border">
+                    <b-numberinput v-model="item.imap_port" type="is-light" controls-position="compact" placeholder="993" min="1" max="65535" />
+                  </b-field>
+                </div>
+              </div>
+              <div class="columns">
+                <div class="column is-3">
+                  <b-field :label="$t('settings.mailserver.tls')" label-position="on-border">
+                    <b-select v-model="item.imap_tls_type" expanded>
+                      <option value="TLS">SSL/TLS</option>
+                      <option value="STARTTLS">STARTTLS</option>
+                      <option value="none">None</option>
+                    </b-select>
+                  </b-field>
+                </div>
+                <div class="column">
+                  <b-field grouped>
+                    <b-field :label="$t('settings.mailserver.username')" label-position="on-border" expanded>
+                      <b-input v-model="item.imap_username" placeholder="user@example.com" :maxlength="200" />
+                    </b-field>
+                    <b-field :label="$t('settings.mailserver.password')" label-position="on-border" expanded message="Enter to change">
+                      <b-input v-model="item.imap_password" type="password" placeholder="Enter to change" :maxlength="200" />
+                    </b-field>
+                  </b-field>
+                </div>
+              </div>
+              <div class="spaced-links is-size-7">
+                <a href="#" @click.prevent="() => fillIMAPSettings(n, 'gmail')">Gmail</a>
+                <a href="#" @click.prevent="() => fillIMAPSettings(n, 'office365')">Office 365</a>
+                <a href="#" @click.prevent="() => fillIMAPSettings(n, 'fastmail')">Fastmail</a>
+                <a href="#" @click.prevent="() => fillIMAPSettings(n, 'yahoo')">Yahoo</a>
+              </div>
+              <hr />
+              <div class="columns">
+                <div class="column is-6">
+                  <b-field label="Folder" label-position="on-border">
+                    <b-input v-model="item.imap_folder" placeholder="INBOX" :maxlength="100" />
+                  </b-field>
+                </div>
+              </div>
+            </template>
+
+            <hr class="my-5" />
+
+            <!-- Section 3: User -->
+            <h5 class="title is-6 mb-3 has-text-weight-bold">User</h5>
             <div class="columns">
               <div class="column is-4">
                 <b-field :label="$t('globals.fields.name')" label-position="on-border"
@@ -180,7 +253,7 @@
                 </b-field>
               </div>
               <div class="column is-4">
-                <b-field label="Assigned User" label-position="on-border" message="Team member assigned to this email account">
+                <b-field label="User" label-position="on-border" message="Team member assigned to this email account">
                   <b-select v-model="item.user_id" expanded>
                     <option value="">&mdash; None &mdash;</option>
                     <option v-for="u in users" :value="u.id" :key="u.id">
@@ -196,64 +269,6 @@
                     :before-adding="validateFromAddress" placeholder="user@example.com, anothersite.com" />
                 </b-field>
               </div>
-            </div>
-
-            <div class="columns">
-              <div class="column">
-                <b-field label="Channel Signature" label-position="on-border" message="Default signature for messages sent via this email account">
-                  <b-input v-model="item.signature" type="textarea" placeholder="Best regards,\nSales Team" />
-                </b-field>
-              </div>
-            </div>
-
-            <!-- Extended IMAP Settings Box (Incoming Reply Processing) -->
-            <div class="box mt-4">
-              <h5 class="title is-6 mb-3">IMAP Settings (Incoming Reply Processing)</h5>
-              <b-field class="mb-3">
-                <b-switch v-model="item.imap_enabled">
-                  Enable IMAP Inbox Polling
-                </b-switch>
-              </b-field>
-              <template v-if="item.imap_enabled">
-                <div class="columns">
-                  <div class="column is-6">
-                    <b-field label="IMAP Host" label-position="on-border">
-                      <b-input v-model="item.imap_host" placeholder="imap.yourmailserver.net" :maxlength="200" />
-                    </b-field>
-                  </div>
-                  <div class="column is-3">
-                    <b-field label="IMAP Port" label-position="on-border">
-                      <b-numberinput v-model="item.imap_port" type="is-light" controls-position="compact" placeholder="993" min="1" max="65535" />
-                    </b-field>
-                  </div>
-                  <div class="column is-3">
-                    <b-field label="Encryption" label-position="on-border">
-                      <b-select v-model="item.imap_tls_type" expanded>
-                        <option value="TLS">SSL/TLS</option>
-                        <option value="STARTTLS">STARTTLS</option>
-                        <option value="none">None</option>
-                      </b-select>
-                    </b-field>
-                  </div>
-                </div>
-                <div class="columns">
-                  <div class="column is-5">
-                    <b-field label="IMAP Username" label-position="on-border">
-                      <b-input v-model="item.imap_username" placeholder="user@example.com" :maxlength="200" />
-                    </b-field>
-                  </div>
-                  <div class="column is-5">
-                    <b-field label="IMAP Password" label-position="on-border" message="Enter to change">
-                      <b-input v-model="item.imap_password" type="password" placeholder="Enter to change" :maxlength="200" />
-                    </b-field>
-                  </div>
-                  <div class="column is-2">
-                    <b-field label="Folder" label-position="on-border">
-                      <b-input v-model="item.imap_folder" placeholder="INBOX" :maxlength="100" />
-                    </b-field>
-                  </div>
-                </div>
-              </template>
             </div>
 
             <div class="columns">
@@ -347,6 +362,21 @@ const smtpTemplates = {
   },
   lettermint: {
     host: 'smtp.lettermint.co', port: 465, auth_protocol: 'login', tls_type: 'TLS',
+  },
+};
+
+const imapTemplates = {
+  gmail: {
+    imap_host: 'imap.gmail.com', imap_port: 993, imap_tls_type: 'TLS', imap_folder: 'INBOX',
+  },
+  office365: {
+    imap_host: 'outlook.office365.com', imap_port: 993, imap_tls_type: 'TLS', imap_folder: 'INBOX',
+  },
+  fastmail: {
+    imap_host: 'imap.fastmail.com', imap_port: 993, imap_tls_type: 'TLS', imap_folder: 'INBOX',
+  },
+  yahoo: {
+    imap_host: 'imap.mail.yahoo.com', imap_port: 993, imap_tls_type: 'TLS', imap_folder: 'INBOX',
   },
 };
 
@@ -494,6 +524,13 @@ export default Vue.extend({
 
       this.$nextTick(() => {
         document.querySelector(`.smtp-username-${n}`).focus();
+      });
+    },
+
+    fillIMAPSettings(n, key) {
+      this.data.smtp.splice(n, 1, {
+        ...this.data.smtp[n],
+        ...imapTemplates[key],
       });
     },
   },

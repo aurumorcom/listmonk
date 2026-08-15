@@ -22,8 +22,8 @@
           <div class="column" :class="{ disabled: !item.enabled }">
             <div class="columns">
               <div class="column is-6">
-                <b-field label="User" label-position="on-border" message="System user or account owner assigned to this WhatsApp session">
-                  <b-input v-model="item.user" name="user" placeholder="admin@example.com" :maxlength="200" />
+                <b-field :label="$t('globals.fields.name')" label-position="on-border" message="Unique identifier for this WhatsApp messenger">
+                  <b-input v-model="item.name" name="name" placeholder="whatsapp" :maxlength="100" />
                 </b-field>
               </div>
               <div class="column is-6">
@@ -47,14 +47,6 @@
               <div class="column is-4">
                 <b-field label="Phone Attribute Key" label-position="on-border" message="JSON key in subscriber attribs for phone number">
                   <b-input v-model="item.phone_attribute" name="phone_attribute" placeholder="phone" :maxlength="100" />
-                </b-field>
-              </div>
-            </div>
-
-            <div class="columns">
-              <div class="column is-12">
-                <b-field label="Signature" label-position="on-border" message="Default signature appended to WhatsApp messages sent from this session">
-                  <b-input v-model="item.signature" name="signature" type="textarea" rows="2" placeholder="Best regards,\nSupport Team" />
                 </b-field>
               </div>
             </div>
@@ -136,6 +128,31 @@
 
             <hr />
 
+            <!-- Signature Section -->
+            <div class="columns">
+              <div class="column is-12">
+                <b-field label="Signature" label-position="on-border" message="Default signature appended to WhatsApp messages sent from this session">
+                  <b-input v-model="item.signature" name="signature" type="textarea" rows="2" placeholder="Best regards,\nSupport Team" />
+                </b-field>
+              </div>
+            </div>
+
+            <!-- User Section (Below Signature) -->
+            <div class="columns">
+              <div class="column is-12">
+                <b-field label="User" label-position="on-border" message="Team member assigned to this WhatsApp account">
+                  <b-select v-model="item.user_id" expanded>
+                    <option value="">&mdash; None &mdash;</option>
+                    <option v-for="u in users" :value="u.id" :key="u.id">
+                      {{ u.name || u.username }} ({{ u.email || u.username }})
+                    </option>
+                  </b-select>
+                </b-field>
+              </div>
+            </div>
+
+            <hr />
+
             <div class="columns">
               <div class="column has-text-right">
                 <a href="#" class="is-primary" @click.prevent="testConnection(n)">
@@ -166,7 +183,15 @@ export default {
   data() {
     return {
       data: this.form,
+      users: [],
     };
+  },
+  mounted() {
+    if (this.$api && typeof this.$api.queryUsers === 'function') {
+      this.$api.queryUsers().then((resp) => {
+        this.users = resp || [];
+      }).catch(() => {});
+    }
   },
   created() {
     this.ensureDefault();
@@ -193,7 +218,9 @@ export default {
         this.$set(this.data, 'waha_messengers', []);
       }
       this.data.waha_messengers.push({
+        name: 'whatsapp',
         enabled: true,
+        user_id: '',
         user: '',
         root_url: 'http://waha:3000',
         api_key: '',
