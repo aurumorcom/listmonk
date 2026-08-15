@@ -355,15 +355,15 @@ ______________________________________________________________________
 
 #### POST /api/campaigns/{campaign_id}/test
 
-Test campaign with arbitrary subscribers.
+Test campaign with arbitrary recipients across Email (SMTP) and WhatsApp (WAHA). Template variables and subscriber tokens (e.g. `{{ .Subscriber.FirstName }}`) are personalized using the contact context, while the message envelope is routed directly to the specified test recipients.
 
 Use the same parameters in [POST /api/campaigns](#post-apicampaigns) in addition to the below parameters.
 
 ##### Parameters
 
-| Name        | Type       | Required | Description                                        |
-| :---------- | :--------- | :------- | :------------------------------------------------- |
-| subscribers | string\[\] | Yes      | List of subscriber e-mails to send the message to. |
+| Name        | Type       | Required | Description                                                                                              |
+| :---------- | :--------- | :------- | :------------------------------------------------------------------------------------------------------- |
+| subscribers | string\[\] | Yes      | List of test recipient email addresses (for email) or international phone numbers (e.g. `+14155552671` for WhatsApp). |
 
 ______________________________________________________________________
 

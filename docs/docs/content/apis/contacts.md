@@ -11,6 +11,7 @@ The Contacts API allows querying, creating, updating, and deleting contacts (sub
 | `uuid` | string | Unique contact UUID string |
 | `name` | string | Full name of contact |
 | `email` | string | Primary email address |
+| `phone` | string | E.164 formatted international phone number (e.g. `+14155552671`) |
 | `status` | string | Contact status (`enabled`, `disabled`, `blocklisted`) |
 | `lists` | object[] | Array of subscribed list objects |
 | `attribs` | object | Custom JSON key-value attributes metadata |
