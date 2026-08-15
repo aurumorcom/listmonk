@@ -141,6 +141,9 @@
                     Step {{ props.row.step_number || (props.index + 1) }}{{ props.row.name ? `: ${props.row.name}` : '' }}
                     <copy-text :text="props.row.name || `Step ${props.row.step_number || (props.index + 1)}`" hide-text />
                   </a>
+                  <b-tag v-if="props.row.delay_seconds > 0" class="is-small ml-1" type="is-light">
+                    <b-icon icon="clock-outline" size="is-small" /> {{ formatStepDuration(props.row.delay_seconds) }}
+                  </b-tag>
                 </p>
                 <p class="is-size-7 has-text-grey" v-if="props.row.subject">
                   <copy-text :text="props.row.subject" />
@@ -397,7 +400,7 @@ export default {
       steps: [
         {
           step_number: 1,
-          delay_days: 0,
+          delay_seconds: 0,
           messenger: 'email',
           condition: 'always',
           subject: '',
@@ -478,6 +481,13 @@ export default {
     },
     onShowHeaders() {
       this.isHeadersVisible = true;
+    },
+    formatStepDuration(sec) {
+      if (!sec || sec <= 0) return 'Immediate';
+      if (sec % 86400 === 0) return `${sec / 86400}d`;
+      if (sec % 3600 === 0) return `${sec / 3600}h`;
+      if (sec % 60 === 0) return `${sec / 60}m`;
+      return `${sec}s`;
     },
     formatCondition(cond) {
       const map = {
@@ -561,7 +571,7 @@ export default {
       const cloned = {
         ...JSON.parse(JSON.stringify(target)),
         step_number: this.steps.length + 1,
-        delay_days: target.delay_days + 1,
+        delay_seconds: (target.delay_seconds || 0) + 86400,
         subject: `Copy of ${target.subject || 'Step'}`,
       };
       this.steps.push(cloned);
