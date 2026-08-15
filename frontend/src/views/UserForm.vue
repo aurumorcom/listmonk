@@ -56,6 +56,10 @@
           <b-input :maxlength="200" v-model="form.email" name="email" :placeholder="$t('subscribers.email')" required />
         </b-field>
 
+        <b-field v-if="form.type !== 'api'" label="Phone" label-position="on-border" message="International format, e.g. +14155552671">
+          <b-input :maxlength="30" v-model="form.phone" name="phone" placeholder="+14155552671" />
+        </b-field>
+
         <b-field v-if="form.type !== 'api'" label="Signature" label-position="on-border">
           <b-input v-model="form.signature" name="signature" type="textarea" placeholder="Default user signature..." />
         </b-field>
@@ -159,6 +163,7 @@ export default Vue.extend({
         type: 'user',
         status: 'enabled',
         signature: '',
+        phone: '',
       },
       apiToken: null,
     };
