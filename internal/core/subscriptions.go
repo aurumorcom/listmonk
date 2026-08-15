@@ -30,7 +30,7 @@ func (c *Core) AddSubscriptions(subIDs, listIDs []int, status string) error {
 			c.i18n.Ts("globals.messages.errorUpdating", "name", "{globals.terms.subscribers}", "error", err.Error()))
 	}
 
-	if status == models.SubscriptionStatusConfirmed || status == "subscribed" {
+	if status != models.SubscriptionStatusUnsubscribed {
 		_ = c.EnrollSubscribersByList(subIDs, listIDs)
 	}
 
@@ -51,13 +51,18 @@ func (c *Core) AddSubscriptionsByQuery(searchStr, queryExp string, sourceListIDs
 			c.i18n.Ts("globals.messages.errorUpdating", "name", "{globals.terms.subscribers}", "error", pqErrMsg(err)))
 	}
 
-	if status == models.SubscriptionStatusConfirmed || status == "subscribed" {
+	if status != models.SubscriptionStatusUnsubscribed {
 		// Auto-enroll all subscribers in target lists into active sequences
 		for _, lID := range targetListIDs {
 			_, _ = c.db.Exec(`INSERT INTO sequence_contacts (sequence_id, subscriber_id, status, current_step, next_send_at)
 				SELECT DISTINCT sl.sequence_id, subl.subscriber_id, 'scheduled', 1, NOW()
 				FROM sequence_lists sl
-				JOIN subscriber_lists subl ON subl.list_id = sl.list_id AND subl.status = 'subscribed'
+				JOIN lists l ON l.id = sl.list_id
+				JOIN subscriber_lists subl ON subl.list_id = sl.list_id
+					AND (
+						(l.optin = 'double' AND subl.status = 'confirmed') OR
+						(l.optin != 'double' AND subl.status != 'unsubscribed')
+					)
 				JOIN sequences seq ON seq.id = sl.sequence_id AND seq.status = 'active'
 				JOIN subscribers s ON s.id = subl.subscriber_id AND s.status = 'enabled'
 				WHERE sl.list_id = $1
@@ -103,7 +108,12 @@ func (c *Core) DeleteSubscriptionsByQuery(searchStr, queryExp string, sourceList
 			  AND sc.sequence_id IN (SELECT sl.sequence_id FROM sequence_lists sl WHERE sl.list_id = $1)
 			  AND NOT EXISTS (
 			      SELECT 1 FROM sequence_lists sl2
-			      JOIN subscriber_lists subl ON subl.list_id = sl2.list_id AND subl.status = 'subscribed'
+			      JOIN lists l2 ON l2.id = sl2.list_id
+			      JOIN subscriber_lists subl ON subl.list_id = sl2.list_id
+			          AND (
+			              (l2.optin = 'double' AND subl.status = 'confirmed') OR
+			              (l2.optin != 'double' AND subl.status != 'unsubscribed')
+			          )
 			      WHERE sl2.sequence_id = sc.sequence_id AND subl.subscriber_id = sc.subscriber_id
 			  )`, lID)
 	}
