@@ -118,6 +118,7 @@ type User struct {
 	EmailID       null.Int         `db:"email_id" json:"email_id"`
 	WahaSession   null.String      `db:"waha_session" json:"waha_session"`
 	Signature     string           `db:"signature" json:"signature"`
+	Phone         null.String      `db:"phone" json:"phone"`
 	LoggedInAt    null.Time        `db:"loggedin_at" json:"loggedin_at"`
 	UserRoleID    int              `db:"user_role_id" json:"user_role_id,omitempty"`
 	UserRoleName  string           `db:"user_role_name" json:"-"`
