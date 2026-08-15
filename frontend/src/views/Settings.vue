@@ -134,6 +134,12 @@ export default Vue.extend({
           hasDummy = `smtp #${i + 1}`;
         }
 
+        if (this.isDummy(form.smtp[i].imap_password)) {
+          form.smtp[i].imap_password = '';
+        } else if (this.hasDummy(form.smtp[i].imap_password)) {
+          hasDummy = `imap #${i + 1}`;
+        }
+
         if (form.smtp[i].strEmailHeaders && form.smtp[i].strEmailHeaders !== '[]') {
           form.smtp[i].email_headers = JSON.parse(form.smtp[i].strEmailHeaders);
         } else {
@@ -211,6 +217,14 @@ export default Vue.extend({
         }
       }
 
+      for (let i = 0; i < (form.waha_messengers || []).length; i += 1) {
+        if (this.isDummy(form.waha_messengers[i].api_key)) {
+          form.waha_messengers[i].api_key = '';
+        } else if (this.hasDummy(form.waha_messengers[i].api_key)) {
+          hasDummy = `waha #${i + 1}`;
+        }
+      }
+
       if (hasDummy) {
         this.$utils.toast(this.$t('globals.messages.passwordChangeFull', { name: hasDummy }), 'is-danger');
         return false;
@@ -252,7 +266,9 @@ export default Vue.extend({
         if (!d.waha_messengers || !Array.isArray(d.waha_messengers) || d.waha_messengers.length === 0) {
           d.waha_messengers = [
             {
+              name: 'whatsapp',
               enabled: true,
+              user_id: '',
               user: '',
               root_url: 'http://waha:3000',
               api_key: '',
