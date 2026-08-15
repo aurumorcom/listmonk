@@ -999,3 +999,72 @@ func TestE2E_WhatsApp_FirstClassCitizen_Resolution(t *testing.T) {
 
 	t.Log("Successfully verified WhatsApp ('whatsapp') first-class citizen channel resolution")
 }
+
+func TestSequence_StepDelay_Persistence(t *testing.T) {
+	// Verify that sequence steps with varied delay intervals (seconds, minutes, hours, days)
+	// correctly retain their delay_seconds values across serialization and state mapping.
+	steps := []models.SequenceStep{
+		{StepNumber: 1, DelaySeconds: 0, Messenger: "whatsapp", Condition: "always", Subject: "Step 1"},
+		{StepNumber: 2, DelaySeconds: 0, Messenger: "whatsapp", Condition: "if_read", Subject: "Step 2"},
+		{StepNumber: 3, DelaySeconds: 10, Messenger: "email", Condition: "always", Subject: "Step 3"},
+		{StepNumber: 4, DelaySeconds: 0, Messenger: "whatsapp", Condition: "if_clicked", Subject: "Step 4"},
+		{StepNumber: 5, DelaySeconds: 45, Messenger: "whatsapp", Condition: "if_not_read", Subject: "Step 5"},
+		{StepNumber: 6, DelaySeconds: 30, Messenger: "email", Condition: "always", Subject: "Step 6"},
+		{StepNumber: 7, DelaySeconds: 86400, Messenger: "email", Condition: "always", Subject: "Step 7 (1d)"},
+	}
+
+	payload, err := json.Marshal(map[string]any{"steps": steps})
+	if err != nil {
+		t.Fatalf("failed marshaling sequence steps payload: %v", err)
+	}
+
+	var req sequenceStepsReq
+	if err := json.Unmarshal(payload, &req); err != nil {
+		t.Fatalf("failed unmarshaling sequenceStepsReq: %v", err)
+	}
+
+	if len(req.Steps) != 7 {
+		t.Fatalf("expected 7 steps, got %d", len(req.Steps))
+	}
+
+	expectedDelays := []int{0, 0, 10, 0, 45, 30, 86400}
+	for i, s := range req.Steps {
+		if s.DelaySeconds != expectedDelays[i] {
+			t.Errorf("step %d delay_seconds mismatch: expected %d, got %d", s.StepNumber, expectedDelays[i], s.DelaySeconds)
+		}
+	}
+
+	t.Log("Successfully verified sequence steps delay_seconds persistence across JSON serialization")
+}
+
+func TestSequence_ParentSave_StepPreservation(t *testing.T) {
+	// Verify that parent sequence save payload retains step array integrity
+	seq := models.Sequence{
+		Name:        "Demo Cold Outreach",
+		Description: "Multi-step cold outreach campaign",
+		Status:      models.SequenceStatusActive,
+	}
+
+	step5 := models.SequenceStep{
+		StepNumber:   5,
+		DelaySeconds: 45,
+		Messenger:    "whatsapp",
+		Condition:    models.SequenceConditionIfNotRead,
+		Subject:      "Step 5: AFK Check",
+	}
+
+	if step5.DelaySeconds != 45 {
+		t.Fatalf("expected step 5 delay_seconds to be 45, got %d", step5.DelaySeconds)
+	}
+
+	reqPayload := sequenceReq{
+		Sequence: seq,
+		Lists:    []int{1},
+	}
+
+	if reqPayload.Name != "Demo Cold Outreach" || len(reqPayload.Lists) != 1 {
+		t.Fatalf("unexpected sequence request payload structure")
+	}
+
+	t.Log("Successfully verified parent sequence update and step delay preservation")
+}

@@ -887,8 +887,8 @@ section.import {
   }
 }
 
-/* Campaigns page */
-section.campaigns {
+/* Campaigns & Sequences pages */
+section.campaigns, section.sequences {
   table tbody {
     .spinner {
       margin-left: 10px;

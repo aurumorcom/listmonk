@@ -79,13 +79,14 @@
               <copy-text :text="props.row.name" hide-text />
             </router-link>
           </p>
-          <p class="is-size-7 has-text-grey" v-if="props.row.tags && props.row.tags.length">
-            <b-taglist>
-              <b-tag class="is-small" v-for="t in props.row.tags" :key="t">
-                {{ t }}
-              </b-tag>
-            </b-taglist>
+          <p class="is-size-7 has-text-grey" v-if="props.row.description">
+            <copy-text :text="props.row.description" />
           </p>
+          <b-taglist v-if="props.row.tags && props.row.tags.length">
+            <b-tag class="is-small" v-for="t in props.row.tags" :key="t">
+              {{ t }}
+            </b-tag>
+          </b-taglist>
         </div>
       </b-table-column>
 
