@@ -17,31 +17,31 @@ import (
 func TestE2E_Sequence_MultiStep_Execution(t *testing.T) {
 	// Create step structure: WhatsApp Step 1 -> Delay Step 2 -> Email Step 3
 	step1 := models.SequenceStep{
-		ID:           1,
-		SequenceID:   100,
-		StepNumber:   1,
-		Messenger:    "whatsapp",
-		Subject:      "Welcome WhatsApp Step 1",
-		Body:         "Hi {{ .Contact.Name }}, welcome! Tracked link: http://localhost:9000/r/sample-link",
-		DelaySeconds: 0,
+		ID:         1,
+		SequenceID: 100,
+		StepNumber: 1,
+		Messenger:  "whatsapp",
+		Subject:    "Welcome WhatsApp Step 1",
+		Body:       "Hi {{ .Contact.Name }}, welcome! Tracked link: http://localhost:9000/r/sample-link",
+		Delay:      "0s",
 	}
 
 	step2 := models.SequenceStep{
-		ID:           2,
-		SequenceID:   100,
-		StepNumber:   2,
-		Messenger:    "delay",
-		DelaySeconds: 86400,
+		ID:         2,
+		SequenceID: 100,
+		StepNumber: 2,
+		Messenger:  "delay",
+		Delay:      "1d",
 	}
 
 	step3 := models.SequenceStep{
-		ID:           3,
-		SequenceID:   100,
-		StepNumber:   3,
-		Messenger:    "email",
-		Subject:      "Followup Email Step 3",
-		Body:         "Hi {{ .Contact.Name }}, following up via email.",
-		DelaySeconds: 0,
+		ID:         3,
+		SequenceID: 100,
+		StepNumber: 3,
+		Messenger:  "email",
+		Subject:    "Followup Email Step 3",
+		Body:       "Hi {{ .Contact.Name }}, following up via email.",
+		Delay:      "0s",
 	}
 
 	steps := []models.SequenceStep{step1, step2, step3}
@@ -458,23 +458,23 @@ func TestE2E_Sequence_REST_API_Pipeline(t *testing.T) {
 
 	steps := []models.SequenceStep{
 		{
-			ID:           1,
-			SequenceID:   101,
-			StepNumber:   1,
-			DelaySeconds: 0,
-			Messenger:    "email",
-			Subject:      "Initial Outreach",
-			Body:         "Hello {{ .Subscriber.Name }}, interested in our platform?",
+			ID:         1,
+			SequenceID: 101,
+			StepNumber: 1,
+			Delay:      "0s",
+			Messenger:  "email",
+			Subject:    "Initial Outreach",
+			Body:       "Hello {{ .Subscriber.Name }}, interested in our platform?",
 		},
 		{
-			ID:           2,
-			SequenceID:   101,
-			StepNumber:   2,
-			DelaySeconds: 172800,
-			Messenger:    "email",
-			Condition:    models.SequenceConditionIfNotRead,
-			Subject:      "Quick Follow-Up",
-			Body:         "Following up on my previous message.",
+			ID:         2,
+			SequenceID: 101,
+			StepNumber: 2,
+			Delay:      "2d",
+			Messenger:  "email",
+			Condition:  models.SequenceConditionIfNotRead,
+			Subject:    "Quick Follow-Up",
+			Body:       "Following up on my previous message.",
 		},
 	}
 
@@ -592,52 +592,52 @@ func TestSchedule_IsDefaultField(t *testing.T) {
 func TestSeededTeamDemoSequence_Structure(t *testing.T) {
 	steps := []models.SequenceStep{
 		{
-			StepNumber:   1,
-			DelaySeconds: 0,
-			Messenger:    "waha",
-			Condition:    models.SequenceConditionAlways,
-			Subject:      "Step 1: Incoming Transmission",
-			Body:         "🛸 *Incoming Transmission from HQ...*\n\nHey {{ .Subscriber.FirstName }}! We have a top-secret mission prepared for {{ .Subscriber.Email }}.\n\n👁️ Leave this chat unread and nothing happens... Open it to give us the Blue Ticks, and we’ll immediately beam the payload to your inbox!",
+			StepNumber: 1,
+			Delay:      "0s",
+			Messenger:  "waha",
+			Condition:  models.SequenceConditionAlways,
+			Subject:    "Step 1: Incoming Transmission",
+			Body:       "🛸 *Incoming Transmission from HQ...*\n\nHey {{ .Subscriber.FirstName }}! We have a top-secret mission prepared for {{ .Subscriber.Email }}.\n\n👁️ Leave this chat unread and nothing happens... Open it to give us the Blue Ticks, and we’ll immediately beam the payload to your inbox!",
 		},
 		{
-			StepNumber:   2,
-			DelaySeconds: 0,
-			Messenger:    "waha",
-			Condition:    models.SequenceConditionIfRead,
-			Subject:      "Step 2: Read Caught",
-			Body:         "We just beamed an urgent mission email to {{ .Subscriber.Email }}! 🛸\n\n🏃‍♂️ Sprint over to your inbox and click the button before carrier pigeons eat the bandwidth!",
+			StepNumber: 2,
+			Delay:      "0s",
+			Messenger:  "waha",
+			Condition:  models.SequenceConditionIfRead,
+			Subject:    "Step 2: Read Caught",
+			Body:       "We just beamed an urgent mission email to {{ .Subscriber.Email }}! 🛸\n\n🏃‍♂️ Sprint over to your inbox and click the button before carrier pigeons eat the bandwidth!",
 		},
 		{
-			StepNumber:   3,
-			DelaySeconds: 10,
-			Messenger:    "email",
-			Condition:    models.SequenceConditionAlways,
-			Subject:      "🧪 [Team Demo] Click this link to trigger Step 4 on WhatsApp!",
-			Body:         "<p>Hi {{ .Subscriber.FirstName }}!</p><p>You triggered the <code>if_read</code> Blue Tick response!</p><p><a href=\"https://example.com/demo@TrackLink\">👉 CLICK ME TO TRIGGER WHATSAPP STEP 4 👈</a></p>",
+			StepNumber: 3,
+			Delay:      "10s",
+			Messenger:  "email",
+			Condition:  models.SequenceConditionAlways,
+			Subject:    "🧪 [Team Demo] Click this link to trigger Step 4 on WhatsApp!",
+			Body:       "<p>Hi {{ .Subscriber.FirstName }}!</p><p>You triggered the <code>if_read</code> Blue Tick response!</p><p><a href=\"https://example.com/demo@TrackLink\">👉 CLICK ME TO TRIGGER WHATSAPP STEP 4 👈</a></p>",
 		},
 		{
-			StepNumber:   4,
-			DelaySeconds: 0,
-			Messenger:    "waha",
-			Condition:    models.SequenceConditionIfClicked,
-			Subject:      "Step 4: Click Registered",
-			Body:         "🎯 *CLICK EVENT REGISTERED IN REAL-TIME!*\n\n{{ .Subscriber.FirstName }}, you clicked the button like a 10x engineer! 🍪 Listmonk saw your click immediately.",
+			StepNumber: 4,
+			Delay:      "0s",
+			Messenger:  "waha",
+			Condition:  models.SequenceConditionIfClicked,
+			Subject:    "Step 4: Click Registered",
+			Body:       "🎯 *CLICK EVENT REGISTERED IN REAL-TIME!*\n\n{{ .Subscriber.FirstName }}, you clicked the button like a 10x engineer! 🍪 Listmonk saw your click immediately.",
 		},
 		{
-			StepNumber:   5,
-			DelaySeconds: 45,
-			Messenger:    "waha",
-			Condition:    models.SequenceConditionIfNotRead,
-			Subject:      "Step 5: AFK Check",
-			Body:         "☕ *AFK Alert!*\n\nStill waiting on that email click, {{ .Subscriber.FirstName }}! Don't leave the demo hanging!",
+			StepNumber: 5,
+			Delay:      "45s",
+			Messenger:  "waha",
+			Condition:  models.SequenceConditionIfNotRead,
+			Subject:    "Step 5: AFK Check",
+			Body:       "☕ *AFK Alert!*\n\nStill waiting on that email click, {{ .Subscriber.FirstName }}! Don't leave the demo hanging!",
 		},
 		{
-			StepNumber:   6,
-			DelaySeconds: 30,
-			Messenger:    "email",
-			Condition:    models.SequenceConditionAlways,
-			Subject:      "🏆 [Demo Complete] You conquered the 2-minute sequence!",
-			Body:         "<h2>🎉 Demo Complete!</h2><p>You have tested WAHA Blue Tick reads, email handoffs, and link clicks in under 2 minutes.</p>",
+			StepNumber: 6,
+			Delay:      "30s",
+			Messenger:  "email",
+			Condition:  models.SequenceConditionAlways,
+			Subject:    "🏆 [Demo Complete] You conquered the 2-minute sequence!",
+			Body:       "<h2>🎉 Demo Complete!</h2><p>You have tested WAHA Blue Tick reads, email handoffs, and link clicks in under 2 minutes.</p>",
 		},
 	}
 
@@ -658,22 +658,22 @@ func TestSeededTeamDemoSequence_Structure(t *testing.T) {
 		}
 	}
 
-	if steps[0].Messenger != "waha" || steps[0].Condition != models.SequenceConditionAlways || steps[0].DelaySeconds != 0 {
+	if steps[0].Messenger != "waha" || steps[0].Condition != models.SequenceConditionAlways || steps[0].Delay != "0s" {
 		t.Errorf("step 1 mismatch: %+v", steps[0])
 	}
-	if steps[1].Messenger != "waha" || steps[1].Condition != models.SequenceConditionIfRead || steps[1].DelaySeconds != 0 {
+	if steps[1].Messenger != "waha" || steps[1].Condition != models.SequenceConditionIfRead || steps[1].Delay != "0s" {
 		t.Errorf("step 2 mismatch: %+v", steps[1])
 	}
-	if steps[2].Messenger != "email" || steps[2].Condition != models.SequenceConditionAlways || steps[2].DelaySeconds != 10 {
+	if steps[2].Messenger != "email" || steps[2].Condition != models.SequenceConditionAlways || steps[2].Delay != "10s" {
 		t.Errorf("step 3 mismatch: %+v", steps[2])
 	}
-	if steps[3].Messenger != "waha" || steps[3].Condition != models.SequenceConditionIfClicked || steps[3].DelaySeconds != 0 {
+	if steps[3].Messenger != "waha" || steps[3].Condition != models.SequenceConditionIfClicked || steps[3].Delay != "0s" {
 		t.Errorf("step 4 mismatch: %+v", steps[3])
 	}
-	if steps[4].Messenger != "waha" || steps[4].Condition != models.SequenceConditionIfNotRead || steps[4].DelaySeconds != 45 {
+	if steps[4].Messenger != "waha" || steps[4].Condition != models.SequenceConditionIfNotRead || steps[4].Delay != "45s" {
 		t.Errorf("step 5 mismatch: %+v", steps[4])
 	}
-	if steps[5].Messenger != "email" || steps[5].Condition != models.SequenceConditionAlways || steps[5].DelaySeconds != 30 {
+	if steps[5].Messenger != "email" || steps[5].Condition != models.SequenceConditionAlways || steps[5].Delay != "30s" {
 		t.Errorf("step 6 mismatch: %+v", steps[5])
 	}
 
@@ -1002,15 +1002,15 @@ func TestE2E_WhatsApp_FirstClassCitizen_Resolution(t *testing.T) {
 
 func TestSequence_StepDelay_Persistence(t *testing.T) {
 	// Verify that sequence steps with varied delay intervals (seconds, minutes, hours, days)
-	// correctly retain their delay_seconds values across serialization and state mapping.
+	// correctly retain their delay values across serialization and state mapping.
 	steps := []models.SequenceStep{
-		{StepNumber: 1, DelaySeconds: 0, Messenger: "whatsapp", Condition: "always", Subject: "Step 1"},
-		{StepNumber: 2, DelaySeconds: 0, Messenger: "whatsapp", Condition: "if_read", Subject: "Step 2"},
-		{StepNumber: 3, DelaySeconds: 10, Messenger: "email", Condition: "always", Subject: "Step 3"},
-		{StepNumber: 4, DelaySeconds: 0, Messenger: "whatsapp", Condition: "if_clicked", Subject: "Step 4"},
-		{StepNumber: 5, DelaySeconds: 45, Messenger: "whatsapp", Condition: "if_not_read", Subject: "Step 5"},
-		{StepNumber: 6, DelaySeconds: 30, Messenger: "email", Condition: "always", Subject: "Step 6"},
-		{StepNumber: 7, DelaySeconds: 86400, Messenger: "email", Condition: "always", Subject: "Step 7 (1d)"},
+		{StepNumber: 1, Delay: "0s", Messenger: "whatsapp", Condition: "always", Subject: "Step 1"},
+		{StepNumber: 2, Delay: "0s", Messenger: "whatsapp", Condition: "if_read", Subject: "Step 2"},
+		{StepNumber: 3, Delay: "10s", Messenger: "email", Condition: "always", Subject: "Step 3"},
+		{StepNumber: 4, Delay: "0s", Messenger: "whatsapp", Condition: "if_clicked", Subject: "Step 4"},
+		{StepNumber: 5, Delay: "45s", Messenger: "whatsapp", Condition: "if_not_read", Subject: "Step 5"},
+		{StepNumber: 6, Delay: "30s", Messenger: "email", Condition: "always", Subject: "Step 6"},
+		{StepNumber: 7, Delay: "1d", Messenger: "email", Condition: "always", Subject: "Step 7 (1d)"},
 	}
 
 	payload, err := json.Marshal(map[string]any{"steps": steps})
@@ -1027,14 +1027,14 @@ func TestSequence_StepDelay_Persistence(t *testing.T) {
 		t.Fatalf("expected 7 steps, got %d", len(req.Steps))
 	}
 
-	expectedDelays := []int{0, 0, 10, 0, 45, 30, 86400}
+	expectedDelays := []string{"0s", "0s", "10s", "0s", "45s", "30s", "1d"}
 	for i, s := range req.Steps {
-		if s.DelaySeconds != expectedDelays[i] {
-			t.Errorf("step %d delay_seconds mismatch: expected %d, got %d", s.StepNumber, expectedDelays[i], s.DelaySeconds)
+		if s.Delay != expectedDelays[i] {
+			t.Errorf("step %d delay mismatch: expected %s, got %s", s.StepNumber, expectedDelays[i], s.Delay)
 		}
 	}
 
-	t.Log("Successfully verified sequence steps delay_seconds persistence across JSON serialization")
+	t.Log("Successfully verified sequence steps delay persistence across JSON serialization")
 }
 
 func TestSequence_ParentSave_StepPreservation(t *testing.T) {
@@ -1046,15 +1046,15 @@ func TestSequence_ParentSave_StepPreservation(t *testing.T) {
 	}
 
 	step5 := models.SequenceStep{
-		StepNumber:   5,
-		DelaySeconds: 45,
-		Messenger:    "whatsapp",
-		Condition:    models.SequenceConditionIfNotRead,
-		Subject:      "Step 5: AFK Check",
+		StepNumber: 5,
+		Delay:      "45s",
+		Messenger:  "whatsapp",
+		Condition:  models.SequenceConditionIfNotRead,
+		Subject:    "Step 5: AFK Check",
 	}
 
-	if step5.DelaySeconds != 45 {
-		t.Fatalf("expected step 5 delay_seconds to be 45, got %d", step5.DelaySeconds)
+	if step5.Delay != "45s" {
+		t.Fatalf("expected step 5 delay to be '45s', got %s", step5.Delay)
 	}
 
 	reqPayload := sequenceReq{
