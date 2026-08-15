@@ -137,7 +137,7 @@ type Settings struct {
 		MaxMsgRetries int    `json:"max_msg_retries"`
 	} `json:"messengers"`
 
-	WAHAMessengers []WAHAMessenger `json:"waha_messengers"`
+	WAHAMessengers []WAHAMessenger `json:"waha"`
 
 	BounceEnabled        bool `json:"bounce.enabled"`
 	BounceEnableWebhooks bool `json:"bounce.webhooks_enabled"`
