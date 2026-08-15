@@ -372,10 +372,6 @@ func TestE2E_Campaign_WhatsApp_WAHA(t *testing.T) {
 		if recReply.Code != http.StatusOK {
 			t.Errorf("expected HTTP 200 from WAHA Reply webhook, got %d", recReply.Code)
 		}
-
-		if isLive && msgID != "" {
-			_ = deleteWahaMessage(wahaURL, apiKey, senderSess.Name, receiverSess.JID, msgID)
-		}
 	}
 
 	t.Log("Successfully validated WAHA WhatsApp Campaign lifecycle (Dynamic Sessions -> Dispatch -> Read ACK -> Tracked Link -> Contact Reply)")

@@ -68,27 +68,6 @@ func waitForWahaSessionWorking(wahaURL, apiKey, session string) {
 	}
 }
 
-func deleteWahaMessage(wahaURL, apiKey, session, chatId, messageId string) error {
-	if wahaURL == "" || session == "" || chatId == "" || messageId == "" {
-		return nil
-	}
-	client := &http.Client{Timeout: 5 * time.Second}
-	url := fmt.Sprintf("%s/api/%s/chats/%s/messages/%s", strings.TrimRight(wahaURL, "/"), session, chatId, messageId)
-	req, err := http.NewRequest(http.MethodDelete, url, nil)
-	if err != nil {
-		return err
-	}
-	if apiKey != "" {
-		req.Header.Set("X-Api-Key", apiKey)
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	return nil
-}
-
 // 1. Webhook Setup Feature Test
 func TestWAHA_WebhookSetup(t *testing.T) {
 	wahaURL := getEnv("WAHA_ROOT_URL", "http://localhost:3000")
@@ -202,12 +181,7 @@ func TestWAHA_ReadMessage(t *testing.T) {
 		t.Errorf("expected HTTP 200 from Read ACK webhook, got %d", recAck.Code)
 	}
 
-	// Clean up message via deleteWahaMessage
-	if isLive && sentMsgID != "" {
-		_ = deleteWahaMessage(wahaURL, apiKey, senderSess.Name, receiverSess.JID, sentMsgID)
-	}
-
-	t.Log("Successfully verified WAHA message sending, Read ACK processing, and message cleanup")
+	t.Log("Successfully verified WAHA message sending and Read ACK processing")
 }
 
 // 3. Link Click Feature Test
