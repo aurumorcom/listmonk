@@ -8,6 +8,10 @@ SELECT * FROM subscribers WHERE
         WHEN $3 != '' THEN email = $3
     END;
 
+-- name: get-subscriber-by-phone
+-- Get a single subscriber by phone number.
+SELECT * FROM subscribers WHERE phone = $1 OR phone = $2 LIMIT 1;
+
 -- name: get-most-populated-subscriber-for-preview
 -- Retrieves the enabled subscriber with the largest JSON attributes payload for template previews.
 SELECT * FROM subscribers
