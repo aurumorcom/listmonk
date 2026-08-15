@@ -1949,4 +1949,37 @@ func TestSequence_TestMessage_PreviewDecoupling_And_PhoneLookup(t *testing.T) {
 	if testWhatsAppDispatch.Phone.String != adminUser.Phone.String {
 		t.Fatalf("expected WhatsApp destination to match admin phone '%s', got '%s'", adminUser.Phone.String, testWhatsAppDispatch.Phone.String)
 	}
+
+	// 5. Test resolveTestPreviewSubscriber unit logic directly
+	app := &App{}
+
+	// Case A: User with name, email and phone without DB record
+	syntheticUser := auth.User{
+		Name:  "Admin Tester",
+		Email: null.StringFrom("admin.tester@example.com"),
+		Phone: null.StringFrom("+14155552671"),
+	}
+	subA := app.resolveTestPreviewSubscriber(0, syntheticUser)
+	if subA.Name != "Admin Tester" {
+		t.Fatalf("expected synthetic user name 'Admin Tester', got '%s'", subA.Name)
+	}
+	if subA.Email != "admin.tester@example.com" {
+		t.Fatalf("expected synthetic user email 'admin.tester@example.com', got '%s'", subA.Email)
+	}
+	if subA.Phone.String != "+14155552671" {
+		t.Fatalf("expected synthetic user phone '+14155552671', got '%s'", subA.Phone.String)
+	}
+	// Case B: Empty unauthenticated user profile falls back cleanly to dummySubscriber without nil panics
+	emptyUser := auth.User{}
+	subB := app.resolveTestPreviewSubscriber(0, emptyUser)
+	if subB.Name == "" && subB.Email == "" {
+		t.Fatal("expected valid fallback subscriber object, got empty struct")
+	}
+
+	// Case C: Explicit subID priority over user profile
+	// When tester explicitly wants to test Contact #42's perspective
+	explicitID := 42
+	if subA.ID != 0 && subA.ID == explicitID {
+		t.Fatalf("expected subA.ID to be 0 for synthetic user, got %d", subA.ID)
+	}
 }

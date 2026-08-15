@@ -246,16 +246,8 @@ func (a *App) TestSequence(c echo.Context) error {
 
 	user := auth.GetUser(c)
 
-	// Resolve preview subscriber for context
-	var sampleSub models.Subscriber
-	if req.SubscriberID > 0 {
-		if s, err := a.core.GetSubscriber(req.SubscriberID, "", ""); err == nil {
-			sampleSub = s
-		}
-	}
-	if sampleSub.ID == 0 {
-		sampleSub = a.getSubscriberForPreview(0)
-	}
+	// Resolve preview subscriber for context (prioritizing user profile/matching subscriber before dummy fallback)
+	sampleSub := a.resolveTestPreviewSubscriber(req.SubscriberID, user)
 
 	if req.Messenger == "" && req.StepNumber > 0 {
 		if steps, err := a.core.GetSequenceSteps(id); err == nil && len(steps) >= req.StepNumber {

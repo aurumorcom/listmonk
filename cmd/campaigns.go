@@ -551,15 +551,8 @@ func (a *App) TestCampaign(c echo.Context) error {
 
 	user := auth.GetUser(c)
 
-	var sampleSub models.Subscriber
-	if req.SubscriberID > 0 {
-		if s, err := a.core.GetSubscriber(req.SubscriberID, "", ""); err == nil {
-			sampleSub = s
-		}
-	}
-	if sampleSub.ID == 0 {
-		sampleSub = a.getSubscriberForPreview(0)
-	}
+	// Resolve preview subscriber for context (prioritizing user profile/matching subscriber before dummy fallback)
+	sampleSub := a.resolveTestPreviewSubscriber(req.SubscriberID, user)
 
 	// Prepare targets based on messenger type and user profile
 	isWhatsApp := req.Messenger == "whatsapp" || req.Messenger == "waha" || strings.HasPrefix(req.Messenger, "whatsapp-") || strings.HasPrefix(req.Messenger, "waha-")
