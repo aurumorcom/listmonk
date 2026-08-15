@@ -551,29 +551,29 @@ func (a *App) TestCampaign(c echo.Context) error {
 
 	user := auth.GetUser(c)
 
-	var subs []models.Subscriber
+	var sampleSub models.Subscriber
 	if req.SubscriberID > 0 {
 		if s, err := a.core.GetSubscriber(req.SubscriberID, "", ""); err == nil {
-			subs = append(subs, s)
-		}
-	} else if len(req.SubscriberEmails) > 0 {
-		// Sanitize subscriber e-mails.
-		for i := range req.SubscriberEmails {
-			req.SubscriberEmails[i] = strings.ToLower(strings.TrimSpace(req.SubscriberEmails[i]))
-		}
-
-		// Get the subscribers from the DB by their e-mails.
-		if sList, err := a.core.GetSubscribersByEmail(req.SubscriberEmails); err == nil {
-			for _, s := range sList {
-				if err := a.hasSubPerm(user, []int{s.ID}); err == nil {
-					subs = append(subs, s)
-				}
-			}
+			sampleSub = s
 		}
 	}
+	if sampleSub.ID == 0 {
+		sampleSub = a.getSubscriberForPreview(0)
+	}
 
-	if len(subs) == 0 {
-		subs = []models.Subscriber{a.getSubscriberForPreview(0)}
+	// Target delivery destinations from input or default user account
+	var targets []string
+	if len(req.SubscriberEmails) > 0 {
+		targets = req.SubscriberEmails
+	} else {
+		if req.TestEmail != "" {
+			targets = append(targets, req.TestEmail)
+		} else if user.Email.Valid && user.Email.String != "" {
+			targets = append(targets, user.Email.String)
+		}
+		if req.TestPhone != "" {
+			targets = append(targets, req.TestPhone)
+		}
 	}
 
 	// Get the campaign from the DB for previewing.
@@ -599,28 +599,16 @@ func (a *App) TestCampaign(c echo.Context) error {
 		}
 	}
 
-	// Target delivery destination (editing user email/phone or explicit test override)
-	targetEmail := req.TestEmail
-	if targetEmail == "" && user.Email.Valid && user.Email.String != "" {
-		targetEmail = user.Email.String
-	}
-	targetPhone := req.TestPhone
-	if targetPhone != "" {
-		if ph, err := utils.SanitizePhone(targetPhone); err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, a.i18n.T("subscribers.invalidPhone"))
+	// Send the test messages to each target recipient.
+	for _, target := range targets {
+		sub := sampleSub
+		target = strings.TrimSpace(target)
+		if strings.Contains(target, "@") {
+			sub.Email = strings.ToLower(target)
+		} else if ph, err := utils.SanitizePhone(target); err == nil {
+			sub.Phone = null.StringFrom(ph)
 		} else {
-			targetPhone = ph
-		}
-	}
-
-	// Send the test messages.
-	for _, s := range subs {
-		sub := s
-		if targetEmail != "" {
-			sub.Email = targetEmail
-		}
-		if targetPhone != "" {
-			sub.Phone = null.StringFrom(targetPhone)
+			sub.Email = target
 		}
 
 		if err := a.sendTestMessage(sub, &camp); err != nil {
