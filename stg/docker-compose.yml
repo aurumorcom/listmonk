@@ -1,0 +1,56 @@
+services:
+  adminer:
+    image: adminer:4.8.1-standalone
+    restart: always
+    ports:
+      - 8070:8080
+    networks:
+      - listmonk-stg
+
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    ports:
+      - "1025:1025" # SMTP
+      - "8025:8025" # UI
+    networks:
+      - listmonk-stg
+
+  db:
+    image: postgres:13
+    ports:
+      - "5432:5432"
+    networks:
+      - listmonk-stg
+    environment:
+      - POSTGRES_PASSWORD=listmonk-stg
+      - POSTGRES_USER=listmonk-stg
+      - POSTGRES_DB=listmonk-stg
+    restart: unless-stopped
+    volumes:
+      - type: volume
+        source: listmonk-stg-db
+        target: /var/lib/postgresql/data
+
+  waha:
+    image: devlikeapro/waha:latest
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    networks:
+      - listmonk-stg
+    environment:
+      WHATSAPP_API_KEY: ${WAHA_API_KEY:-admin}
+      WAHA_PRINT_QR: "true"
+      WHATSAPP_HOOK_URL: "http://backend:9000/api/webhooks/waha"
+      WHATSAPP_HOOK_EVENTS: "message.ack,message"
+    volumes:
+      - type: volume
+        source: listmonk-stg-waha-sessions
+        target: /app/.sessions
+
+volumes:
+  listmonk-stg-db:
+  listmonk-stg-waha-sessions:
+
+networks:
+  listmonk-stg:
