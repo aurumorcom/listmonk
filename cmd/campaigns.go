@@ -612,24 +612,45 @@ func (a *App) TestCampaign(c echo.Context) error {
 		target = strings.TrimSpace(target)
 		targetMessenger := camp.Messenger
 
+		if req.SubscriberID == 0 {
+			if strings.Contains(target, "@") {
+				if targetSub, err := a.core.GetSubscriber(0, "", strings.ToLower(target)); err == nil && targetSub.ID > 0 {
+					sub = targetSub
+				} else {
+					sub.Email = strings.ToLower(target)
+				}
+			} else if ph, err := utils.SanitizePhone(target); err == nil {
+				if targetSub, err := a.core.GetSubscriberByPhone(ph); err == nil && targetSub.ID > 0 {
+					sub = targetSub
+				} else {
+					sub.Phone = null.StringFrom(ph)
+				}
+			} else {
+				sub.Email = target
+			}
+		}
+
 		if strings.Contains(target, "@") {
-			sub.Email = strings.ToLower(target)
 			if targetMessenger == "" || targetMessenger == "whatsapp" || targetMessenger == "waha" || strings.HasPrefix(targetMessenger, "whatsapp-") || strings.HasPrefix(targetMessenger, "waha-") {
 				targetMessenger = "email"
 			}
-		} else if ph, err := utils.SanitizePhone(target); err == nil {
-			sub.Phone = null.StringFrom(ph)
+		} else if _, err := utils.SanitizePhone(target); err == nil {
 			if targetMessenger == "" || targetMessenger == "email" || strings.HasPrefix(targetMessenger, "email-") {
 				targetMessenger = "whatsapp"
 			}
-		} else {
-			sub.Email = target
+		}
+
+		if targetMessenger == "" {
+			targetMessenger = "email"
 		}
 
 		testCamp := camp
 		testCamp.Messenger = targetMessenger
 
-		if err := a.sendTestMessage(sub, &testCamp); err != nil {
+		overrideEmail := user.Email.String
+		overridePhone := user.Phone.String
+
+		if err := a.sendTestMessage(sub, &testCamp, overrideEmail, overridePhone); err != nil {
 			a.log.Printf("error sending test message: %v", err)
 			return echo.NewHTTPError(http.StatusInternalServerError,
 				a.i18n.Ts("campaigns.errorSendTest", "error", err.Error()))
@@ -701,7 +722,7 @@ func (a *App) GetCampaignViewAnalytics(c echo.Context) error {
 }
 
 // sendTestMessage takes a campaign and a subscriber and sends out a sample campaign message.
-func (a *App) sendTestMessage(sub models.Subscriber, camp *models.Campaign) error {
+func (a *App) sendTestMessage(sub models.Subscriber, camp *models.Campaign, overrideEmail, overridePhone string) error {
 	if err := a.manager.LoadInlineImages(camp); err != nil {
 		a.log.Printf("error loading inline images: %v", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
@@ -718,6 +739,10 @@ func (a *App) sendTestMessage(sub models.Subscriber, camp *models.Campaign) erro
 	if err != nil {
 		a.log.Printf("error rendering message: %v", err)
 		return echo.NewHTTPError(http.StatusNotFound, a.i18n.Ts("templates.errorRendering", "error", err.Error()))
+	}
+
+	if overrideEmail != "" || overridePhone != "" {
+		msg.OverrideTo(overrideEmail, overridePhone)
 	}
 
 	return a.manager.PushCampaignMessage(msg)

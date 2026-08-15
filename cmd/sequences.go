@@ -307,18 +307,32 @@ func (a *App) TestSequence(c echo.Context) error {
 		target = strings.TrimSpace(target)
 		targetMessenger := req.Messenger
 
+		if req.SubscriberID == 0 {
+			if strings.Contains(target, "@") {
+				if targetSub, err := a.core.GetSubscriber(0, "", strings.ToLower(target)); err == nil && targetSub.ID > 0 {
+					sub = targetSub
+				} else {
+					sub.Email = strings.ToLower(target)
+				}
+			} else if ph, err := utils.SanitizePhone(target); err == nil {
+				if targetSub, err := a.core.GetSubscriberByPhone(ph); err == nil && targetSub.ID > 0 {
+					sub = targetSub
+				} else {
+					sub.Phone = null.StringFrom(ph)
+				}
+			} else {
+				sub.Email = target
+			}
+		}
+
 		if strings.Contains(target, "@") {
-			sub.Email = strings.ToLower(target)
 			if targetMessenger == "" || targetMessenger == "whatsapp" || targetMessenger == "waha" || strings.HasPrefix(targetMessenger, "whatsapp-") || strings.HasPrefix(targetMessenger, "waha-") {
 				targetMessenger = "email"
 			}
-		} else if ph, err := utils.SanitizePhone(target); err == nil {
-			sub.Phone = null.StringFrom(ph)
+		} else if _, err := utils.SanitizePhone(target); err == nil {
 			if targetMessenger == "" || targetMessenger == "email" || strings.HasPrefix(targetMessenger, "email-") {
 				targetMessenger = "whatsapp"
 			}
-		} else {
-			sub.Email = target
 		}
 
 		if targetMessenger == "" {
@@ -328,7 +342,10 @@ func (a *App) TestSequence(c echo.Context) error {
 		testCamp := camp
 		testCamp.Messenger = targetMessenger
 
-		if err := a.sendTestMessage(sub, &testCamp); err != nil {
+		overrideEmail := user.Email.String
+		overridePhone := user.Phone.String
+
+		if err := a.sendTestMessage(sub, &testCamp, overrideEmail, overridePhone); err != nil {
 			a.log.Printf("error sending test sequence message: %v", err)
 			return echo.NewHTTPError(http.StatusInternalServerError,
 				a.i18n.Ts("campaigns.errorSendTest", "error", err.Error()))

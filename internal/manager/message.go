@@ -19,6 +19,7 @@ func (m *Manager) NewCampaignMessage(c *models.Campaign, s models.Subscriber) (C
 		subject:  c.Subject,
 		from:     c.FromEmail,
 		to:       s.Email,
+		toPhone:  s.Phone.String,
 		unsubURL: fmt.Sprintf(m.cfg.UnsubURL, c.UUID, s.UUID),
 	}
 
@@ -148,4 +149,14 @@ func (m *CampaignMessage) AltBody() []byte {
 	out := make([]byte, len(m.altBody))
 	copy(out, m.altBody)
 	return out
+}
+
+// OverrideTo overrides the delivery email and/or phone destination for test dispatches.
+func (m *CampaignMessage) OverrideTo(email, phone string) {
+	if email != "" {
+		m.to = email
+	}
+	if phone != "" {
+		m.toPhone = phone
+	}
 }

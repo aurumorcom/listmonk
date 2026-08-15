@@ -1983,3 +1983,51 @@ func TestSequence_TestMessage_PreviewDecoupling_And_PhoneLookup(t *testing.T) {
 		t.Fatalf("expected subA.ID to be 0 for synthetic user, got %d", subA.ID)
 	}
 }
+
+func TestDecoupledDelivery_TestVsProductionBehavior(t *testing.T) {
+	contact := models.Subscriber{
+		Base:  models.Base{ID: 4},
+		Name:  "Aryan Singh",
+		Email: "aquiveal@gmail.com",
+		Phone: null.StringFrom("+918935885359"),
+	}
+
+	camp := &models.Campaign{
+		Base:        models.Base{ID: 1},
+		Name:        "Test Campaign",
+		Subject:     "Hello {{ .Subscriber.FirstName }}",
+		Body:        "Sending to {{ .Subscriber.Email }}",
+		ContentType: models.CampaignContentTypePlain,
+	}
+
+	// 1. Production message behavior (no override):
+	prodMsg := manager.CampaignMessage{
+		Campaign:   camp,
+		Subscriber: contact,
+	}
+	// Verify production contact context and transport match contact
+	if prodMsg.Subscriber.Email != "aquiveal@gmail.com" {
+		t.Fatalf("expected production subscriber email 'aquiveal@gmail.com', got '%s'", prodMsg.Subscriber.Email)
+	}
+
+	// 2. Test message behavior (with OverrideTo):
+	adminEmail := "aryan.singh@aurumor.com"
+	adminPhone := "+919999999999"
+
+	testMsg := manager.CampaignMessage{
+		Campaign:   camp,
+		Subscriber: contact,
+	}
+	testMsg.OverrideTo(adminEmail, adminPhone)
+
+	// Verify template context remains Contact (Aryan Singh / aquiveal@gmail.com)
+	if testMsg.Subscriber.Name != "Aryan Singh" {
+		t.Fatalf("expected test message subscriber name 'Aryan Singh', got '%s'", testMsg.Subscriber.Name)
+	}
+	if testMsg.Subscriber.Email != "aquiveal@gmail.com" {
+		t.Fatalf("expected test message subscriber email 'aquiveal@gmail.com', got '%s'", testMsg.Subscriber.Email)
+	}
+	if testMsg.Subscriber.Phone.String != "+918935885359" {
+		t.Fatalf("expected test message subscriber phone '+918935885359', got '%s'", testMsg.Subscriber.Phone.String)
+	}
+}
