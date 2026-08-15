@@ -34,7 +34,15 @@ The address required to broadcast the message, for instance, a phone number or a
 }
 ```
 
-## Messenger implementations
+## First-Class Channels
+
+listmonk provides two permanent first-class delivery channels:
+- **`email`**: Sent via configured SMTP servers or SMTP pools.
+- **`whatsapp`**: Sent via configured WAHA (WhatsApp HTTP API) instances.
+
+For WhatsApp outreach, messages format using standard WhatsApp markdown (`*bold*`, `_italic_`, links, emojis), and phone numbers stored on contacts/subscribers in E.164 format (`+14155552671`) are automatically routed to `@c.us` WhatsApp recipients.
+
+## Custom Messenger implementations
 
 Following is a list of HTTP messenger servers that connect to various backends.
 
