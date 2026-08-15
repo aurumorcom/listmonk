@@ -86,17 +86,9 @@
                     <b-field :label="$tc('globals.terms.messenger')" label-position="on-border">
                       <b-select :placeholder="$tc('globals.terms.messenger')" v-model="form.messenger" name="messenger"
                         :disabled="!canEdit" required expanded>
-                        <template v-if="emailMessengers.length > 1">
-                          <optgroup label="email">
-                            <option v-for="m in emailMessengers" :value="m" :key="m">
-                              {{ m }}
-                            </option>
-                          </optgroup>
-                        </template>
-                        <template v-else>
-                          <option value="email">email</option>
-                        </template>
-                        <option v-for="m in otherMessengers" :value="m" :key="m">{{ m }}</option>
+                        <option v-for="m in availableMessengers" :value="m" :key="m">
+                          {{ m }}
+                        </option>
                       </b-select>
                     </b-field>
                   </div>
@@ -746,14 +738,12 @@ export default Vue.extend({
       return this.lists.results.filter((l) => this.selListIDs.indexOf(l.id) > -1);
     },
 
-    emailMessengers() {
-      return ['email', ...this.serverConfig.messengers.filter((m) => m.startsWith('email-'))];
-    },
-
-    otherMessengers() {
-      const msgs = (this.serverConfig && this.serverConfig.messengers) || [];
-      const custom = msgs.filter((m) => m !== 'email' && !m.startsWith('email-') && m !== 'whatsapp' && m !== 'waha');
-      return ['whatsapp', ...custom];
+    availableMessengers() {
+      const msgs = (this.serverConfig && this.serverConfig.messengers) || ['email', 'whatsapp'];
+      const set = new Set(msgs);
+      if (!set.has('email')) set.add('email');
+      if (!set.has('whatsapp')) set.add('whatsapp');
+      return Array.from(set);
     },
   },
 

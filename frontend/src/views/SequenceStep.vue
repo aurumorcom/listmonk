@@ -63,17 +63,9 @@
                   <div class="column is-6">
                     <b-field label="Messenger" label-position="on-border">
                       <b-select v-model="form.messenger" name="messenger" required expanded @input="onMessengerChange">
-                        <template v-if="emailMessengers.length > 1">
-                          <optgroup label="email">
-                            <option v-for="m in emailMessengers" :value="m" :key="m">
-                              {{ m }}
-                            </option>
-                          </optgroup>
-                        </template>
-                        <template v-else>
-                          <option value="email">email</option>
-                        </template>
-                        <option v-for="m in otherMessengers" :value="m" :key="m">{{ m }}</option>
+                        <option v-for="m in availableMessengers" :value="m" :key="m">
+                          {{ m }}
+                        </option>
                       </b-select>
                     </b-field>
                   </div>
@@ -354,14 +346,12 @@ export default Vue.extend({
     testIcon() {
       return this.isWhatsApp ? 'phone' : 'email-outline';
     },
-    emailMessengers() {
-      const msgs = (this.serverConfig && this.serverConfig.messengers) || ['email'];
-      return ['email', ...msgs.filter((m) => m.startsWith('email-'))];
-    },
-    otherMessengers() {
-      const msgs = (this.serverConfig && this.serverConfig.messengers) || [];
-      const custom = msgs.filter((m) => m !== 'email' && !m.startsWith('email-') && m !== 'whatsapp' && m !== 'waha');
-      return ['whatsapp', ...custom];
+    availableMessengers() {
+      const msgs = (this.serverConfig && this.serverConfig.messengers) || ['email', 'whatsapp'];
+      const set = new Set(msgs);
+      if (!set.has('email')) set.add('email');
+      if (!set.has('whatsapp')) set.add('whatsapp');
+      return Array.from(set);
     },
   },
   mounted() {
