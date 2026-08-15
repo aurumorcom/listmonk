@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/knadh/listmonk/models"
@@ -70,7 +71,7 @@ func TestInstall_ScheduleParameterMapping(t *testing.T) {
 	tz := "UTC"
 	useContactTz := true
 	skipHolidays := true
-	windows := `[{"day":"monday","start_time":"09:00","end_time":"17:00","is_active":true}]`
+	windows := `{"mon":{"start":"09:00","end":"17:00"},"tue":{"start":"09:00","end":"17:00"},"wed":{"start":"09:00","end":"17:00"},"thu":{"start":"09:00","end":"17:00"},"fri":{"start":"09:00","end":"17:00"},"sat":{},"sun":{}}`
 
 	args := []any{schedUUID, name, tz, useContactTz, skipHolidays, []byte(windows)}
 	if len(args) != 6 {
@@ -82,6 +83,92 @@ func TestInstall_ScheduleParameterMapping(t *testing.T) {
 	}
 
 	t.Log("Successfully verified default schedule parameter alignment and structure for installation")
+}
+
+func TestInstall_ScheduleSendingWindowsScanCompatibility(t *testing.T) {
+	// 1. Array format must fail to Scan into models.JSON (documenting & preventing regression)
+	brokenArrayJSON := []byte(`[{"day":"monday","start_time":"09:00","end_time":"17:00","is_active":true}]`)
+	var brokenTarget models.JSON
+	if err := brokenTarget.Scan(brokenArrayJSON); err == nil {
+		t.Fatalf("expected Scan of array JSON to fail for models.JSON (map[string]any), but got nil error")
+	}
+
+	// 2. Correct dictionary format must succeed when scanned into models.JSON
+	validMapJSON := []byte(`{
+		"mon": {"start": "09:00", "end": "17:00"},
+		"tue": {"start": "09:00", "end": "17:00"},
+		"wed": {"start": "09:00", "end": "17:00"},
+		"thu": {"start": "09:00", "end": "17:00"},
+		"fri": {"start": "09:00", "end": "17:00"},
+		"sat": {},
+		"sun": {}
+	}`)
+
+	validTarget := make(models.JSON)
+	if err := validTarget.Scan(validMapJSON); err != nil {
+		t.Fatalf("expected valid sending_windows map to scan cleanly into models.JSON, got: %v", err)
+	}
+
+	// 3. Verify all 7 days are present in unmarshaled output
+	days := []string{"mon", "tue", "wed", "thu", "fri", "sat", "sun"}
+	for _, day := range days {
+		if _, ok := validTarget[day]; !ok {
+			t.Fatalf("expected day %s to exist in sending_windows", day)
+		}
+	}
+
+	// 4. Verify schedule struct unmarshal compatibility
+	var sched models.Schedule
+	schedJSON, err := json.Marshal(map[string]any{
+		"name":            "Standard Business Hours (9am - 5pm)",
+		"timezone":        "UTC",
+		"sending_windows": validTarget,
+	})
+	if err != nil {
+		t.Fatalf("failed marshaling schedule struct payload: %v", err)
+	}
+	if err := json.Unmarshal(schedJSON, &sched); err != nil {
+		t.Fatalf("failed unmarshaling into models.Schedule: %v", err)
+	}
+}
+
+func TestInstall_CampaignParameterMapping(t *testing.T) {
+	// Verify sample campaign creation arguments alignment with queries/campaigns.sql (create-campaign)
+	// Positional parameter count must be exactly 21.
+	campUUID := "b2c3d4e5-f6a7-8b9c-0d1e-2f3a4b5c6d7e"
+	campType := models.CampaignTypeRegular
+	name := "Test campaign"
+	subject := "Welcome to listmonk"
+	fromEmail := "No Reply <noreply@yoursite.com>"
+	body := "<h3>Hi {{ .Subscriber.FirstName }}!</h3>"
+	altBody := ""
+	contentType := "richtext"
+	var sendAt *string = nil
+	headers := json.RawMessage("[]")
+	attribs := json.RawMessage("{}")
+	tags := []string{"test-campaign"}
+	messenger := "email"
+	tplID := 1
+	listIDs := []int64{1}
+	archive := false
+	archiveSlug := "welcome-to-listmonk"
+	archiveTplID := 2
+	archiveMeta := json.RawMessage(`{"name": "Subscriber"}`)
+	mediaIDs := []int64{}
+	var bodySource *string = nil
+
+	args := []any{
+		campUUID, campType, name, subject, fromEmail, body, altBody,
+		contentType, sendAt, headers, attribs, tags, messenger, tplID,
+		listIDs, archive, archiveSlug, archiveTplID, archiveMeta, mediaIDs, bodySource,
+	}
+
+	if len(args) != 21 {
+		t.Fatalf("expected 21 query parameters for create-campaign, got %d", len(args))
+	}
+	if args[2] != name || args[3] != subject {
+		t.Fatalf("campaign name/subject mismatch: got %v", args)
+	}
 }
 
 func TestInstall_DefaultScheduleAndSequenceBinding(t *testing.T) {
