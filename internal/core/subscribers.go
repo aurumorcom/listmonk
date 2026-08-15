@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -62,6 +63,36 @@ func (c *Core) GetSubscriber(id int, uuid, email string) (models.Subscriber, err
 // GetContact fetches a contact (subscriber domain alias) by one of the given params.
 func (c *Core) GetContact(id int, uuid, email string) (models.Contact, error) {
 	return c.GetSubscriber(id, uuid, email)
+}
+
+// GetSubscriberByPhone fetches a subscriber matching the given phone number.
+func (c *Core) GetSubscriberByPhone(phone string) (models.Subscriber, error) {
+	clean := strings.TrimSpace(phone)
+	if clean == "" {
+		return models.Subscriber{}, errors.New("empty phone number")
+	}
+	withPlus := clean
+	if !strings.HasPrefix(withPlus, "+") {
+		withPlus = "+" + withPlus
+	}
+	withoutPlus := strings.TrimPrefix(clean, "+")
+
+	var out models.Subscribers
+	if err := c.q.GetSubscriberByPhone.Select(&out, withPlus, withoutPlus); err != nil {
+		c.log.Printf("error fetching subscriber by phone: %v", err)
+		return models.Subscriber{}, echo.NewHTTPError(http.StatusInternalServerError,
+			c.i18n.Ts("globals.messages.errorFetching",
+				"name", "{globals.terms.subscriber}", "error", pqErrMsg(err)))
+	}
+	if len(out) == 0 {
+		return models.Subscriber{}, echo.NewHTTPError(http.StatusNotFound,
+			c.i18n.Ts("globals.messages.notFound", "name", fmt.Sprintf("{globals.terms.subscriber} (%s)", phone)))
+	}
+	if err := out.LoadLists(c.q.GetSubscriberListsLazy); err != nil {
+		c.log.Printf("error loading subscriber lists: %v", err)
+	}
+
+	return out[0], nil
 }
 
 // GetMostPopulatedSubscriberForPreview fetches an enabled subscriber with the largest JSON attributes payload for previews.

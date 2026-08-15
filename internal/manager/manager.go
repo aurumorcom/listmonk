@@ -611,11 +611,6 @@ func (m *Manager) resolveMessenger(name string) (Messenger, error) {
 		return msgr, nil
 	}
 	// Fallback alias resolution:
-	if strings.HasPrefix(name, "email-") {
-		if msgr, ok := m.messengers["email"]; ok && msgr != nil {
-			return msgr, nil
-		}
-	}
 	if name == "whatsapp" || name == "waha" || strings.HasPrefix(name, "whatsapp-") || strings.HasPrefix(name, "waha-") {
 		if msgr, ok := m.messengers["whatsapp"]; ok && msgr != nil {
 			return msgr, nil
@@ -623,10 +618,22 @@ func (m *Manager) resolveMessenger(name string) (Messenger, error) {
 		if msgr, ok := m.messengers["waha"]; ok && msgr != nil {
 			return msgr, nil
 		}
+		// Pool fallback: pick the first available registered WhatsApp messenger.
+		for k, v := range m.messengers {
+			if v != nil && (k == "whatsapp" || k == "waha" || strings.HasPrefix(k, "whatsapp-") || strings.HasPrefix(k, "waha-")) {
+				return v, nil
+			}
+		}
 	}
-	if name == "" {
+	if name == "" || name == "email" || strings.HasPrefix(name, "email-") {
 		if msgr, ok := m.messengers["email"]; ok && msgr != nil {
 			return msgr, nil
+		}
+		// Pool fallback: pick the first available registered Email messenger.
+		for k, v := range m.messengers {
+			if v != nil && (k == "email" || strings.HasPrefix(k, "email-")) {
+				return v, nil
+			}
 		}
 	}
 	return nil, fmt.Errorf("messenger '%s' not registered", name)

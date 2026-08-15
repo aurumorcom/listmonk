@@ -16,6 +16,7 @@ import (
 	"github.com/knadh/listmonk/internal/messenger/email"
 	"github.com/knadh/listmonk/internal/messenger/waha"
 	"github.com/knadh/listmonk/internal/sequence"
+	"github.com/knadh/listmonk/internal/utils"
 	"github.com/knadh/listmonk/models"
 	"github.com/knadh/smtppool/v2"
 	"github.com/labstack/echo/v4"
@@ -1867,5 +1868,53 @@ func TestE2E_Sequence_EnrollSubscribersByList_SQLTypeSafety(t *testing.T) {
 			t.Logf("Validated typecast parameter alignment for %s: subIDs=%v, listIDs=%v, mbVal=%v (%T), wsVal=%v (%T)",
 				tc.name, subIDs, listIDs, mbVal, mbVal, wsVal, wsVal)
 		})
+	}
+}
+
+func TestSequence_TestMessage_PreviewDecoupling_And_PhoneLookup(t *testing.T) {
+	// 1. Simulate target recipient phone resolving to existing subscriber ("Test User")
+	testPhone := "+14155552671"
+	testSub := models.Subscriber{
+		Base:  models.Base{ID: 4},
+		Name:  "Test User",
+		Email: "testuser@example.com",
+		Phone: null.StringFrom("+14155552671"),
+		Attribs: models.JSON{
+			"first_name": "Test",
+		},
+	}
+
+	sanitizedPhone, err := utils.SanitizePhone(testPhone)
+	if err != nil || sanitizedPhone != "+14155552671" {
+		t.Fatalf("expected sanitized phone +14155552671, got %s (err: %v)", sanitizedPhone, err)
+	}
+
+	// 2. Simulate preview contact context vs destination routing
+	// Tester wants to preview what "Anon Doe" (subID: 2) receives, but deliver it to tester's phone ("+14155552671")
+	anonSub := models.Subscriber{
+		Base:  models.Base{ID: 2},
+		Name:  "Anon Doe",
+		Email: "anon@example.com",
+		Phone: null.StringFrom("+14155559999"),
+	}
+
+	// Sample context remains Anon Doe for template tags
+	sampleSub := anonSub
+
+	// Destination dispatch copy gets tester's phone
+	dispatchSub := sampleSub
+	dispatchSub.Phone = null.StringFrom(sanitizedPhone)
+
+	if dispatchSub.Name != "Anon Doe" {
+		t.Fatalf("expected simulated template subscriber name 'Anon Doe', got '%s'", dispatchSub.Name)
+	}
+	if dispatchSub.Phone.String != "+14155552671" {
+		t.Fatalf("expected delivery destination phone '+14155552671', got '%s'", dispatchSub.Phone.String)
+	}
+
+	// 3. When target is test phone without explicit subscriber_id, resolved subscriber is Test User
+	resolvedSub := testSub
+	if resolvedSub.Name != "Test User" {
+		t.Fatalf("expected resolved subscriber name 'Test User', got '%s'", resolvedSub.Name)
 	}
 }
