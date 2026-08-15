@@ -119,6 +119,7 @@ type CampaignMessage struct {
 
 	from     string
 	to       string
+	toPhone  string
 	subject  string
 	body     []byte
 	altBody  []byte
@@ -527,6 +528,7 @@ func (m *Manager) worker() {
 			out := models.Message{
 				From:        msg.from,
 				To:          []string{msg.to},
+				ToPhone:     msg.toPhone,
 				Subject:     msg.subject,
 				ContentType: msg.Campaign.ContentType,
 				Body:        msg.body,

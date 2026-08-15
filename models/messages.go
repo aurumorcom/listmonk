@@ -12,6 +12,7 @@ import (
 type Message struct {
 	From        string
 	To          []string
+	ToPhone     string
 	Subject     string
 	ContentType string
 	Body        []byte
