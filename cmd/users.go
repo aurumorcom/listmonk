@@ -80,6 +80,16 @@ func (a *App) CreateUser(c echo.Context) error {
 		u.Email = null.String{String: email, Valid: true}
 	}
 
+	if u.Phone.Valid && strings.TrimSpace(u.Phone.String) != "" {
+		ph, err := utils.SanitizePhone(u.Phone.String)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, a.i18n.Ts("globals.messages.invalidFields", "name", "phone"))
+		}
+		u.Phone = null.StringFrom(ph)
+	} else {
+		u.Phone = null.String{}
+	}
+
 	if u.Name == "" {
 		u.Name = u.Username
 	}
@@ -153,6 +163,16 @@ func (a *App) UpdateUser(c echo.Context) error {
 		}
 
 		u.Email = null.String{String: email, Valid: true}
+	}
+
+	if u.Phone.Valid && strings.TrimSpace(u.Phone.String) != "" {
+		ph, err := utils.SanitizePhone(u.Phone.String)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, a.i18n.Ts("globals.messages.invalidFields", "name", "phone"))
+		}
+		u.Phone = null.StringFrom(ph)
+	} else {
+		u.Phone = null.String{}
 	}
 
 	// Default the name to username if not set.
@@ -252,6 +272,16 @@ func (a *App) UpdateUserProfile(c echo.Context) error {
 			return echo.NewHTTPError(http.StatusBadRequest, a.i18n.Ts("globals.messages.invalidFields", "name", "email"))
 		}
 		u.Email = null.String{String: email, Valid: true}
+	}
+
+	if u.Phone.Valid && strings.TrimSpace(u.Phone.String) != "" {
+		ph, err := utils.SanitizePhone(u.Phone.String)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, a.i18n.Ts("globals.messages.invalidFields", "name", "phone"))
+		}
+		u.Phone = null.StringFrom(ph)
+	} else {
+		u.Phone = null.String{}
 	}
 
 	if u.PasswordLogin && u.Password.String != "" {

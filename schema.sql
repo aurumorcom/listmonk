@@ -404,6 +404,7 @@ CREATE TABLE users (
     email_id         INTEGER NULL REFERENCES emails(id) ON DELETE SET NULL,
     waha_session     TEXT NULL,
     signature        TEXT NOT NULL DEFAULT '',
+    phone            TEXT NULL,
     loggedin_at      TIMESTAMP WITH TIME ZONE NULL,
     created_at       TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at       TIMESTAMP WITH TIME ZONE DEFAULT NOW()

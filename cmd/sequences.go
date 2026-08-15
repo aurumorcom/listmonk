@@ -246,40 +246,11 @@ func (a *App) TestSequence(c echo.Context) error {
 
 	user := auth.GetUser(c)
 
-	// Prepare targets
-	targets := req.SubscriberEmails
-	if len(targets) == 0 {
-		if req.TestEmail != "" {
-			targets = append(targets, req.TestEmail)
-		} else if user.Email.Valid && user.Email.String != "" {
-			targets = append(targets, user.Email.String)
-		}
-		if req.TestPhone != "" {
-			targets = append(targets, req.TestPhone)
-		}
-	}
-
 	// Resolve preview subscriber for context
 	var sampleSub models.Subscriber
 	if req.SubscriberID > 0 {
 		if s, err := a.core.GetSubscriber(req.SubscriberID, "", ""); err == nil {
 			sampleSub = s
-		}
-	}
-	if sampleSub.ID == 0 {
-		for _, target := range targets {
-			target = strings.TrimSpace(target)
-			if strings.Contains(target, "@") {
-				if s, err := a.core.GetSubscriber(0, "", target); err == nil && s.ID > 0 {
-					sampleSub = s
-					break
-				}
-			} else if ph, err := utils.SanitizePhone(target); err == nil && ph != "" {
-				if s, err := a.core.GetSubscriberByPhone(ph); err == nil && s.ID > 0 {
-					sampleSub = s
-					break
-				}
-			}
 		}
 	}
 	if sampleSub.ID == 0 {
@@ -293,6 +264,33 @@ func (a *App) TestSequence(c echo.Context) error {
 	}
 	if req.ContentType == "" {
 		req.ContentType = models.CampaignContentTypeRichtext
+	}
+
+	// Prepare targets based on messenger type and user profile
+	isWhatsApp := req.Messenger == "whatsapp" || req.Messenger == "waha" || strings.HasPrefix(req.Messenger, "whatsapp-") || strings.HasPrefix(req.Messenger, "waha-")
+
+	targets := req.SubscriberEmails
+	if len(targets) == 0 {
+		if isWhatsApp {
+			if req.TestPhone != "" {
+				targets = append(targets, req.TestPhone)
+			} else if user.Phone.Valid && user.Phone.String != "" {
+				targets = append(targets, user.Phone.String)
+			}
+		} else {
+			if req.TestEmail != "" {
+				targets = append(targets, req.TestEmail)
+			} else if user.Email.Valid && user.Email.String != "" {
+				targets = append(targets, user.Email.String)
+			}
+		}
+	}
+
+	if len(targets) == 0 {
+		if isWhatsApp {
+			return echo.NewHTTPError(http.StatusBadRequest, "Please enter a test phone number or configure your phone in User Profile.")
+		}
+		return echo.NewHTTPError(http.StatusBadRequest, "Please enter a test email address or configure your email in User Profile.")
 	}
 
 	camp := models.Campaign{

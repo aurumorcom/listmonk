@@ -127,13 +127,15 @@ func V6_3_0(db *sqlx.DB, fs stuffbin.FileSystem, ko *koanf.Koanf, lo *log.Logger
 		return err
 	}
 
-	// 7. Users table channel bindings
+	// 7. Users table channel bindings & phone
 	if _, err := db.Exec(`
 		ALTER TABLE users
 			ADD COLUMN IF NOT EXISTS email_id INTEGER NULL REFERENCES emails(id) ON DELETE SET NULL,
 			ADD COLUMN IF NOT EXISTS waha_session TEXT NULL,
-			ADD COLUMN IF NOT EXISTS signature TEXT NOT NULL DEFAULT '';
+			ADD COLUMN IF NOT EXISTS signature TEXT NOT NULL DEFAULT '',
+			ADD COLUMN IF NOT EXISTS phone TEXT NULL;
 		CREATE INDEX IF NOT EXISTS idx_users_channels ON users(email_id, waha_session);
+		CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone);
 	`); err != nil {
 		return err
 	}

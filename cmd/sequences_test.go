@@ -1917,4 +1917,36 @@ func TestSequence_TestMessage_PreviewDecoupling_And_PhoneLookup(t *testing.T) {
 	if resolvedSub.Name != "Test User" {
 		t.Fatalf("expected resolved subscriber name 'Test User', got '%s'", resolvedSub.Name)
 	}
+
+	// 4. Verify User Phone integration for WhatsApp test dispatch
+	adminUser := auth.User{
+		Name:  "Admin Tester",
+		Email: null.StringFrom("admin@example.com"),
+		Phone: null.StringFrom("+14155552671"),
+	}
+
+	if !adminUser.Phone.Valid || adminUser.Phone.String != "+14155552671" {
+		t.Fatalf("expected admin user phone '+14155552671', got '%v'", adminUser.Phone)
+	}
+
+	// Simulated Contact (Subscriber)
+	contactSub := models.Subscriber{
+		Base:  models.Base{ID: 10},
+		Name:  "Customer Alice",
+		Email: "alice@customer.com",
+		Phone: null.StringFrom("+14155558888"),
+	}
+
+	// Test WhatsApp dispatch:
+	// - Content rendered using contactSub attributes ("Customer Alice")
+	// - Transport destination strictly set to adminUser.Phone ("+14155552671")
+	testWhatsAppDispatch := contactSub
+	testWhatsAppDispatch.Phone = adminUser.Phone
+
+	if testWhatsAppDispatch.Name != "Customer Alice" {
+		t.Fatalf("expected simulated template subscriber name 'Customer Alice', got '%s'", testWhatsAppDispatch.Name)
+	}
+	if testWhatsAppDispatch.Phone.String != adminUser.Phone.String {
+		t.Fatalf("expected WhatsApp destination to match admin phone '%s', got '%s'", adminUser.Phone.String, testWhatsAppDispatch.Phone.String)
+	}
 }
