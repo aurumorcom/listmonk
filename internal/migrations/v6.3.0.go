@@ -170,5 +170,15 @@ func V6_3_0(db *sqlx.DB, fs stuffbin.FileSystem, ko *koanf.Koanf, lo *log.Logger
 		return err
 	}
 
+	// 9. Ensure waha and webhooks seed rows exist in settings table
+	if _, err := db.Exec(`
+		INSERT INTO settings (key, value) VALUES
+			('waha', '[]'),
+			('webhooks', '[]')
+		ON CONFLICT (key) DO NOTHING;
+	`); err != nil {
+		return err
+	}
+
 	return nil
 }
