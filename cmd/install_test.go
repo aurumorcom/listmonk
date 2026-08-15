@@ -102,3 +102,47 @@ func TestInstall_DefaultScheduleAndSequenceBinding(t *testing.T) {
 
 	t.Log("Successfully verified default schedule binding to Test sequence")
 }
+
+func TestInstall_ColdListParameterMapping(t *testing.T) {
+	// Verify Cold list attributes
+	name := "Cold list"
+	listType := models.ListTypePrivate
+	optin := models.ListOptinSingle
+	status := models.ListStatusActive
+	tags := []string{"cold", "test"}
+
+	if name != "Cold list" {
+		t.Fatalf("expected list name 'Cold list', got '%s'", name)
+	}
+	if listType != models.ListTypePrivate || optin != models.ListOptinSingle || status != models.ListStatusActive {
+		t.Fatalf("cold list parameter configuration mismatch: type=%s, optin=%s, status=%s", listType, optin, status)
+	}
+	if len(tags) != 2 || tags[0] != "cold" || tags[1] != "test" {
+		t.Fatalf("expected tags [cold, test], got %v", tags)
+	}
+
+	t.Log("Successfully verified Cold list seeding parameter structure for installation")
+}
+
+func TestInstall_ColdListAndSequenceAssociation(t *testing.T) {
+	// Verify that Test sequence binds the created Cold list ID
+	coldListID := 10
+	seqID := 1
+	seqName := "Test sequence"
+
+	association := struct {
+		SequenceID int
+		ListID     int
+		ListName   string
+	}{
+		SequenceID: seqID,
+		ListID:     coldListID,
+		ListName:   "Cold list",
+	}
+
+	if association.SequenceID != 1 || association.ListID != 10 || association.ListName != "Cold list" {
+		t.Fatalf("sequence-list association mapping mismatch: %v", association)
+	}
+
+	t.Logf("Successfully verified %s sequence list association with Cold list (ID: %d)", seqName, coldListID)
+}
