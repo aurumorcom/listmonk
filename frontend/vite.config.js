@@ -18,6 +18,9 @@ export default defineConfig(({ _, mode }) => {
     },
     build: {
       assetsDir: 'static',
+      rollupOptions: {
+        external: [/^\/admin\/custom\.js/],
+      },
     },
     server: {
       watch: {

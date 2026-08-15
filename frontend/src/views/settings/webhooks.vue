@@ -39,7 +39,7 @@
               </div>
               <div class="column is-6">
                 <b-field label="Custom HTTP Headers" label-position="on-border" message="Optional custom headers as JSON array">
-                  <b-input v-model="item.strHeaders" name="headers" placeholder='[{"X-Custom": "value"}]' />
+                  <b-input v-model="item.strHeaders" name="headers" placeholder="[{&quot;X-Custom&quot;: &quot;value&quot;}]" />
                 </b-field>
               </div>
             </div><!-- secret & headers -->
