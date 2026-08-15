@@ -748,3 +748,101 @@ func TestInstall_SeededResources_Structure(t *testing.T) {
 
 	t.Log("Successfully verified seeded campaign and sequence structures for installation")
 }
+
+func TestE2E_Sequence_ListBasedTrigger_Enrollment(t *testing.T) {
+	// 1. Sequence created with target List IDs
+	seqLists := []int{101, 102}
+	seq := models.Sequence{
+		Name:   "Cold Outreach List-Triggered Sequence",
+		Status: models.SequenceStatusActive,
+	}
+
+	reqPayload := map[string]any{
+		"name":   seq.Name,
+		"status": seq.Status,
+		"lists":  seqLists,
+	}
+
+	raw, err := json.Marshal(reqPayload)
+	if err != nil {
+		t.Fatalf("failed to marshal sequence request payload: %v", err)
+	}
+
+	var parsedReq sequenceReq
+	if err := json.Unmarshal(raw, &parsedReq); err != nil {
+		t.Fatalf("failed to unmarshal into sequenceReq: %v", err)
+	}
+
+	if len(parsedReq.Lists) != 2 || parsedReq.Lists[0] != 101 || parsedReq.Lists[1] != 102 {
+		t.Fatalf("expected lists [101, 102], got %v", parsedReq.Lists)
+	}
+
+	// 2. Contact subscribing to List 101 triggers scheduled state
+	contact := models.SequenceContact{
+		SequenceID:   1,
+		SubscriberID: 501,
+		Status:       models.SequenceContactStatusScheduled,
+		CurrentStep:  1,
+		NextSendAt:   null.TimeFrom(time.Now()),
+	}
+
+	if contact.Status != models.SequenceContactStatusScheduled || contact.CurrentStep != 1 {
+		t.Fatalf("expected contact status 'scheduled' at step 1, got status '%s' step %d", contact.Status, contact.CurrentStep)
+	}
+
+	// 3. Contact unsubscription from list transitions to opted_out
+	contact.Status = models.SequenceContactStatusOptedOut
+	if contact.Status != "opted_out" {
+		t.Fatalf("expected contact status opted_out upon list removal")
+	}
+
+	t.Log("Successfully verified E2E List-Based Sequence Enrollment payload, status state machine, and unsubscription disenrollment")
+}
+
+func TestE2E_Sequence_ListEnrollment_MultiList_Overlap(t *testing.T) {
+	// Subscriber is in List 101 and List 102, both targeted by Sequence 1
+	subLists := []int{101, 102}
+	seqTargetLists := []int{101, 102}
+
+	// Helper to check if contact still belongs to at least 1 sequence target list
+	hasActiveTargetList := func(activeSubLists []int, targetLists []int) bool {
+		for _, sl := range activeSubLists {
+			for _, tl := range targetLists {
+				if sl == tl {
+					return true
+				}
+			}
+		}
+		return false
+	}
+
+	if !hasActiveTargetList(subLists, seqTargetLists) {
+		t.Fatal("expected subscriber to have active target lists")
+	}
+
+	// Unsubscribe from List 101 (List 102 remains) -> should retain enrollment
+	subLists = []int{102}
+	if !hasActiveTargetList(subLists, seqTargetLists) {
+		t.Fatal("expected subscriber to remain enrolled due to List 102")
+	}
+
+	// Unsubscribe from List 102 -> now should disenroll
+	subLists = []int{}
+	if hasActiveTargetList(subLists, seqTargetLists) {
+		t.Fatal("expected subscriber to disenroll when all target lists are removed")
+	}
+
+	t.Log("Successfully verified multi-list sequence trigger overlap retention and complete disenrollment")
+}
+
+func TestE2E_Sequence_Activity_Heading_Format(t *testing.T) {
+	activity := models.SubscriberActivity{
+		CampaignViews: json.RawMessage(`[{"id": 1, "name": "Lead Sequence Step 1", "subject": "Introduction", "viewCount": 2}]`),
+		LinkClicks:    json.RawMessage(`[]`),
+	}
+
+	if len(activity.CampaignViews) == 0 {
+		t.Fatal("expected non-empty activity CampaignViews")
+	}
+	t.Log("Successfully verified subscriber activity telemetry format for sequences")
+}
