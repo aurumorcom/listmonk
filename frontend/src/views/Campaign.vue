@@ -165,7 +165,7 @@
                 <h3 class="title is-size-6">
                   {{ $t('campaigns.sendTest') }}
                 </h3>
-                <b-field :message="isWhatsApp ? 'Hit Enter after typing a phone number to add multiple recipients.' : $t('campaigns.sendTestHelp')">
+                <b-field :message="isWhatsApp ? 'Hit Enter after typing a phone number to add multiple recipients. The numbers must belong to existing subscribers.' : $t('campaigns.sendTestHelp')">
                   <b-taginput v-model="form.testEmails" :before-adding="validateTestRecipient" :disabled="isNew" ellipsis
                     :icon="testIcon" :placeholder="testPlaceholder" />
                 </b-field>
@@ -731,11 +731,11 @@ export default Vue.extend({
     },
 
     testPlaceholder() {
-      return this.isWhatsApp ? 'Phone numbers (e.g. +14155552671)...' : this.$t('campaigns.testEmails');
+      return this.isWhatsApp ? 'Phone numbers' : this.$t('campaigns.testEmails');
     },
 
     testIcon() {
-      return this.isWhatsApp ? 'phone-outline' : 'email-outline';
+      return this.isWhatsApp ? 'phone' : 'email-outline';
     },
 
     selectedLists() {
