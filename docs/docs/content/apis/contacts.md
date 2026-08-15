@@ -39,15 +39,14 @@ The Contacts API allows querying, creating, updating, and deleting contacts (sub
 | :--- | :--- | :--- |
 | `GET` | `/api/contacts` | Query and retrieve contacts |
 | `GET` | `/api/contacts/{id}` | Retrieve a specific contact by ID |
-| `GET` | `/api/contacts/{id}/sequences` | Retrieve sequence memberships for a contact |
-| `GET` | `/api/contacts/{id}/export` | Export profile, sequence history, campaign views, and link clicks for a contact |
+| `GET` | `/api/contacts/{id}/export` | Export profile, campaign views, and link clicks for a contact |
 | `GET` | `/api/contacts/{id}/bounces` | Retrieve bounce logs for a contact |
-| `POST` | `/api/contacts` | Create a new contact (supports optional `sequences` auto-enrollment) |
+| `POST` | `/api/contacts` | Create a new contact |
 | `PUT` | `/api/contacts/{id}` | Update an existing contact |
 | `PATCH` | `/api/contacts/{id}` | Partially update an existing contact |
-| `PUT` | `/api/contacts/sequences` | Modify contact sequence memberships (`enroll`, `disenroll`, `pause`) |
-| `PUT` | `/api/contacts/sequences/{id}` | Modify sequence memberships for a single contact |
-| `PUT` | `/api/contacts/query/sequences` | Modify sequence memberships dynamically using SQL/Search queries |
+| `PUT` | `/api/contacts/lists` | Modify contact list memberships (`add`, `remove`, `unsubscribe`) |
+| `PUT` | `/api/contacts/lists/{id}` | Modify list memberships for a single contact |
+| `PUT` | `/api/contacts/query/lists` | Bulk modify list memberships dynamically using SQL/Search queries |
 | `PUT` | `/api/contacts/blocklist` | Blocklist one or more contacts |
 | `PUT` | `/api/contacts/{id}/blocklist` | Blocklist a specific contact |
 | `DELETE` | `/api/contacts/{id}` | Delete a specific contact |
