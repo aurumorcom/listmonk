@@ -39,14 +39,19 @@ func (a *App) GetSequence(c echo.Context) error {
 	return c.JSON(http.StatusOK, okResp{seq})
 }
 
+type sequenceReq struct {
+	models.Sequence
+	Lists []int `json:"lists"`
+}
+
 // CreateSequence creates a new sequence.
 func (a *App) CreateSequence(c echo.Context) error {
-	var req models.Sequence
+	var req sequenceReq
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, a.i18n.Ts("globals.messages.invalidReq"))
 	}
 
-	seq, err := a.core.CreateSequence(req)
+	seq, err := a.core.CreateSequence(req.Sequence, req.Lists)
 	if err != nil {
 		return err
 	}
@@ -56,13 +61,13 @@ func (a *App) CreateSequence(c echo.Context) error {
 // UpdateSequence updates an existing sequence.
 func (a *App) UpdateSequence(c echo.Context) error {
 	id, _ := strconv.Atoi(c.Param("id"))
-	var req models.Sequence
+	var req sequenceReq
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, a.i18n.Ts("globals.messages.invalidReq"))
 	}
 	req.ID = id
 
-	seq, err := a.core.UpdateSequence(req)
+	seq, err := a.core.UpdateSequence(req.Sequence, req.Lists)
 	if err != nil {
 		return err
 	}
