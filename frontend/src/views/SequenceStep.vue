@@ -100,16 +100,9 @@
                       <b-switch v-model="form.sendDelay" />
                     </b-field>
                   </div>
-                  <div class="column">
-                    <b-field v-if="form.sendDelay" grouped>
-                      <b-input v-model.number="form.delayValue" type="number" min="0" placeholder="0" expanded required />
-                      <b-select v-model="form.delayUnit">
-                        <option value="seconds">seconds</option>
-                        <option value="minutes">minutes</option>
-                        <option value="hours">hours</option>
-                        <option value="days">days</option>
-                        <option value="weeks">weeks</option>
-                      </b-select>
+                  <div class="column is-4" v-if="form.sendDelay">
+                    <b-field label="Duration" label-position="on-border" message="Duration (e.g. 45s, 15m, 2h, 1d)">
+                      <b-input v-model="form.delayDuration" name="delay_duration" placeholder="1d" :pattern="regDuration" :maxlength="10" required />
                     </b-field>
                   </div>
                 </div>
@@ -281,6 +274,7 @@
 import htmlToPlainText from 'textversionjs';
 import Vue from 'vue';
 import { mapState } from 'vuex';
+import { regDuration } from '../constants';
 
 import CampaignPreview from '../components/CampaignPreview.vue';
 import Editor from '../components/Editor.vue';
@@ -295,6 +289,7 @@ export default Vue.extend({
   },
   data() {
     return {
+      regDuration,
       contentTypes: Object.freeze({
         richtext: 'Rich text',
         html: 'Raw HTML',
@@ -326,8 +321,7 @@ export default Vue.extend({
         attribsStr: '{}',
         attribs: {},
         sendDelay: false,
-        delayValue: 0,
-        delayUnit: 'days',
+        delayDuration: '1d',
         delay_seconds: 0,
         content: {
           contentType: 'richtext',
@@ -467,6 +461,29 @@ export default Vue.extend({
         this.loading = false;
       });
     },
+    formatDuration(sec) {
+      if (!sec || sec <= 0) return '0s';
+      if (sec % 86400 === 0) return `${sec / 86400}d`;
+      if (sec % 3600 === 0) return `${sec / 3600}h`;
+      if (sec % 60 === 0) return `${sec / 60}m`;
+      return `${sec}s`;
+    },
+    parseDuration(str) {
+      if (!str || typeof str !== 'string') return 0;
+      const match = str.trim().match(/^(\d+)\s*(ms|s|m|h|d|w)?$/i);
+      if (!match) return 0;
+      const val = parseInt(match[1], 10);
+      const unit = (match[2] || 's').toLowerCase();
+      const mults = {
+        ms: 1,
+        s: 1,
+        m: 60,
+        h: 3600,
+        d: 86400,
+        w: 604800,
+      };
+      return Math.round(val * (mults[unit] || 1));
+    },
     hydrateForm(step) {
       this.form.name = step.name || `Step ${step.step_number || this.stepNumber}`;
       this.form.subject = step.subject || '';
@@ -479,27 +496,12 @@ export default Vue.extend({
       const sec = step.delay_seconds || 0;
       if (sec > 0) {
         this.form.sendDelay = true;
-        if (sec % 604800 === 0) {
-          this.form.delayUnit = 'weeks';
-          this.form.delayValue = sec / 604800;
-        } else if (sec % 86400 === 0) {
-          this.form.delayUnit = 'days';
-          this.form.delayValue = sec / 86400;
-        } else if (sec % 3600 === 0) {
-          this.form.delayUnit = 'hours';
-          this.form.delayValue = sec / 3600;
-        } else if (sec % 60 === 0) {
-          this.form.delayUnit = 'minutes';
-          this.form.delayValue = sec / 60;
-        } else {
-          this.form.delayUnit = 'seconds';
-          this.form.delayValue = sec;
-        }
+        this.form.delayDuration = this.formatDuration(sec);
       } else {
         this.form.sendDelay = false;
-        this.form.delayValue = 0;
-        this.form.delayUnit = 'days';
+        this.form.delayDuration = '1d';
       }
+      this.form.delay_seconds = sec;
 
       if (Array.isArray(step.media_ids) && step.media_ids.length > 0) {
         this.form.media = step.media_ids.map((id) => ({ id, filename: `Media #${id}` }));
@@ -509,18 +511,10 @@ export default Vue.extend({
     saveStep() {
       if (!this.sequenceId) return;
 
-      // Calculate total delay seconds from input & unit
+      // Calculate total delay seconds from duration input
       let delaySec = 0;
-      if (this.form.sendDelay && this.form.delayValue > 0) {
-        const multipliers = {
-          seconds: 1,
-          minutes: 60,
-          hours: 3600,
-          days: 86400,
-          weeks: 604800,
-        };
-        const mult = multipliers[this.form.delayUnit] || 86400;
-        delaySec = this.form.delayValue * mult;
+      if (this.form.sendDelay && this.form.delayDuration) {
+        delaySec = this.parseDuration(this.form.delayDuration);
       }
 
       const stepPayload = {
