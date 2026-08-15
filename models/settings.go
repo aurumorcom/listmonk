@@ -85,6 +85,8 @@ type Settings struct {
 	SMTP []struct {
 		Name          string              `json:"name"`
 		User          string              `json:"user"`
+		UserID        null.Int            `json:"user_id"`
+		Signature     string              `json:"signature"`
 		UUID          string              `json:"uuid"`
 		Enabled       bool                `json:"enabled"`
 		Host          string              `json:"host"`
@@ -104,6 +106,23 @@ type Settings struct {
 		FromAddresses []string            `json:"from_addresses"`
 		EmailsPerDay  int                 `json:"emails_per_day"`
 		EmailsPerHour int                 `json:"emails_per_hour"`
+
+		// IMAP settings
+		IMAPEnabled       bool   `json:"imap_enabled"`
+		IMAPHost          string `json:"imap_host"`
+		IMAPPort          int    `json:"imap_port"`
+		IMAPAuthProtocol  string `json:"imap_auth_protocol"`
+		IMAPUsername      string `json:"imap_username"`
+		IMAPPassword      string `json:"imap_password,omitempty"`
+		IMAPTLSType       string `json:"imap_tls_type"`
+		IMAPTLSSkipVerify bool   `json:"imap_tls_skip_verify"`
+		IMAPFolder        string `json:"imap_folder"`
+		IMAPInterval      string `json:"imap_interval"`
+		IMAPMaxConns      int    `json:"imap_max_conns"`
+		IMAPIdleTimeout   string `json:"imap_idle_timeout"`
+		IMAPWaitTimeout   string `json:"imap_wait_timeout"`
+		IMAPMaxRetries    int    `json:"imap_max_retries"`
+		IMAPRetryDelay    string `json:"imap_retry_delay"`
 	} `json:"smtp"`
 
 	Messengers []struct {
