@@ -186,6 +186,7 @@ export default Vue.extend({
       // Binds form input values. This is populated by subscriber props passed
       // from the parent component in mounted().
       form: {
+        phone: '',
         lists: [],
         strAttribs: '{}',
         status: 'enabled',
@@ -251,6 +252,7 @@ export default Vue.extend({
       const data = {
         email: this.form.email,
         name: this.form.name,
+        phone: this.form.phone,
         status: this.form.status,
         attribs,
         preconfirm_subscriptions: this.form.preconfirm,
@@ -279,6 +281,7 @@ export default Vue.extend({
         id: this.form.id,
         email: this.form.email,
         name: this.form.name,
+        phone: this.form.phone,
         status: this.form.status,
         preconfirm_subscriptions: this.form.preconfirm,
         attribs,
@@ -335,6 +338,7 @@ export default Vue.extend({
     if (this.$props.isEditing) {
       this.form = {
         ...this.$props.data,
+        phone: this.$props.data.phone || '',
 
         // Deep-copy the lists array on to the form.
         strAttribs: JSON.stringify(this.$props.data.attribs, null, 4),
