@@ -1872,30 +1872,30 @@ func TestE2E_Sequence_EnrollSubscribersByList_SQLTypeSafety(t *testing.T) {
 }
 
 func TestSequence_TestMessage_PreviewDecoupling_And_PhoneLookup(t *testing.T) {
-	// 1. Simulate target recipient phone resolving to existing subscriber ("Aryan Singh")
-	aryanPhone := "+918935885359"
-	aryanSub := models.Subscriber{
+	// 1. Simulate target recipient phone resolving to existing subscriber ("Test User")
+	testPhone := "+14155552671"
+	testSub := models.Subscriber{
 		Base:  models.Base{ID: 4},
-		Name:  "Aryan Singh",
-		Email: "aquiveal@gmail.com",
-		Phone: null.StringFrom("918935885359"),
+		Name:  "Test User",
+		Email: "testuser@example.com",
+		Phone: null.StringFrom("+14155552671"),
 		Attribs: models.JSON{
-			"first_name": "Aryan",
+			"first_name": "Test",
 		},
 	}
 
-	sanitizedAryan, err := utils.SanitizePhone(aryanPhone)
-	if err != nil || sanitizedAryan != "+918935885359" {
-		t.Fatalf("expected sanitized phone +918935885359, got %s (err: %v)", sanitizedAryan, err)
+	sanitizedPhone, err := utils.SanitizePhone(testPhone)
+	if err != nil || sanitizedPhone != "+14155552671" {
+		t.Fatalf("expected sanitized phone +14155552671, got %s (err: %v)", sanitizedPhone, err)
 	}
 
 	// 2. Simulate preview contact context vs destination routing
-	// Tester wants to preview what "Anon Doe" (subID: 2) receives, but deliver it to tester's phone ("+918935885359")
+	// Tester wants to preview what "Anon Doe" (subID: 2) receives, but deliver it to tester's phone ("+14155552671")
 	anonSub := models.Subscriber{
 		Base:  models.Base{ID: 2},
 		Name:  "Anon Doe",
 		Email: "anon@example.com",
-		Phone: null.StringFrom("+919999999999"),
+		Phone: null.StringFrom("+14155559999"),
 	}
 
 	// Sample context remains Anon Doe for template tags
@@ -1903,18 +1903,18 @@ func TestSequence_TestMessage_PreviewDecoupling_And_PhoneLookup(t *testing.T) {
 
 	// Destination dispatch copy gets tester's phone
 	dispatchSub := sampleSub
-	dispatchSub.Phone = null.StringFrom(sanitizedAryan)
+	dispatchSub.Phone = null.StringFrom(sanitizedPhone)
 
 	if dispatchSub.Name != "Anon Doe" {
 		t.Fatalf("expected simulated template subscriber name 'Anon Doe', got '%s'", dispatchSub.Name)
 	}
-	if dispatchSub.Phone.String != "+918935885359" {
-		t.Fatalf("expected delivery destination phone '+918935885359', got '%s'", dispatchSub.Phone.String)
+	if dispatchSub.Phone.String != "+14155552671" {
+		t.Fatalf("expected delivery destination phone '+14155552671', got '%s'", dispatchSub.Phone.String)
 	}
 
-	// 3. When target is Aryan's phone without explicit subscriber_id, resolved subscriber is Aryan
-	resolvedSub := aryanSub
-	if resolvedSub.Name != "Aryan Singh" {
-		t.Fatalf("expected resolved subscriber name 'Aryan Singh', got '%s'", resolvedSub.Name)
+	// 3. When target is test phone without explicit subscriber_id, resolved subscriber is Test User
+	resolvedSub := testSub
+	if resolvedSub.Name != "Test User" {
+		t.Fatalf("expected resolved subscriber name 'Test User', got '%s'", resolvedSub.Name)
 	}
 }
