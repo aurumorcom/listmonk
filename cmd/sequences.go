@@ -246,17 +246,6 @@ func (a *App) TestSequence(c echo.Context) error {
 
 	user := auth.GetUser(c)
 
-	// Resolve preview subscriber for context
-	var sampleSub models.Subscriber
-	if req.SubscriberID > 0 {
-		if s, err := a.core.GetSubscriber(req.SubscriberID, "", ""); err == nil {
-			sampleSub = s
-		}
-	}
-	if sampleSub.ID == 0 {
-		sampleSub = a.getSubscriberForPreview(0)
-	}
-
 	// Prepare targets
 	targets := req.SubscriberEmails
 	if len(targets) == 0 {
@@ -268,6 +257,33 @@ func (a *App) TestSequence(c echo.Context) error {
 		if req.TestPhone != "" {
 			targets = append(targets, req.TestPhone)
 		}
+	}
+
+	// Resolve preview subscriber for context
+	var sampleSub models.Subscriber
+	if req.SubscriberID > 0 {
+		if s, err := a.core.GetSubscriber(req.SubscriberID, "", ""); err == nil {
+			sampleSub = s
+		}
+	}
+	if sampleSub.ID == 0 {
+		for _, target := range targets {
+			target = strings.TrimSpace(target)
+			if strings.Contains(target, "@") {
+				if s, err := a.core.GetSubscriber(0, "", target); err == nil && s.ID > 0 {
+					sampleSub = s
+					break
+				}
+			} else if ph, err := utils.SanitizePhone(target); err == nil && ph != "" {
+				if s, err := a.core.GetSubscriberByPhone(ph); err == nil && s.ID > 0 {
+					sampleSub = s
+					break
+				}
+			}
+		}
+	}
+	if sampleSub.ID == 0 {
+		sampleSub = a.getSubscriberForPreview(0)
 	}
 
 	if req.Messenger == "" && req.StepNumber > 0 {

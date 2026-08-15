@@ -551,16 +551,6 @@ func (a *App) TestCampaign(c echo.Context) error {
 
 	user := auth.GetUser(c)
 
-	var sampleSub models.Subscriber
-	if req.SubscriberID > 0 {
-		if s, err := a.core.GetSubscriber(req.SubscriberID, "", ""); err == nil {
-			sampleSub = s
-		}
-	}
-	if sampleSub.ID == 0 {
-		sampleSub = a.getSubscriberForPreview(0)
-	}
-
 	// Target delivery destinations from input or default user account
 	var targets []string
 	if len(req.SubscriberEmails) > 0 {
@@ -574,6 +564,32 @@ func (a *App) TestCampaign(c echo.Context) error {
 		if req.TestPhone != "" {
 			targets = append(targets, req.TestPhone)
 		}
+	}
+
+	var sampleSub models.Subscriber
+	if req.SubscriberID > 0 {
+		if s, err := a.core.GetSubscriber(req.SubscriberID, "", ""); err == nil {
+			sampleSub = s
+		}
+	}
+	if sampleSub.ID == 0 {
+		for _, target := range targets {
+			target = strings.TrimSpace(target)
+			if strings.Contains(target, "@") {
+				if s, err := a.core.GetSubscriber(0, "", target); err == nil && s.ID > 0 {
+					sampleSub = s
+					break
+				}
+			} else if ph, err := utils.SanitizePhone(target); err == nil && ph != "" {
+				if s, err := a.core.GetSubscriberByPhone(ph); err == nil && s.ID > 0 {
+					sampleSub = s
+					break
+				}
+			}
+		}
+	}
+	if sampleSub.ID == 0 {
+		sampleSub = a.getSubscriberForPreview(0)
 	}
 
 	// Get the campaign from the DB for previewing.

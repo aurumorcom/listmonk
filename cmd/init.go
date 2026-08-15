@@ -819,17 +819,6 @@ func initWAHAMessengers(ko *koanf.Koanf) []manager.Messenger {
 		lo.Printf("loaded WAHA messenger: %s", name)
 	}
 
-	var hasPrimaryWhatsApp bool
-	for _, m := range out {
-		if m.Name() == "whatsapp" || m.Name() == "waha" {
-			hasPrimaryWhatsApp = true
-			break
-		}
-	}
-	if !hasPrimaryWhatsApp && len(out) > 0 {
-		out = append([]manager.Messenger{out[0]}, out...)
-	}
-
 	return out
 }
 

@@ -83,9 +83,14 @@ func (a *App) GetServerConfig(c echo.Context) error {
 	}
 	out.Langs = langList
 
+	seenMsgrs := make(map[string]bool)
 	out.Messengers = make([]string, 0, len(a.messengers))
 	for _, m := range a.messengers {
-		out.Messengers = append(out.Messengers, m.Name())
+		name := m.Name()
+		if !seenMsgrs[name] {
+			seenMsgrs[name] = true
+			out.Messengers = append(out.Messengers, name)
+		}
 	}
 
 	a.Lock()
