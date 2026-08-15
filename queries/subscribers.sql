@@ -12,13 +12,6 @@ SELECT * FROM subscribers WHERE
 -- Get a single subscriber by phone number.
 SELECT * FROM subscribers WHERE phone = $1 OR phone = $2 LIMIT 1;
 
--- name: get-most-populated-subscriber-for-preview
--- Retrieves the enabled subscriber with the largest JSON attributes payload for template previews.
-SELECT * FROM subscribers
-WHERE status = 'enabled'
-ORDER BY OCTET_LENGTH(attribs::text) DESC, id DESC
-LIMIT 1;
-
 -- name: has-subscriber-list
 -- Used for checking access permission by list.
 SELECT s.id AS subscriber_id,

@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/knadh/listmonk/internal/auth"
 	"github.com/knadh/listmonk/internal/manager"
 	"github.com/knadh/listmonk/models"
 	"github.com/labstack/echo/v4"
@@ -68,17 +69,57 @@ func (a *App) GetTemplates(c echo.Context) error {
 
 // getSubscriberForPreview resolves the preview contact for template/campaign/sequence rendering.
 // If subID > 0, it attempts to fetch that specific subscriber.
-// Otherwise, it attempts to fetch the subscriber with the most populated attributes from the DB.
-// If no subscribers exist in the database, it falls back to dummySubscriber.
+// If no subscriber exists, it falls back to dummySubscriber.
 func (a *App) getSubscriberForPreview(subID int) models.Subscriber {
 	if subID > 0 {
 		if sub, err := a.core.GetSubscriber(subID, "", ""); err == nil {
 			return sub
 		}
 	}
-	if sub, err := a.core.GetMostPopulatedSubscriberForPreview(); err == nil {
-		return sub
+	return dummySubscriber
+}
+
+// resolveTestPreviewSubscriber resolves the subscriber context for test message template rendering.
+// 1. If explicit subID > 0, fetches that subscriber.
+// 2. If logged in user email exists and matches an existing subscriber in DB, uses that subscriber.
+// 3. If logged in user phone exists and matches an existing subscriber in DB, uses that subscriber.
+// 4. If logged in user has a name/email/phone, builds a subscriber context from the logged-in user profile.
+// 5. Fallback to dummySubscriber.
+func (a *App) resolveTestPreviewSubscriber(subID int, user auth.User) models.Subscriber {
+	if a.core != nil {
+		if subID > 0 {
+			if sub, err := a.core.GetSubscriber(subID, "", ""); err == nil && sub.ID > 0 {
+				return sub
+			}
+		}
+
+		if user.Email.Valid && strings.TrimSpace(user.Email.String) != "" {
+			if sub, err := a.core.GetSubscriber(0, "", strings.TrimSpace(user.Email.String)); err == nil && sub.ID > 0 {
+				return sub
+			}
+		}
+
+		if user.Phone.Valid && strings.TrimSpace(user.Phone.String) != "" {
+			if sub, err := a.core.GetSubscriberByPhone(strings.TrimSpace(user.Phone.String)); err == nil && sub.ID > 0 {
+				return sub
+			}
+		}
 	}
+
+	if user.Name != "" || (user.Email.Valid && user.Email.String != "") {
+		name := user.Name
+		if name == "" {
+			name = user.Username
+		}
+		return models.Subscriber{
+			Name:    name,
+			Email:   user.Email.String,
+			Phone:   user.Phone,
+			Status:  models.SubscriberStatusEnabled,
+			Attribs: models.JSON{"first_name": name, "name": name},
+		}
+	}
+
 	return dummySubscriber
 }
 
