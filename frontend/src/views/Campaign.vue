@@ -165,13 +165,13 @@
                 <h3 class="title is-size-6">
                   {{ $t('campaigns.sendTest') }}
                 </h3>
-                <b-field :message="$t('campaigns.sendTestHelp')">
-                  <b-taginput v-model="form.testEmails" :before-adding="$utils.validateEmail" :disabled="isNew" ellipsis
-                    icon="email-outline" :placeholder="$t('campaigns.testEmails')" />
+                <b-field :message="isWhatsApp ? 'Hit Enter after typing a phone number to add multiple recipients.' : $t('campaigns.sendTestHelp')">
+                  <b-taginput v-model="form.testEmails" :before-adding="validateTestRecipient" :disabled="isNew" ellipsis
+                    :icon="testIcon" :placeholder="testPlaceholder" />
                 </b-field>
                 <b-field>
                   <b-button @click="() => onSubmit('test')" :loading="loading.campaigns" :disabled="isNew"
-                    type="is-primary" icon-left="email-outline">
+                    type="is-primary" :icon-left="testIcon">
                     {{ $t('campaigns.send') }}
                   </b-button>
                 </b-field>
@@ -540,6 +540,13 @@ export default Vue.extend({
       });
     },
 
+    validateTestRecipient(val) {
+      if (this.isWhatsApp) {
+        return /^\+?[1-9][0-9\s\-()]{6,18}$/.test(val.trim());
+      }
+      return this.$utils.validateEmail(val);
+    },
+
     sendTest() {
       const data = {
         id: this.data.id,
@@ -717,6 +724,18 @@ export default Vue.extend({
 
     canArchive() {
       return this.data.status !== 'cancelled' && this.data.type !== 'optin';
+    },
+
+    isWhatsApp() {
+      return this.form.messenger === 'whatsapp' || this.form.messenger === 'waha';
+    },
+
+    testPlaceholder() {
+      return this.isWhatsApp ? 'Phone numbers (e.g. +14155552671)...' : this.$t('campaigns.testEmails');
+    },
+
+    testIcon() {
+      return this.isWhatsApp ? 'phone-outline' : 'email-outline';
     },
 
     selectedLists() {
