@@ -9,7 +9,7 @@
       <div class="columns">
         <div class="column is-4">
           <div class="box has-text-centered">
-            <p class="heading">{{ $t('globals.terms.campaigns') }}</p>
+            <p class="heading">{{ $t('globals.terms.sequences') }}</p>
             <p class="title">{{ activity.campaignViews ? activity.campaignViews.length : 0 }}</p>
           </div>
         </div>

@@ -50,6 +50,9 @@
                   <b-input v-model="form.description" type="textarea" placeholder="Description" rows="2" />
                 </b-field>
 
+                <list-selector v-model="form.lists" :selected="form.lists" :all="lists.results"
+                  :label="$t('globals.terms.lists')" placeholder="Select lists to enroll into this sequence..." />
+
                 <b-field label="Schedule *" label-position="on-border">
                   <b-select v-model="form.schedule_id" expanded placeholder="Select a schedule..." required>
                     <option v-for="s in schedules" :key="s.id" :value="s.id">
@@ -329,6 +332,7 @@ import { mapState } from 'vuex';
 import CampaignPreview from '../components/CampaignPreview.vue';
 import CopyText from '../components/CopyText.vue';
 import EmptyPlaceholder from '../components/EmptyPlaceholder.vue';
+import ListSelector from '../components/ListSelector.vue';
 
 export default {
   name: 'Sequence',
@@ -336,6 +340,7 @@ export default {
     CampaignPreview,
     EmptyPlaceholder,
     CopyText,
+    ListSelector,
   },
   data() {
     return {
@@ -363,6 +368,7 @@ export default {
         description: '',
         status: 'active',
         schedule_id: null,
+        lists: [],
         tags: [],
         headersStr: '[]',
         attribsStr: '{}',
@@ -495,6 +501,12 @@ export default {
         this.form.archive_slug = d.archive_slug || '';
         this.form.archiveMetaStr = d.archive_meta ? JSON.stringify(d.archive_meta, null, 4) : '{}';
 
+        if (d.lists && Array.isArray(d.lists)) {
+          this.form.lists = d.lists;
+        } else {
+          this.form.lists = [];
+        }
+
         if (typeof this.form.tags === 'string') {
           this.form.tags = this.form.tags ? this.form.tags.split(',') : [];
         }
@@ -602,9 +614,13 @@ export default {
       }
 
       this.loading = true;
+      const payload = {
+        ...this.form,
+        lists: (this.form.lists || []).map((l) => l.id),
+      };
       const action = this.isNew
-        ? this.$api.createSequence(this.form)
-        : this.$api.updateSequence(this.form.id, this.form);
+        ? this.$api.createSequence(payload)
+        : this.$api.updateSequence(this.form.id, payload);
 
       return action.then((res) => {
         const id = res.id || (res.data && res.data.id) || this.form.id;
@@ -633,7 +649,7 @@ export default {
     },
   },
   computed: {
-    ...mapState(['serverConfig']),
+    ...mapState(['serverConfig', 'lists']),
     selectedSchedule() {
       if (!this.form.schedule_id) return null;
       return this.schedules.find((s) => s.id === this.form.schedule_id) || null;
