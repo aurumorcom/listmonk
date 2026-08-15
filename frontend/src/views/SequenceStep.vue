@@ -322,7 +322,7 @@ export default Vue.extend({
         attribs: {},
         sendDelay: false,
         delayDuration: '1d',
-        delay_seconds: 0,
+        delay: '0s',
         content: {
           contentType: 'richtext',
           body: '',
@@ -451,7 +451,7 @@ export default Vue.extend({
         if (this.isNew) {
           this.stepNumber = this.allSteps.length + 1;
         } else {
-          const idx = this.allSteps.findIndex((s, i) => (s.step_number || i + 1) === this.stepNumber);
+          const idx = this.allSteps.findIndex((s, i) => (s.stepNumber || s.step_number || i + 1) === this.stepNumber);
           if (idx > -1) {
             this.stepIndex = idx;
             this.hydrateForm(this.allSteps[idx]);
@@ -461,65 +461,39 @@ export default Vue.extend({
         this.loading = false;
       });
     },
-    formatDuration(sec) {
-      if (!sec || sec <= 0) return '0s';
-      if (sec % 86400 === 0) return `${sec / 86400}d`;
-      if (sec % 3600 === 0) return `${sec / 3600}h`;
-      if (sec % 60 === 0) return `${sec / 60}m`;
-      return `${sec}s`;
-    },
-    parseDuration(str) {
-      if (!str || typeof str !== 'string') return 0;
-      const match = str.trim().match(/^(\d+)\s*(ms|s|m|h|d|w)?$/i);
-      if (!match) return 0;
-      const val = parseInt(match[1], 10);
-      const unit = (match[2] || 's').toLowerCase();
-      const mults = {
-        ms: 1,
-        s: 1,
-        m: 60,
-        h: 3600,
-        d: 86400,
-        w: 604800,
-      };
-      return Math.round(val * (mults[unit] || 1));
-    },
     hydrateForm(step) {
-      this.form.name = step.name || `Step ${step.step_number || this.stepNumber}`;
+      this.form.name = step.name || `Step ${step.stepNumber || step.step_number || this.stepNumber}`;
       this.form.subject = step.subject || '';
       this.form.condition = step.condition || 'always';
-      this.form.emailType = step.email_type || 'Reply';
+      this.form.emailType = step.emailType || step.email_type || 'Reply';
       this.form.messenger = step.messenger || 'email';
       this.form.content.body = step.body || '';
-      this.form.content.templateId = step.template_id || null;
+      this.form.content.templateId = step.templateId !== undefined ? step.templateId : (step.template_id || null);
 
-      const sec = step.delay_seconds || 0;
-      if (sec > 0) {
+      const d = (step.delay || (step.delay_seconds ? `${step.delay_seconds}s` : '') || '').toString().trim();
+      if (d && d !== '0s' && d !== '0' && d !== '0m' && d !== '0h' && d !== '0d') {
         this.form.sendDelay = true;
-        this.form.delayDuration = this.formatDuration(sec);
+        this.form.delayDuration = d;
       } else {
         this.form.sendDelay = false;
         this.form.delayDuration = '1d';
       }
-      this.form.delay_seconds = sec;
+      this.form.delay = d || '0s';
 
-      if (Array.isArray(step.media_ids) && step.media_ids.length > 0) {
-        this.form.media = step.media_ids.map((id) => ({ id, filename: `Media #${id}` }));
+      const mediaIds = step.mediaIds || step.media_ids || [];
+      if (Array.isArray(mediaIds) && mediaIds.length > 0) {
+        this.form.media = mediaIds.map((id) => ({ id, filename: `Media #${id}` }));
         this.isAttachFieldVisible = true;
       }
     },
     saveStep() {
       if (!this.sequenceId) return;
 
-      // Calculate total delay seconds from duration input
-      let delaySec = 0;
-      if (this.form.sendDelay && this.form.delayDuration) {
-        delaySec = this.parseDuration(this.form.delayDuration);
-      }
+      const delayStr = this.form.sendDelay && this.form.delayDuration ? this.form.delayDuration.trim() : '0s';
 
       const stepPayload = {
         step_number: this.stepNumber,
-        delay_seconds: delaySec,
+        delay: delayStr,
         messenger: this.form.messenger,
         condition: this.form.condition,
         subject: this.isEmailMessenger ? this.form.subject : '',
@@ -529,11 +503,26 @@ export default Vue.extend({
         media_ids: this.form.media.map((m) => m.id),
       };
 
-      const updatedSteps = [...this.allSteps];
+      const updatedSteps = this.allSteps.map((s, i) => {
+        const sNum = s.stepNumber || s.step_number || i + 1;
+        if (sNum === this.stepNumber) {
+          return stepPayload;
+        }
+        return {
+          step_number: sNum,
+          delay: s.delay || (s.delay_seconds ? `${s.delay_seconds}s` : '0s'),
+          messenger: s.messenger || 'email',
+          condition: s.condition || 'always',
+          subject: s.subject || '',
+          body: s.body || '',
+          email_type: s.emailType || s.email_type || '',
+          template_id: s.templateId !== undefined ? s.templateId : (s.template_id || null),
+          media_ids: s.mediaIds || s.media_ids || [],
+        };
+      });
+
       if (this.isNew || this.stepIndex === -1) {
         updatedSteps.push(stepPayload);
-      } else {
-        updatedSteps[this.stepIndex] = { ...updatedSteps[this.stepIndex], ...stepPayload };
       }
 
       this.loading = true;
