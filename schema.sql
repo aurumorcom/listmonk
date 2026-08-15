@@ -537,6 +537,16 @@ CREATE TABLE sequences (
     updated_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- sequence_lists
+DROP TABLE IF EXISTS sequence_lists CASCADE;
+CREATE TABLE sequence_lists (
+    sequence_id INTEGER NOT NULL REFERENCES sequences(id) ON DELETE CASCADE,
+    list_id     INTEGER REFERENCES lists(id) ON DELETE SET NULL,
+    list_name   VARCHAR(255) NOT NULL,
+    PRIMARY KEY (sequence_id, list_id)
+);
+CREATE INDEX idx_sequence_lists_list_id ON sequence_lists(list_id);
+
 -- sequence_steps
 DROP TABLE IF EXISTS sequence_steps CASCADE;
 CREATE TABLE sequence_steps (

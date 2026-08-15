@@ -3,6 +3,7 @@ package models
 import (
 	"time"
 
+	"github.com/jmoiron/sqlx/types"
 	"github.com/lib/pq"
 	null "gopkg.in/volatiletech/null.v6"
 )
@@ -49,6 +50,7 @@ type Sequence struct {
 	ArchiveTemplateID null.Int       `db:"archive_template_id" json:"archive_template_id"`
 	ArchiveSlug       null.String    `db:"archive_slug" json:"archive_slug"`
 	ArchiveMeta       JSON           `db:"archive_meta" json:"archive_meta"`
+	Lists             types.JSONText `db:"lists" json:"lists"`
 }
 
 // SequenceSchedule defines daily sending time windows and rate pacing settings.

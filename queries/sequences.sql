@@ -1,14 +1,28 @@
 -- sequences
 
 -- name: get-sequences
-SELECT id, uuid, name, description, status, schedule_id, send_window, email_ids, waha_sessions, archive, archive_template_id, archive_slug, archive_meta, created_at, updated_at
-FROM sequences
-ORDER BY id DESC;
+SELECT s.id, s.uuid, s.name, s.description, s.status, s.schedule_id, s.send_window, s.email_ids, s.waha_sessions, s.archive, s.archive_template_id, s.archive_slug, s.archive_meta, s.created_at, s.updated_at,
+(
+    SELECT COALESCE(ARRAY_TO_JSON(ARRAY_AGG(l)), '[]') FROM (
+        SELECT COALESCE(sequence_lists.list_id, 0) AS id,
+        sequence_lists.list_name AS name
+        FROM sequence_lists WHERE sequence_lists.sequence_id = s.id
+    ) l
+) AS lists
+FROM sequences s
+ORDER BY s.id DESC;
 
 -- name: get-sequence
-SELECT id, uuid, name, description, status, schedule_id, send_window, email_ids, waha_sessions, archive, archive_template_id, archive_slug, archive_meta, created_at, updated_at
-FROM sequences
-WHERE id = $1 OR uuid::text = $2;
+SELECT s.id, s.uuid, s.name, s.description, s.status, s.schedule_id, s.send_window, s.email_ids, s.waha_sessions, s.archive, s.archive_template_id, s.archive_slug, s.archive_meta, s.created_at, s.updated_at,
+(
+    SELECT COALESCE(ARRAY_TO_JSON(ARRAY_AGG(l)), '[]') FROM (
+        SELECT COALESCE(sequence_lists.list_id, 0) AS id,
+        sequence_lists.list_name AS name
+        FROM sequence_lists WHERE sequence_lists.sequence_id = s.id
+    ) l
+) AS lists
+FROM sequences s
+WHERE s.id = $1 OR s.uuid::text = $2;
 
 -- name: create-sequence
 INSERT INTO sequences (uuid, name, description, status, schedule_id, send_window, email_ids, waha_sessions, archive, archive_template_id, archive_slug, archive_meta)
@@ -22,6 +36,46 @@ WHERE id = $1;
 
 -- name: delete-sequence
 DELETE FROM sequences WHERE id = $1;
+
+-- name: create-sequence-lists
+INSERT INTO sequence_lists (sequence_id, list_id, list_name)
+SELECT $1, id, name FROM lists WHERE id = ANY($2::INT[]);
+
+-- name: delete-sequence-lists
+DELETE FROM sequence_lists WHERE sequence_id = $1;
+
+-- name: enroll-sequence-contacts-by-lists
+INSERT INTO sequence_contacts (sequence_id, subscriber_id, status, current_step, next_send_at)
+SELECT DISTINCT sl.sequence_id, subl.subscriber_id, 'scheduled', 1, NOW()
+FROM sequence_lists sl
+JOIN subscriber_lists subl ON subl.list_id = sl.list_id AND subl.status = 'subscribed'
+JOIN subscribers s ON s.id = subl.subscriber_id AND s.status = 'enabled'
+WHERE sl.sequence_id = $1
+ON CONFLICT (sequence_id, subscriber_id) DO NOTHING;
+
+-- name: enroll-subscribers-into-active-sequences-for-lists
+INSERT INTO sequence_contacts (sequence_id, subscriber_id, status, current_step, next_send_at)
+SELECT DISTINCT sl.sequence_id, s.id, 'scheduled', 1, NOW()
+FROM subscribers s
+JOIN subscriber_lists subl ON subl.subscriber_id = s.id AND subl.status = 'subscribed'
+JOIN sequence_lists sl ON sl.list_id = subl.list_id
+JOIN sequences seq ON seq.id = sl.sequence_id AND seq.status = 'active'
+WHERE s.id = ANY($1::INT[]) AND subl.list_id = ANY($2::INT[])
+ON CONFLICT (sequence_id, subscriber_id) DO NOTHING;
+
+-- name: optout-subscribers-from-sequences-for-removed-lists
+UPDATE sequence_contacts sc
+SET status = 'opted_out'
+WHERE sc.subscriber_id = ANY($1::INT[])
+  AND sc.status IN ('scheduled', 'in_progress')
+  AND sc.sequence_id IN (
+      SELECT sl.sequence_id FROM sequence_lists sl WHERE sl.list_id = ANY($2::INT[])
+  )
+  AND NOT EXISTS (
+      SELECT 1 FROM sequence_lists sl2
+      JOIN subscriber_lists subl ON subl.list_id = sl2.list_id AND subl.status = 'subscribed'
+      WHERE sl2.sequence_id = sc.sequence_id AND subl.subscriber_id = sc.subscriber_id
+  );
 
 -- name: get-sequence-steps
 SELECT
