@@ -1,5 +1,5 @@
 -- name: create-user
-INSERT INTO users (username, password_login, password, email, name, type, user_role_id, list_role_id, status, signature)
+INSERT INTO users (username, password_login, password, email, name, type, user_role_id, list_role_id, status, signature, phone)
     VALUES($1, $2, (
         CASE
             -- For user types with password_login enabled, bcrypt and store the hash of the password.
@@ -10,7 +10,7 @@ INSERT INTO users (username, password_login, password, email, name, type, user_r
                 THEN $3
             ELSE NULL
         END
-    ), $4, $5, $6, (SELECT id FROM roles WHERE id = $7 AND type = 'user'), (SELECT id FROM roles WHERE id = $8 AND type = 'list'), $9, $10) RETURNING id;
+    ), $4, $5, $6, (SELECT id FROM roles WHERE id = $7 AND type = 'user'), (SELECT id FROM roles WHERE id = $8 AND type = 'list'), $9, $10, $11) RETURNING id;
 
 -- name: update-user
 WITH u AS (
@@ -45,6 +45,7 @@ UPDATE users SET
     ),
     status=(CASE WHEN $10 != '' THEN $10::user_status ELSE status END),
     signature=$11,
+    phone=$12,
     updated_at=NOW()
     WHERE id=$1 AND (SELECT canEdit FROM u) = TRUE;
 
@@ -150,7 +151,8 @@ UPDATE users SET loggedin_at = NOW() WHERE id = (SELECT id FROM u) RETURNING *;
 -- name: update-user-profile
 UPDATE users SET name=$2, email=(CASE WHEN password_login THEN $3 ELSE email END),
     password=(CASE WHEN $4 = TRUE THEN (CASE WHEN $5 != '' THEN CRYPT($5, GEN_SALT('bf')) ELSE password END) ELSE NULL END),
-    signature=$6
+    signature=$6,
+    phone=$7
     WHERE id=$1;
 
 -- name: update-user-login
