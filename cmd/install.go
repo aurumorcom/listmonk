@@ -64,10 +64,10 @@ func install(lastVer string, db *sqlx.DB, fs stuffbin.FileSystem, prompt, idempo
 	q := prepareQueries(qMap, db, ko)
 
 	// Sample list.
-	defList, optinList := installLists(q)
+	defList, optinList, coldList := installLists(q)
 
 	// Sample subscribers.
-	installSubs(defList, optinList, q)
+	installSubs(defList, optinList, coldList, q)
 
 	// Templates.
 	campTplID, archiveTplID := installTemplates(q)
@@ -79,7 +79,7 @@ func install(lastVer string, db *sqlx.DB, fs stuffbin.FileSystem, prompt, idempo
 	installCampaign(defList, campTplID, archiveTplID, q)
 
 	// Sample sequence.
-	installSequence(campTplID, archiveTplID, schedID, q)
+	installSequence(coldList, campTplID, archiveTplID, schedID, q)
 
 	// Setup admin user optionally.
 	var (
@@ -138,10 +138,11 @@ func installSchema(curVer string, db *sqlx.DB, fs stuffbin.FileSystem) error {
 	return recordMigrationVersion(curVer, db)
 }
 
-func installLists(q *models.Queries) (int, int) {
+func installLists(q *models.Queries) (int, int, int) {
 	var (
 		defList   int
 		optinList int
+		coldList  int
 	)
 	if err := q.CreateList.Get(&defList,
 		uuid.Must(uuid.NewV4()),
@@ -166,10 +167,21 @@ func installLists(q *models.Queries) (int, int) {
 		lo.Fatalf("error creating list: %v", err)
 	}
 
-	return defList, optinList
+	if err := q.CreateList.Get(&coldList, uuid.Must(uuid.NewV4()),
+		"Cold list",
+		models.ListTypePrivate,
+		models.ListOptinSingle,
+		models.ListStatusActive,
+		pq.StringArray{"cold", "test"},
+		"",
+	); err != nil {
+		lo.Fatalf("error creating cold list: %v", err)
+	}
+
+	return defList, optinList, coldList
 }
 
-func installSubs(defListID, optinListID int, q *models.Queries) {
+func installSubs(defListID, optinListID, coldListID int, q *models.Queries) {
 	// Sample subscriber.
 	if _, err := q.UpsertSubscriber.Exec(
 		uuid.Must(uuid.NewV4()),
@@ -190,6 +202,16 @@ func installSubs(defListID, optinListID int, q *models.Queries) {
 		models.SubscriptionStatusUnconfirmed,
 		true, true); err != nil {
 		lo.Fatalf("error creating subscriber: %v", err)
+	}
+	if _, err := q.UpsertSubscriber.Exec(
+		uuid.Must(uuid.NewV4()),
+		"alex@example.com",
+		"Alex Lead",
+		`{"company": "Acme Corp", "city": "San Francisco"}`,
+		pq.Int64Array{int64(coldListID)},
+		models.SubscriptionStatusConfirmed,
+		true, true); err != nil {
+		lo.Fatalf("error creating cold subscriber: %v", err)
 	}
 }
 
@@ -311,7 +333,7 @@ func installSchedule(q *models.Queries) int {
 	return sched.ID
 }
 
-func installSequence(campTplID, archiveTplID, schedID int, q *models.Queries) {
+func installSequence(coldListID, campTplID, archiveTplID, schedID int, q *models.Queries) {
 	var seq models.Sequence
 	if err := q.CreateSequence.Get(&seq,
 		uuid.Must(uuid.NewV4()).String(),
@@ -328,6 +350,14 @@ func installSequence(campTplID, archiveTplID, schedID int, q *models.Queries) {
 		json.RawMessage("{}"),
 	); err != nil {
 		lo.Fatalf("error creating sample sequence: %v", err)
+	}
+
+	if _, err := q.CreateSequenceLists.Exec(seq.ID, pq.Int64Array{int64(coldListID)}); err != nil {
+		lo.Fatalf("error associating sequence with cold list: %v", err)
+	}
+
+	if _, err := q.EnrollSequenceContactsByLists.Exec(seq.ID); err != nil {
+		lo.Fatalf("error auto-enrolling contacts into sequence: %v", err)
 	}
 
 	steps := []models.SequenceStep{
