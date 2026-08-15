@@ -138,16 +138,18 @@
               <div>
                 <p>
                   <a href="#" @click.prevent="openEditStepCampaign(props.row, props.index)">
-                    Step {{ props.row.stepNumber || props.row.step_number || (props.index + 1) }}{{ props.row.name ? `: ${props.row.name}` : '' }}
-                    <copy-text :text="props.row.name || `Step ${props.row.stepNumber || props.row.step_number || (props.index + 1)}`" hide-text />
+                    {{ getStepTitle(props.row, props.index) }}
+                    <copy-text :text="getStepTitle(props.row, props.index)" hide-text />
                   </a>
-                  <b-tag v-if="props.row.delay && props.row.delay !== '0s'" class="is-small ml-1" type="is-light">
-                    <b-icon icon="clock-outline" size="is-small" /> {{ props.row.delay }}
-                  </b-tag>
                 </p>
                 <p class="is-size-7 has-text-grey" v-if="props.row.subject">
                   <copy-text :text="props.row.subject" />
                 </p>
+                <b-taglist v-if="props.row.tags && props.row.tags.length > 0">
+                  <b-tag class="is-small" v-for="t in props.row.tags" :key="t">
+                    {{ t }}
+                  </b-tag>
+                </b-taglist>
               </div>
             </b-table-column>
 
@@ -158,6 +160,11 @@
                   <a href="#" @click.prevent="openEditStepCampaign(props.row, props.index)">
                     {{ formatCondition(props.row.condition) }}
                   </a>
+                </li>
+                <li v-if="props.row.delay && props.row.delay !== '0s'" class="mt-1">
+                  <b-tag class="is-small" type="is-light">
+                    <b-icon icon="clock-outline" size="is-small" /> {{ props.row.delay }}
+                  </b-tag>
                 </li>
               </ul>
             </b-table-column>
@@ -481,6 +488,13 @@ export default {
     },
     onShowHeaders() {
       this.isHeadersVisible = true;
+    },
+    getStepTitle(step, index) {
+      const num = step.stepNumber || step.step_number || (index + 1);
+      if (step.name && step.name !== `Step ${num}`) {
+        return `Step ${num}: ${step.name}`;
+      }
+      return `Step ${num}`;
     },
     formatStepDuration(sec) {
       if (!sec || sec <= 0) return 'Immediate';

@@ -123,3 +123,6 @@
 .mdi-wrench-outline:before { content: '󰯠'; } /* '\f0be0' */
 .mdi-account-box-outline:before { content: '\e818'; }
 .mdi-run:before { content: '\e80b'; }
+.mdi-phone:before { content: '󰏲'; } /* '\f03f2' */
+.mdi-phone-outline:before { content: '󰷰'; } /* '\f0df0' */
+.mdi-cellphone:before { content: '󰄜'; } /* '\f011c' */
