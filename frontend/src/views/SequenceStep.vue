@@ -139,14 +139,16 @@
               <br />
               <div class="box">
                 <h3 class="title is-size-6">
-                  Send test message
+                  {{ $t('campaigns.sendTest') }}
                 </h3>
-                <b-field message="Send preview test message for this step">
-                  <b-taginput v-model="form.testEmails" :before-adding="$utils.validateEmail" ellipsis icon="email-outline" placeholder="Test emails..." />
+                <b-field :message="isWhatsApp ? 'Hit Enter after typing a phone number to add multiple recipients.' : $t('campaigns.sendTestHelp')">
+                  <b-taginput v-model="form.testEmails" :before-adding="validateTestRecipient" ellipsis
+                    :icon="testIcon" :placeholder="testPlaceholder" />
                 </b-field>
                 <b-field>
-                  <b-button @click="sendTestMessage" :loading="loading" type="is-primary" icon-left="email-outline">
-                    Send Test
+                  <b-button @click="sendTestMessage" :loading="loading"
+                    type="is-primary" :icon-left="testIcon">
+                    {{ $t('campaigns.send') }}
                   </b-button>
                 </b-field>
               </div>
@@ -349,6 +351,15 @@ export default Vue.extend({
       if (!this.form.messenger) return true;
       return this.form.messenger === 'email' || this.form.messenger.startsWith('email-');
     },
+    isWhatsApp() {
+      return this.form.messenger === 'whatsapp' || this.form.messenger === 'waha';
+    },
+    testPlaceholder() {
+      return this.isWhatsApp ? 'Phone numbers (e.g. +14155552671)...' : this.$t('campaigns.testEmails');
+    },
+    testIcon() {
+      return this.isWhatsApp ? 'phone-outline' : 'email-outline';
+    },
     emailMessengers() {
       const msgs = (this.serverConfig && this.serverConfig.messengers) || ['email'];
       return ['email', ...msgs.filter((m) => m.startsWith('email-'))];
@@ -535,22 +546,32 @@ export default Vue.extend({
         this.loading = false;
       });
     },
+    validateTestRecipient(val) {
+      if (this.isWhatsApp) {
+        return /^\+?[1-9][0-9\s\-()]{6,18}$/.test(val.trim());
+      }
+      return this.$utils.validateEmail(val);
+    },
     sendTestMessage() {
       if (!this.form.testEmails || this.form.testEmails.length === 0) {
-        this.$utils.toast('Please enter test email addresses', 'is-warning');
+        this.$utils.toast(this.isWhatsApp ? 'Please enter test phone numbers' : 'Please enter test email addresses', 'is-warning');
         return;
       }
       this.loading = true;
-      this.$api.testCampaign({
+      this.$api.testSequence(this.sequenceId, {
+        step_number: this.stepNumber,
         name: this.form.name || `Step ${this.stepNumber}`,
         subject: this.isEmailMessenger ? this.form.subject : '',
         messenger: this.form.messenger,
         body: this.form.content.body,
+        altbody: this.form.altbody,
+        content_type: this.form.content.contentType,
         template_id: this.form.content.templateId,
+        media: this.form.media ? this.form.media.map((m) => m.id) : [],
         subscribers: this.form.testEmails,
       }).then(() => {
         this.loading = false;
-        this.$utils.toast('Test message sent');
+        this.$utils.toast(this.$t('campaigns.testSent'));
       }).catch(() => {
         this.loading = false;
       });

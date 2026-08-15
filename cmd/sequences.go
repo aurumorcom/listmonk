@@ -1,9 +1,13 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
+	"github.com/knadh/listmonk/internal/auth"
+	"github.com/knadh/listmonk/internal/utils"
 	"github.com/knadh/listmonk/models"
 	"github.com/labstack/echo/v4"
 	null "gopkg.in/volatiletech/null.v6"
@@ -215,15 +219,98 @@ func (a *App) PreviewSequenceArchive(c echo.Context) error {
 	return c.JSON(http.StatusOK, okResp{seq})
 }
 
+type sequenceTestReq struct {
+	ID               int            `json:"id"`
+	StepNumber       int            `json:"step_number"`
+	Messenger        string         `json:"messenger"`
+	Subject          string         `json:"subject"`
+	Body             string         `json:"body"`
+	AltBody          null.String    `json:"altbody"`
+	ContentType      string         `json:"content_type"`
+	TemplateID       null.Int       `json:"template_id"`
+	MediaIDs         []int          `json:"media"`
+	Headers          models.Headers `json:"headers"`
+	SubscriberEmails []string       `json:"subscribers"`
+	SubscriberID     int            `json:"subscriber_id"`
+	TestEmail        string         `json:"test_email"`
+	TestPhone        string         `json:"test_phone"`
+}
+
 // TestSequence dispatches a test sequence step payload to test addresses.
 func (a *App) TestSequence(c echo.Context) error {
 	id := getID(c)
-	steps, err := a.core.GetSequenceSteps(id)
-	if err != nil {
-		return err
+	var req sequenceTestReq
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, a.i18n.Ts("globals.messages.invalidReq"))
 	}
-	if len(steps) == 0 {
-		return echo.NewHTTPError(http.StatusBadRequest, "sequence has no steps")
+
+	user := auth.GetUser(c)
+
+	// Resolve preview subscriber for context
+	var sampleSub models.Subscriber
+	if req.SubscriberID > 0 {
+		if s, err := a.core.GetSubscriber(req.SubscriberID, "", ""); err == nil {
+			sampleSub = s
+		}
 	}
+	if sampleSub.ID == 0 {
+		sampleSub = a.getSubscriberForPreview(0)
+	}
+
+	// Prepare targets
+	targets := req.SubscriberEmails
+	if len(targets) == 0 {
+		if req.TestEmail != "" {
+			targets = append(targets, req.TestEmail)
+		} else if user.Email.Valid && user.Email.String != "" {
+			targets = append(targets, user.Email.String)
+		}
+		if req.TestPhone != "" {
+			targets = append(targets, req.TestPhone)
+		}
+	}
+
+	if req.Messenger == "" {
+		req.Messenger = "email"
+	}
+	if req.ContentType == "" {
+		req.ContentType = models.CampaignContentTypeRichtext
+	}
+
+	camp := models.Campaign{
+		Name:        fmt.Sprintf("Sequence %d - Step %d Test", id, req.StepNumber),
+		Subject:     req.Subject,
+		Body:        req.Body,
+		AltBody:     req.AltBody,
+		Messenger:   req.Messenger,
+		ContentType: req.ContentType,
+		TemplateID:  req.TemplateID,
+		Headers:     req.Headers,
+		FromEmail:   a.cfg.FromEmail,
+	}
+	for _, mID := range req.MediaIDs {
+		if mID > 0 {
+			camp.MediaIDs = append(camp.MediaIDs, int64(mID))
+		}
+	}
+
+	for _, target := range targets {
+		sub := sampleSub
+		target = strings.TrimSpace(target)
+		if strings.Contains(target, "@") {
+			sub.Email = strings.ToLower(target)
+		} else if ph, err := utils.SanitizePhone(target); err == nil {
+			sub.Phone = null.StringFrom(ph)
+		} else {
+			sub.Email = target
+		}
+
+		if err := a.sendTestMessage(sub, &camp); err != nil {
+			a.log.Printf("error sending test sequence message: %v", err)
+			return echo.NewHTTPError(http.StatusInternalServerError,
+				a.i18n.Ts("campaigns.errorSendTest", "error", err.Error()))
+		}
+	}
+
 	return c.JSON(http.StatusOK, okResp{true})
 }
