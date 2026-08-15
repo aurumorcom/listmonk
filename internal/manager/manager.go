@@ -557,9 +557,16 @@ func (m *Manager) worker() {
 			out.Headers = h
 
 			// Push the message to the messenger.
-			err := m.messengers[msg.Campaign.Messenger].Push(out)
-			if err != nil {
-				m.log.Printf("error sending message in campaign %s: subscriber %d: %v", msg.Campaign.Name, msg.Subscriber.ID, err)
+			msgr, msgrErr := m.resolveMessenger(msg.Campaign.Messenger)
+			var err error
+			if msgrErr != nil {
+				err = msgrErr
+				m.log.Printf("error resolving messenger '%s' in campaign %s: subscriber %d: %v", msg.Campaign.Messenger, msg.Campaign.Name, msg.Subscriber.ID, err)
+			} else {
+				err = msgr.Push(out)
+				if err != nil {
+					m.log.Printf("error sending message in campaign %s: subscriber %d: %v", msg.Campaign.Name, msg.Subscriber.ID, err)
+				}
 			}
 
 			// Increment the send rate or the error counter if there was an error.
@@ -588,11 +595,41 @@ func (m *Manager) worker() {
 			}
 
 			// Push the message to the messenger.
-			if err := m.messengers[msg.Messenger].Push(msg); err != nil {
+			msgr, msgrErr := m.resolveMessenger(msg.Messenger)
+			if msgrErr != nil {
+				m.log.Printf("error resolving messenger '%s' for message '%s': %v", msg.Messenger, msg.Subject, msgrErr)
+			} else if err := msgr.Push(msg); err != nil {
 				m.log.Printf("error sending message '%s': %v", msg.Subject, err)
 			}
 		}
 	}
+}
+
+// resolveMessenger finds a registered messenger or resolves safe channel fallbacks.
+func (m *Manager) resolveMessenger(name string) (Messenger, error) {
+	if msgr, ok := m.messengers[name]; ok && msgr != nil {
+		return msgr, nil
+	}
+	// Fallback alias resolution:
+	if strings.HasPrefix(name, "email-") {
+		if msgr, ok := m.messengers["email"]; ok && msgr != nil {
+			return msgr, nil
+		}
+	}
+	if name == "whatsapp" || name == "waha" || strings.HasPrefix(name, "whatsapp-") || strings.HasPrefix(name, "waha-") {
+		if msgr, ok := m.messengers["whatsapp"]; ok && msgr != nil {
+			return msgr, nil
+		}
+		if msgr, ok := m.messengers["waha"]; ok && msgr != nil {
+			return msgr, nil
+		}
+	}
+	if name == "" {
+		if msgr, ok := m.messengers["email"]; ok && msgr != nil {
+			return msgr, nil
+		}
+	}
+	return nil, fmt.Errorf("messenger '%s' not registered", name)
 }
 
 // getCurrentCampaigns returns the IDs of campaigns currently being processed
