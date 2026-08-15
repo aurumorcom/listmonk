@@ -783,7 +783,7 @@ func initPostbackMessengers(ko *koanf.Koanf) []manager.Messenger {
 // initWAHAMessengers initializes and returns all the enabled
 // WAHA WhatsApp messenger backends.
 func initWAHAMessengers(ko *koanf.Koanf) []manager.Messenger {
-	items := ko.Slices("waha_messengers")
+	items := ko.Slices("waha")
 	if len(items) == 0 {
 		return nil
 	}

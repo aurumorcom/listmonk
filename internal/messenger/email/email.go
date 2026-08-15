@@ -157,9 +157,14 @@ func (e *Emailer) Push(m models.Message) error {
 	}
 
 	// Create the email.
+	to := m.To
+	if len(to) == 0 && m.Subscriber.Email != "" {
+		to = []string{m.Subscriber.Email}
+	}
+
 	em := smtppool.Email{
 		From:        m.From,
-		To:          m.To,
+		To:          to,
 		Subject:     m.Subject,
 		Attachments: files,
 	}

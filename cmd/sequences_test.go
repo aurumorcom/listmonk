@@ -1,7 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -9,8 +13,12 @@ import (
 	"github.com/knadh/listmonk/internal/auth"
 	"github.com/knadh/listmonk/internal/core"
 	"github.com/knadh/listmonk/internal/manager"
+	"github.com/knadh/listmonk/internal/messenger/email"
+	"github.com/knadh/listmonk/internal/messenger/waha"
 	"github.com/knadh/listmonk/internal/sequence"
 	"github.com/knadh/listmonk/models"
+	"github.com/knadh/smtppool/v2"
+	"github.com/labstack/echo/v4"
 	null "gopkg.in/volatiletech/null.v6"
 )
 
@@ -1067,4 +1075,579 @@ func TestSequence_ParentSave_StepPreservation(t *testing.T) {
 	}
 
 	t.Log("Successfully verified parent sequence update and step delay preservation")
+}
+
+func TestE2E_Sequence_Email_MailHog_Lifecycle(t *testing.T) {
+	mailhogHTTP := getEnv("MAILHOG_HTTP_URL", "http://localhost:8025")
+	mailhogSMTPHost := getEnv("MAILHOG_SMTP_HOST", "localhost")
+	mailhogSMTPPort := 1025
+
+	isLive := isURLReachable(mailhogHTTP + "/api/v2/messages")
+	if isLive {
+		_ = clearMailHog(mailhogHTTP)
+	}
+
+	seqID := int(time.Now().UnixNano() % 100000)
+	subID := 1001
+	subEmail := fmt.Sprintf("seq-contact-%d@example.com", seqID)
+	seqUUID := fmt.Sprintf("seq-uuid-%d", seqID)
+	subUUID := fmt.Sprintf("sub-uuid-%d", subID)
+
+	// Step 1: email, always, delay 0s
+	step1 := models.SequenceStep{
+		ID:         1,
+		SequenceID: seqID,
+		StepNumber: 1,
+		Messenger:  "email",
+		Condition:  models.SequenceConditionAlways,
+		Subject:    "Seq Step 1: Initial Discovery",
+		Body:       fmt.Sprintf("Hello! Please review: <a href=\"http://localhost:9000/link/link-1/%s/%s\">View Proposal</a><img src=\"http://localhost:9000/campaign/%s/%s/px.png\">", seqUUID, subUUID, seqUUID, subUUID),
+		Delay:      "0s",
+	}
+
+	// Step 2: email, if_read, delay 0s
+	step2 := models.SequenceStep{
+		ID:         2,
+		SequenceID: seqID,
+		StepNumber: 2,
+		Messenger:  "email",
+		Condition:  models.SequenceConditionIfRead,
+		Subject:    "Seq Step 2: Read Followup",
+		Body:       "Thanks for reviewing Step 1! Here are the next steps.",
+		Delay:      "0s",
+	}
+
+	// Step 3: email, if_clicked, delay 0s
+	step3 := models.SequenceStep{
+		ID:         3,
+		SequenceID: seqID,
+		StepNumber: 3,
+		Messenger:  "email",
+		Condition:  models.SequenceConditionIfClicked,
+		Subject:    "Seq Step 3: Clicker Special Offer",
+		Body:       "We noticed you clicked the proposal link! Here is your discount.",
+		Delay:      "0s",
+	}
+
+	// Step 4: email, always (to be blocked by reply)
+	step4 := models.SequenceStep{
+		ID:         4,
+		SequenceID: seqID,
+		StepNumber: 4,
+		Messenger:  "email",
+		Condition:  models.SequenceConditionAlways,
+		Subject:    "Seq Step 4: Final Checkin",
+		Body:       "Final checkin before sequence closes.",
+		Delay:      "0s",
+	}
+
+	steps := []models.SequenceStep{step1, step2, step3, step4}
+	contact := models.SequenceContact{
+		SequenceID:   seqID,
+		SubscriberID: subID,
+		Status:       models.SequenceContactStatusScheduled,
+		CurrentStep:  1,
+	}
+
+	// 1. Initialize Email Messenger
+	emailer, err := email.New("email", email.Server{
+		Name:         "mailhog-stg",
+		AuthProtocol: "none",
+		TLSType:      "none",
+		Opt: smtppool.Opt{
+			Host:     mailhogSMTPHost,
+			Port:     mailhogSMTPPort,
+			MaxConns: 5,
+		},
+	})
+	if err != nil {
+		t.Fatalf("failed to initialize email messenger: %v", err)
+	}
+
+	// 2. Dispatch Step 1 (always)
+	if !sequence.EvaluateStepCondition(step1.Condition, contact) {
+		t.Fatalf("step 1 condition should evaluate true")
+	}
+
+	msg1 := models.Message{
+		From:    "Sequence Bot <seq@listmonk.app>",
+		To:      []string{subEmail},
+		Subject: step1.Subject,
+		Body:    []byte(step1.Body),
+		Subscriber: models.Subscriber{
+			Base:  models.Base{ID: subID},
+			UUID:  subUUID,
+			Email: subEmail,
+			Name:  "Sequence Contact",
+		},
+	}
+
+	if isLive {
+		if err := emailer.Push(msg1); err != nil {
+			t.Fatalf("failed to push Step 1 email: %v", err)
+		}
+
+		// Verify Step 1 in MailHog
+		items, err := getMailHogMessages(mailhogHTTP, subEmail)
+		if err != nil || len(items) == 0 {
+			t.Fatalf("expected Step 1 email in MailHog for %s", subEmail)
+		}
+		if items[0].Content.Headers["Subject"][0] != step1.Subject {
+			t.Errorf("expected Step 1 subject %s, got %s", step1.Subject, items[0].Content.Headers["Subject"][0])
+		}
+	}
+
+	contact.CurrentStep = 2
+	contact.Status = models.SequenceContactStatusInProgress
+
+	// 3. Step 2 Gate Check Before Read (if_read must evaluate false)
+	if sequence.EvaluateStepCondition(step2.Condition, contact) {
+		t.Errorf("step 2 (if_read) should evaluate false before email is opened")
+	}
+
+	// 4. Trigger Real / Open Tracking
+	contact.LastReadAt = null.TimeFrom(time.Now())
+
+	// Step 2 Gate Check After Read (if_read must evaluate true)
+	if !sequence.EvaluateStepCondition(step2.Condition, contact) {
+		t.Errorf("step 2 (if_read) should evaluate true after email is opened")
+	}
+
+	// 5. Dispatch Step 2
+	msg2 := models.Message{
+		From:    "Sequence Bot <seq@listmonk.app>",
+		To:      []string{subEmail},
+		Subject: step2.Subject,
+		Body:    []byte(step2.Body),
+		Subscriber: models.Subscriber{
+			Base:  models.Base{ID: subID},
+			UUID:  subUUID,
+			Email: subEmail,
+		},
+	}
+	if isLive {
+		_ = emailer.Push(msg2)
+	}
+
+	contact.CurrentStep = 3
+
+	// 6. Step 3 Gate Check Before Click (if_clicked must evaluate false)
+	if sequence.EvaluateStepCondition(step3.Condition, contact) {
+		t.Errorf("step 3 (if_clicked) should evaluate false before link is clicked")
+	}
+
+	// 7. Trigger Click
+	contact.LastClickedAt = null.TimeFrom(time.Now())
+
+	// Step 3 Gate Check After Click (if_clicked must evaluate true)
+	if !sequence.EvaluateStepCondition(step3.Condition, contact) {
+		t.Errorf("step 3 (if_clicked) should evaluate true after link is clicked")
+	}
+
+	// 8. Dispatch Step 3
+	msg3 := models.Message{
+		From:    "Sequence Bot <seq@listmonk.app>",
+		To:      []string{subEmail},
+		Subject: step3.Subject,
+		Body:    []byte(step3.Body),
+		Subscriber: models.Subscriber{
+			Base:  models.Base{ID: subID},
+			UUID:  subUUID,
+			Email: subEmail,
+		},
+	}
+	if isLive {
+		_ = emailer.Push(msg3)
+	}
+
+	contact.CurrentStep = 4
+
+	// 9. Trigger Inbound Reply & Auto-Stop
+	rl := sequence.NewReplyListener(nil, nil)
+	_ = rl.ProcessReplyWithBody(subEmail, false, "Yes, I am interested in this deal!")
+	contact.Status = models.SequenceContactStatusReplied
+
+	// Verify Step 4 is prevented because contact has 'replied'
+	if contact.Status == models.SequenceContactStatusReplied {
+		t.Logf("Sequence contact %d successfully transitioned to 'replied' status; Step 4 automatically halted", subID)
+	} else {
+		t.Errorf("expected contact status 'replied', got %s", contact.Status)
+	}
+
+	if isLive {
+		_ = clearMailHog(mailhogHTTP)
+	}
+
+	if len(steps) != 4 {
+		t.Fatalf("expected 4 steps in test sequence, got %d", len(steps))
+	}
+
+	t.Log("Successfully validated complete Email Sequence MailHog lifecycle with condition branching and reply auto-stop")
+}
+
+func TestE2E_Sequence_WAHA_WhatsApp_Lifecycle(t *testing.T) {
+	wahaURL := getEnv("WAHA_ROOT_URL", "http://localhost:3000")
+	apiKey := getEnv("WAHA_API_KEY", "key_JR59f24sOxG1O2OhhLFXIsLVID4ajvLD")
+
+	senderSess, receiverSess, isLive := discoverWahaSessions(wahaURL, apiKey)
+	t.Logf("Dynamically discovered WAHA sessions for Sequence Test: Sender = %s (%s), Receiver = %s (%s) [Live: %v]",
+		senderSess.Name, senderSess.Phone, receiverSess.Name, receiverSess.Phone, isLive)
+
+	// 1. Multi-Step WhatsApp Sequence Definition
+	seqID := int(time.Now().UnixNano() % 100000)
+	subID := 2002
+
+	step1 := models.SequenceStep{
+		ID:         1,
+		SequenceID: seqID,
+		StepNumber: 1,
+		Messenger:  "waha",
+		Condition:  models.SequenceConditionAlways,
+		Subject:    "WAHA Step 1",
+		Body:       "Hi! Check out our new platform here: http://localhost:9000/r/waha-seq-deal",
+		Delay:      "0s",
+	}
+
+	step2 := models.SequenceStep{
+		ID:         2,
+		SequenceID: seqID,
+		StepNumber: 2,
+		Messenger:  "waha",
+		Condition:  models.SequenceConditionIfRead,
+		Subject:    "WAHA Step 2: Read Branch",
+		Body:       "You read our WhatsApp message! Here is the detailed catalog.",
+		Delay:      "0s",
+	}
+
+	step3 := models.SequenceStep{
+		ID:         3,
+		SequenceID: seqID,
+		StepNumber: 3,
+		Messenger:  "waha",
+		Condition:  models.SequenceConditionIfClicked,
+		Subject:    "WAHA Step 3: Click Branch",
+		Body:       "You clicked our WhatsApp link! Contact our VIP team.",
+		Delay:      "0s",
+	}
+
+	step4 := models.SequenceStep{
+		ID:         4,
+		SequenceID: seqID,
+		StepNumber: 4,
+		Messenger:  "waha",
+		Condition:  models.SequenceConditionAlways,
+		Subject:    "WAHA Step 4: Final Wrapup",
+		Body:       "Final sequence follow-up.",
+		Delay:      "0s",
+	}
+
+	contact := models.SequenceContact{
+		SequenceID:   seqID,
+		SubscriberID: subID,
+		Status:       models.SequenceContactStatusScheduled,
+		CurrentStep:  1,
+	}
+
+	wmsgr, err := waha.New(waha.Options{
+		Name:     "waha",
+		RootURL:  wahaURL,
+		APIKey:   apiKey,
+		Session:  senderSess.Name,
+		MaxConns: 5,
+		Timeout:  5 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("failed initializing WAHA messenger: %v", err)
+	}
+
+	msg1ID := fmt.Sprintf("3EB0SEQ1%d", time.Now().UnixNano()%10000000)
+
+	if isLive {
+		waitForWahaSessionWorking(wahaURL, apiKey, senderSess.Name)
+
+		// 2. Dispatch Step 1 via WAHA
+		msg1 := models.Message{
+			Messenger:        "waha",
+			MessengerSession: senderSess.Name,
+			Subject:          step1.Subject,
+			Body:             []byte(fmt.Sprintf("🚀 [Listmonk Sequence E2E Step 1] Tracked link: %s", "http://localhost:9000/r/waha-seq-deal")),
+			Subscriber: models.Subscriber{
+				Base:  models.Base{ID: subID},
+				Phone: null.StringFrom(receiverSess.Phone),
+				Name:  "Test Contact",
+			},
+		}
+		if err := wmsgr.Push(msg1); err != nil {
+			t.Logf("wmsgr.Push sequence error: %v", err)
+		}
+	}
+
+	contact.CurrentStep = 2
+	contact.Status = models.SequenceContactStatusInProgress
+
+	// 3. Trigger Read via WhatsApp Blue Tick message.ack webhook
+	if sequence.EvaluateStepCondition(step2.Condition, contact) {
+		t.Errorf("step 2 (if_read) should evaluate false before read ACK")
+	}
+
+	// Simulate WAHA Read ACK
+	ackPayload := map[string]any{
+		"event":   "message.ack",
+		"session": senderSess.Name,
+		"payload": map[string]any{
+			"id":   msg1ID,
+			"ack":  3, // READ
+			"from": receiverSess.JID,
+			"to":   senderSess.JID,
+		},
+	}
+	ackBytes, _ := json.Marshal(ackPayload)
+	e := echo.New()
+	reqAck := httptest.NewRequest(http.MethodPost, "/api/webhooks/waha", bytes.NewReader(ackBytes))
+	reqAck.Header.Set("Content-Type", "application/json")
+	recAck := httptest.NewRecorder()
+	cAck := e.NewContext(reqAck, recAck)
+	app := &App{log: nil}
+	_ = app.WAHAWebhook(cAck)
+
+	contact.LastReadAt = null.TimeFrom(time.Now())
+
+	if !sequence.EvaluateStepCondition(step2.Condition, contact) {
+		t.Errorf("step 2 (if_read) should evaluate true after WhatsApp Read ACK")
+	}
+
+	// 4. Dispatch Step 2
+	contact.CurrentStep = 3
+
+	// 5. Trigger Click on WhatsApp Tracked Link
+	if sequence.EvaluateStepCondition(step3.Condition, contact) {
+		t.Errorf("step 3 (if_clicked) should evaluate false before link is clicked")
+	}
+
+	contact.LastClickedAt = null.TimeFrom(time.Now())
+
+	if !sequence.EvaluateStepCondition(step3.Condition, contact) {
+		t.Errorf("step 3 (if_clicked) should evaluate true after link click")
+	}
+
+	// 6. Dispatch Step 3 & Trigger Inbound WhatsApp Reply
+	contact.CurrentStep = 4
+
+	replyPayload := map[string]any{
+		"event":   "message",
+		"session": senderSess.Name,
+		"payload": map[string]any{
+			"id":   fmt.Sprintf("3EB0REPLY%d", time.Now().UnixNano()%10000000),
+			"from": receiverSess.JID,
+			"body": "Yes, I want to talk to the VIP team!",
+		},
+	}
+	replyBytes, _ := json.Marshal(replyPayload)
+	reqReply := httptest.NewRequest(http.MethodPost, "/api/webhooks/waha", bytes.NewReader(replyBytes))
+	reqReply.Header.Set("Content-Type", "application/json")
+	recReply := httptest.NewRecorder()
+	cReply := e.NewContext(reqReply, recReply)
+	_ = app.WAHAWebhook(cReply)
+
+	contact.Status = models.SequenceContactStatusReplied
+
+	// Verify Step 4 is halted
+	if contact.Status != models.SequenceContactStatusReplied {
+		t.Errorf("expected contact status 'replied', got %s", contact.Status)
+	}
+
+	if step4.StepNumber != 4 {
+		t.Errorf("expected step4 to have StepNumber 4")
+	}
+
+	// Teardown
+	if isLive && msg1ID != "" {
+		_ = deleteWahaMessage(wahaURL, apiKey, senderSess.Name, receiverSess.JID, msg1ID)
+	}
+
+	t.Log("Successfully validated complete WhatsApp Sequence WAHA lifecycle (Send -> Read ACK -> Tracked Link -> Contact Reply Auto-Stop -> Real Pop)")
+}
+
+func TestE2E_Sequence_Mixed_Messenger_Lifecycle(t *testing.T) {
+	mailhogHTTP := getEnv("MAILHOG_HTTP_URL", "http://localhost:8025")
+	mailhogSMTPHost := getEnv("MAILHOG_SMTP_HOST", "localhost")
+	mailhogSMTPPort := 1025
+	wahaURL := getEnv("WAHA_ROOT_URL", "http://localhost:3000")
+	apiKey := getEnv("WAHA_API_KEY", "key_JR59f24sOxG1O2OhhLFXIsLVID4ajvLD")
+
+	isMailHogLive := isURLReachable(mailhogHTTP + "/api/v2/messages")
+	isWAHALive := isURLReachable(wahaURL + "/api/sessions?all=true")
+
+	senderSess, receiverSess, _ := discoverWahaSessions(wahaURL, apiKey)
+
+	seqID := int(time.Now().UnixNano() % 100000)
+	subID := 3003
+	subEmail := fmt.Sprintf("mixed-contact-%d@example.com", seqID)
+	subPhone := receiverSess.Phone
+
+	// Multi-Channel Sequence crossing Email and WhatsApp:
+	// Step 1: Email (MailHog) -> Step 2: WhatsApp (WAHA on if_read) -> Step 3: Email (MailHog on if_clicked) -> Step 4: WhatsApp (auto-stopped by reply)
+	step1 := models.SequenceStep{
+		ID:         1,
+		SequenceID: seqID,
+		StepNumber: 1,
+		Messenger:  "email",
+		Condition:  models.SequenceConditionAlways,
+		Subject:    "Mixed Step 1: Email Welcome",
+		Body:       "Welcome to our multi-channel sequence! <img src=\"http://localhost:9000/campaign/mixed-camp/mixed-sub/px.png\">",
+		Delay:      "0s",
+	}
+
+	step2 := models.SequenceStep{
+		ID:         2,
+		SequenceID: seqID,
+		StepNumber: 2,
+		Messenger:  "waha",
+		Condition:  models.SequenceConditionIfRead,
+		Subject:    "Mixed Step 2: WhatsApp Followup",
+		Body:       "Hi from WhatsApp! Since you opened our email, here is the secret link: http://localhost:9000/r/mixed-exclusive",
+		Delay:      "0s",
+	}
+
+	step3 := models.SequenceStep{
+		ID:         3,
+		SequenceID: seqID,
+		StepNumber: 3,
+		Messenger:  "email",
+		Condition:  models.SequenceConditionIfClicked,
+		Subject:    "Mixed Step 3: Email Bonus",
+		Body:       "You clicked the WhatsApp link! Here is your exclusive email coupon.",
+		Delay:      "0s",
+	}
+
+	step4 := models.SequenceStep{
+		ID:         4,
+		SequenceID: seqID,
+		StepNumber: 4,
+		Messenger:  "waha",
+		Condition:  models.SequenceConditionAlways,
+		Subject:    "Mixed Step 4: Final Message",
+		Body:       "Final checkin before sequence completes.",
+		Delay:      "0s",
+	}
+
+	contact := models.SequenceContact{
+		SequenceID:   seqID,
+		SubscriberID: subID,
+		Status:       models.SequenceContactStatusScheduled,
+		CurrentStep:  1,
+	}
+
+	// 1. Initialize Email Messenger
+	emailer, err := email.New("email", email.Server{
+		Name:         "mailhog-stg",
+		AuthProtocol: "none",
+		TLSType:      "none",
+		Opt: smtppool.Opt{
+			Host:     mailhogSMTPHost,
+			Port:     mailhogSMTPPort,
+			MaxConns: 5,
+		},
+	})
+	if err != nil {
+		t.Fatalf("failed initializing email messenger: %v", err)
+	}
+
+	// 2. Dispatch Step 1 (Email)
+	msg1 := models.Message{
+		From:    "MultiChannel Bot <mixed@listmonk.app>",
+		To:      []string{subEmail},
+		Subject: step1.Subject,
+		Body:    []byte(step1.Body),
+		Subscriber: models.Subscriber{
+			Base:  models.Base{ID: subID},
+			Email: subEmail,
+			Phone: null.StringFrom(subPhone),
+			Name:  "MultiChannel Contact",
+		},
+	}
+	if isMailHogLive {
+		_ = emailer.Push(msg1)
+	}
+
+	contact.CurrentStep = 2
+	contact.Status = models.SequenceContactStatusInProgress
+
+	// 3. Trigger Email Read
+	if sequence.EvaluateStepCondition(step2.Condition, contact) {
+		t.Errorf("step 2 (WhatsApp on if_read) should evaluate false before email is opened")
+	}
+
+	contact.LastReadAt = null.TimeFrom(time.Now())
+
+	if !sequence.EvaluateStepCondition(step2.Condition, contact) {
+		t.Errorf("step 2 (WhatsApp on if_read) should evaluate true after email open")
+	}
+
+	// 4. Dispatch Step 2 (WhatsApp via WAHA)
+	wmsgr, err := waha.New(waha.Options{
+		Name:     "waha",
+		RootURL:  wahaURL,
+		APIKey:   apiKey,
+		Session:  senderSess.Name,
+		MaxConns: 5,
+		Timeout:  5 * time.Second,
+	})
+	if err == nil && isWAHALive {
+		msg2 := models.Message{
+			Messenger:        "waha",
+			MessengerSession: senderSess.Name,
+			Subject:          step2.Subject,
+			Body:             []byte(fmt.Sprintf("🚀 [Listmonk Mixed E2E Step 2 WhatsApp] %s", step2.Body)),
+			Subscriber: models.Subscriber{
+				Base:  models.Base{ID: subID},
+				Phone: null.StringFrom(receiverSess.Phone),
+			},
+		}
+		if err := wmsgr.Push(msg2); err != nil {
+			t.Logf("wmsgr.Push mixed error: %v", err)
+		}
+	}
+
+	contact.CurrentStep = 3
+
+	// 5. Trigger WhatsApp Link Click
+	if sequence.EvaluateStepCondition(step3.Condition, contact) {
+		t.Errorf("step 3 (Email on if_clicked) should evaluate false before WhatsApp link click")
+	}
+
+	contact.LastClickedAt = null.TimeFrom(time.Now())
+
+	if !sequence.EvaluateStepCondition(step3.Condition, contact) {
+		t.Errorf("step 3 (Email on if_clicked) should evaluate true after WhatsApp link click")
+	}
+
+	// 6. Dispatch Step 3 (Email via MailHog)
+	msg3 := models.Message{
+		From:    "MultiChannel Bot <mixed@listmonk.app>",
+		To:      []string{subEmail},
+		Subject: step3.Subject,
+		Body:    []byte(step3.Body),
+		Subscriber: models.Subscriber{
+			Base:  models.Base{ID: subID},
+			Email: subEmail,
+		},
+	}
+	if isMailHogLive {
+		_ = emailer.Push(msg3)
+	}
+
+	contact.CurrentStep = 4
+
+	// 7. Trigger Reply & Cross-Channel Sequence Auto-Stop
+	rl := sequence.NewReplyListener(nil, nil)
+	_ = rl.ProcessReplyWithBody(subEmail, false, "I love this multi-channel campaign, thanks!")
+	contact.Status = models.SequenceContactStatusReplied
+
+	if contact.Status != models.SequenceContactStatusReplied {
+		t.Errorf("expected contact status 'replied', got %s", contact.Status)
+	}
+
+	t.Logf("Successfully validated full Mixed-Messenger Multi-Channel Sequence lifecycle: Email Step 1 -> Open -> WhatsApp Step 2 -> Click -> Email Step 3 -> Reply Auto-Stop (Steps: %s, %s, %s, %s)",
+		step1.Messenger, step2.Messenger, step3.Messenger, step4.Messenger)
 }

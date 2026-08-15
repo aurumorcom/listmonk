@@ -1,7 +1,7 @@
 <template>
   <div>
-    <div class="items waha-messengers">
-      <div class="block box" v-for="(item, n) in data.waha_messengers" :key="n">
+    <div class="items waha-accounts">
+      <div class="block box" v-for="(item, n) in data.waha" :key="n">
         <div class="columns">
           <!-- Left Column (2) with Enabled Switch & Delete Link matching SMTP.vue -->
           <div class="column is-2">
@@ -10,7 +10,7 @@
                 {{ $t('globals.buttons.enabled') }}
               </b-switch>
             </b-field>
-            <b-field v-if="data.waha_messengers.length > 1">
+            <b-field v-if="data.waha.length > 1">
               <a @click.prevent="$utils.confirm(null, () => removeMessenger(n))" href="#" data-cy="btn-delete-waha">
                 <b-icon icon="trash-can-outline" />
                 {{ $t('globals.buttons.delete') }}
@@ -142,7 +142,7 @@
               <div class="column is-12">
                 <b-field label="User" label-position="on-border" message="Team member assigned to this WhatsApp account">
                   <b-select v-model="item.user_id" expanded>
-                    <option value="">&mdash; None &mdash;</option>
+                    <option :value="null">&mdash; None &mdash;</option>
                     <option v-for="u in users" :value="u.id" :key="u.id">
                       {{ u.name || u.username }} ({{ u.email || u.username }})
                     </option>
@@ -208,19 +208,19 @@ export default {
   },
   methods: {
     ensureDefault() {
-      if (!this.data.waha_messengers || !Array.isArray(this.data.waha_messengers) || this.data.waha_messengers.length === 0) {
-        this.$set(this.data, 'waha_messengers', []);
+      if (!this.data.waha || !Array.isArray(this.data.waha) || this.data.waha.length === 0) {
+        this.$set(this.data, 'waha', []);
         this.addMessenger();
       }
     },
     addMessenger() {
-      if (!this.data.waha_messengers) {
-        this.$set(this.data, 'waha_messengers', []);
+      if (!this.data.waha) {
+        this.$set(this.data, 'waha', []);
       }
-      this.data.waha_messengers.push({
+      this.data.waha.push({
         name: 'whatsapp',
         enabled: true,
-        user_id: '',
+        user_id: null,
         user: '',
         root_url: 'http://waha:3000',
         api_key: '',
@@ -240,10 +240,10 @@ export default {
       });
     },
     removeMessenger(i) {
-      this.data.waha_messengers.splice(i, 1);
+      this.data.waha.splice(i, 1);
     },
     testConnection(i) {
-      const item = this.data.waha_messengers[i];
+      const item = this.data.waha[i];
       if (!item || !item.root_url) {
         this.$utils.toast('Please enter a valid WAHA Base URL first', 'is-warning');
         return;

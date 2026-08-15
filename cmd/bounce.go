@@ -331,10 +331,22 @@ func (a *App) WAHAWebhook(c echo.Context) error {
 	}
 
 	if req.Event == "message.ack" && req.Payload.Ack == -1 {
-		a.log.Printf("WAHA delivery failure for %s: %s", req.Payload.To, req.Payload.Error)
+		if a.log != nil {
+			a.log.Printf("WAHA delivery failure for %s: %s", req.Payload.To, req.Payload.Error)
+		}
+	} else if req.Event == "message.ack" && req.Payload.Ack >= 3 {
+		targetPhone := req.Payload.To
+		if targetPhone == "" {
+			targetPhone = req.Payload.From
+		}
+		if targetPhone != "" && a.core != nil {
+			_ = a.core.RecordSequenceReadByPhone(targetPhone)
+		}
 	} else if req.Event == "message" && req.Payload.From != "" {
-		l := sequence.NewReplyListener(a.core, a.log)
-		_ = l.ProcessReplyWithBody(req.Payload.From, true, req.Payload.Body)
+		if a.core != nil {
+			l := sequence.NewReplyListener(a.core, a.log)
+			_ = l.ProcessReplyWithBody(req.Payload.From, true, req.Payload.Body)
+		}
 	}
 
 	return c.NoContent(http.StatusOK)
