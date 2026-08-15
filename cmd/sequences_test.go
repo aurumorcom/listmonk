@@ -1885,17 +1885,17 @@ func TestSequence_TestMessage_PreviewDecoupling_And_PhoneLookup(t *testing.T) {
 	}
 
 	sanitizedAryan, err := utils.SanitizePhone(aryanPhone)
-	if err != nil || sanitizedAryan != "918935885359" {
-		t.Fatalf("expected sanitized phone 918935885359, got %s (err: %v)", sanitizedAryan, err)
+	if err != nil || sanitizedAryan != "+918935885359" {
+		t.Fatalf("expected sanitized phone +918935885359, got %s (err: %v)", sanitizedAryan, err)
 	}
 
 	// 2. Simulate preview contact context vs destination routing
-	// Tester wants to preview what "Anon Doe" (subID: 2) receives, but deliver it to tester's phone ("918935885359")
+	// Tester wants to preview what "Anon Doe" (subID: 2) receives, but deliver it to tester's phone ("+918935885359")
 	anonSub := models.Subscriber{
 		Base:  models.Base{ID: 2},
 		Name:  "Anon Doe",
 		Email: "anon@example.com",
-		Phone: null.StringFrom("919999999999"),
+		Phone: null.StringFrom("+919999999999"),
 	}
 
 	// Sample context remains Anon Doe for template tags
@@ -1908,8 +1908,8 @@ func TestSequence_TestMessage_PreviewDecoupling_And_PhoneLookup(t *testing.T) {
 	if dispatchSub.Name != "Anon Doe" {
 		t.Fatalf("expected simulated template subscriber name 'Anon Doe', got '%s'", dispatchSub.Name)
 	}
-	if dispatchSub.Phone.String != "918935885359" {
-		t.Fatalf("expected delivery destination phone '918935885359', got '%s'", dispatchSub.Phone.String)
+	if dispatchSub.Phone.String != "+918935885359" {
+		t.Fatalf("expected delivery destination phone '+918935885359', got '%s'", dispatchSub.Phone.String)
 	}
 
 	// 3. When target is Aryan's phone without explicit subscriber_id, resolved subscriber is Aryan
