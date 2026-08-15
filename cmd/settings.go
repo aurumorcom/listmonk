@@ -65,6 +65,7 @@ func (a *App) GetSettings(c echo.Context) error {
 	// Empty out passwords.
 	for i := range s.SMTP {
 		s.SMTP[i].Password = strings.Repeat(pwdMask, utf8.RuneCountInString(s.SMTP[i].Password))
+		s.SMTP[i].IMAPPassword = strings.Repeat(pwdMask, utf8.RuneCountInString(s.SMTP[i].IMAPPassword))
 	}
 	for i := range s.BounceBoxes {
 		s.BounceBoxes[i].Password = strings.Repeat(pwdMask, utf8.RuneCountInString(s.BounceBoxes[i].Password))
@@ -148,6 +149,13 @@ func (a *App) UpdateSettings(c echo.Context) error {
 			for _, c := range cur.SMTP {
 				if s.UUID == c.UUID {
 					set.SMTP[i].Password = c.Password
+				}
+			}
+		}
+		if s.IMAPPassword == "" {
+			for _, c := range cur.SMTP {
+				if s.UUID == c.UUID {
+					set.SMTP[i].IMAPPassword = c.IMAPPassword
 				}
 			}
 		}
@@ -245,13 +253,22 @@ func (a *App) UpdateSettings(c echo.Context) error {
 			}
 		}
 
-		name := reAlphaNum.ReplaceAllString(strings.ToLower(m.Name), "")
+		rawName := strings.TrimSpace(m.Name)
+		if rawName == "" {
+			if m.Session != "" && m.Session != "default" {
+				rawName = "whatsapp-" + m.Session
+			} else {
+				rawName = "whatsapp"
+			}
+		}
+
+		name := reAlphaNum.ReplaceAllString(strings.ToLower(rawName), "-")
+		if name == "" {
+			name = "whatsapp"
+		}
 		if _, ok := names[name]; ok {
 			return echo.NewHTTPError(http.StatusBadRequest,
 				a.i18n.Ts("settings.duplicateMessengerName", "name", name))
-		}
-		if len(name) == 0 {
-			return echo.NewHTTPError(http.StatusBadRequest, a.i18n.T("settings.invalidMessengerName"))
 		}
 
 		set.WAHAMessengers[i].Name = name
