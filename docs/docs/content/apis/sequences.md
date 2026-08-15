@@ -13,6 +13,7 @@ The Sequences API enables management of automated multi-step cold outreach seque
 | `description` | string | Description and campaign objectives |
 | `status` | string | Sequence status (`active`, `paused`, `archived`, `cancelled`) |
 | `schedule_id` | number | Associated sending schedule ID |
+| `lists` | object[] | Array of targeted list objects `[{id: 1, name: "Cold list"}]` (or integer IDs `[1]` on request) |
 | `send_window` | object | Daily sending window time range configuration |
 | `email_ids` | number[] | Array of sender email account IDs |
 | `waha_sessions` | string[] | Array of WhatsApp session names |
@@ -28,9 +29,9 @@ The Sequences API enables management of automated multi-step cold outreach seque
 | `sequence_id` | number | Associated parent sequence ID |
 | `step_number` | number | Step sequence order number (1, 2, 3...) |
 | `delay_seconds` | number | Time delay in seconds before executing step after previous trigger |
-| `messenger` | string | Target delivery messenger channel (`email`, `waha`) |
+| `messenger` | string | Target delivery messenger channel (`email`, `whatsapp`) |
 | `condition` | string | Execution trigger condition (`always`, `if_read`, `if_not_read`, `if_clicked`) |
-| `subject` | string | Email or message subject line |
+| `subject` | string | Email or message subject line (only editable when messenger is `email`) |
 | `body` | string | Content body template |
 | `email_type` | string | Email thread type (`New Thread`, `Reply`) |
 | `template_id` | number | Optional template ID |
@@ -100,6 +101,7 @@ Create a new sequence.
 | `description` | string | No | Sequence description |
 | `status` | string | No | Sequence status (`active`, `paused`) |
 | `schedule_id` | number | No | Sending schedule ID |
+| `lists` | number[] | No | Array of target list IDs for automatic subscriber enrollment |
 | `archive` | boolean | No | Enable public archive |
 | `archive_template_id` | number | No | Archive template ID |
 | `archive_slug` | string | No | Custom archive URL slug |
@@ -113,7 +115,8 @@ curl -u "username:token" -X POST 'http://localhost:9000/api/sequences' \
     "name": "SaaS Founder Outreach",
     "description": "Personalized 3-step sequence",
     "status": "active",
-    "schedule_id": 1
+    "schedule_id": 1,
+    "lists": [1, 2]
   }'
 ```
 
@@ -198,13 +201,29 @@ curl -u "username:token" -X PUT 'http://localhost:9000/api/sequences/1/archive' 
 
 ### POST /api/sequences/{id}/test
 
-Dispatch immediate test payload for sequence steps.
+Dispatch immediate test payload for sequence steps across Email (SMTP) and WhatsApp (WAHA). Personalization tokens (such as `{{ .Subscriber.FirstName }}` and `{{ .Subscriber.Attribs }}`) are evaluated against sample contact data, while the rendered message is dispatched to test recipients.
+
+#### Parameters
+| Parameter | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `step_number` | number | No | Step number to test (default: 1) |
+| `messenger` | string | No | Target channel (`email`, `whatsapp`) |
+| `subject` | string | No | Subject line (email) |
+| `body` | string | Yes | Message body or prompt template |
+| `content_type` | string | No | Content format (`richtext`, `html`, `markdown`, `plain`) |
+| `template_id` | number | No | Template ID |
+| `subscribers` | string[] | No | Array of test recipient email addresses or WhatsApp phone numbers (e.g. `+14155552671`) |
 
 #### Example Request
 ```shell
 curl -u "username:token" -X POST 'http://localhost:9000/api/sequences/1/test' \
   -H 'Content-Type: application/json' \
-  -d '{"email": "test@example.com"}'
+  -d '{
+    "step_number": 1,
+    "messenger": "whatsapp",
+    "body": "Hi {{ .Subscriber.FirstName }}! Testing WhatsApp sequence step.",
+    "subscribers": ["+14155552671"]
+  }'
 ```
 
 ---
