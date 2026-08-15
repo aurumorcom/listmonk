@@ -743,9 +743,41 @@ func (c *Core) RecordSequenceRead(sequenceID, subID int) error {
 	return err
 }
 
+// RecordSequenceReadByPhone marks sequence contacts as read matching a phone number.
+func (c *Core) RecordSequenceReadByPhone(phone string) error {
+	cleaned := regexp.MustCompile(`[^\d]`).ReplaceAllString(phone, "")
+	if cleaned == "" {
+		return nil
+	}
+	_, err := c.db.Exec(`UPDATE sequence_contacts
+		SET last_read_at = NOW()
+		WHERE subscriber_id IN (
+			SELECT id FROM subscribers
+			WHERE REGEXP_REPLACE(phone, '[^\d]', '', 'g') = $1
+			   OR REGEXP_REPLACE(attribs->>'phone', '[^\d]', '', 'g') = $1
+		) AND status IN ('scheduled', 'in_progress')`, cleaned)
+	return err
+}
+
 // RecordSequenceClick records a link click event for a sequence subscriber.
 func (c *Core) RecordSequenceClick(sequenceID, subID int) error {
 	_, err := c.db.Exec(`UPDATE sequence_contacts SET last_clicked_at = NOW() WHERE sequence_id = $1 AND subscriber_id = $2`, sequenceID, subID)
+	return err
+}
+
+// RecordSequenceClickByPhone marks sequence contacts as clicked matching a phone number.
+func (c *Core) RecordSequenceClickByPhone(phone string) error {
+	cleaned := regexp.MustCompile(`[^\d]`).ReplaceAllString(phone, "")
+	if cleaned == "" {
+		return nil
+	}
+	_, err := c.db.Exec(`UPDATE sequence_contacts
+		SET last_clicked_at = NOW()
+		WHERE subscriber_id IN (
+			SELECT id FROM subscribers
+			WHERE REGEXP_REPLACE(phone, '[^\d]', '', 'g') = $1
+			   OR REGEXP_REPLACE(attribs->>'phone', '[^\d]', '', 'g') = $1
+		) AND status IN ('scheduled', 'in_progress')`, cleaned)
 	return err
 }
 
