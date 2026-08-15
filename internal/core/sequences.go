@@ -260,7 +260,7 @@ func (c *Core) EnrollSubscribersByList(subIDs []int, listIDs []int, userContext 
 	}
 
 	_, err := c.db.Exec(`INSERT INTO sequence_contacts (sequence_id, subscriber_id, email_id, waha_session, status, current_step, next_send_at)
-		SELECT DISTINCT sl.sequence_id, s.id, $3, $4, 'scheduled', 1, NOW()
+		SELECT DISTINCT sl.sequence_id, s.id, $3::INT, $4::TEXT, 'scheduled', 1, NOW()
 		FROM subscribers s
 		JOIN subscriber_lists subl ON subl.subscriber_id = s.id
 		JOIN sequence_lists sl ON sl.list_id = subl.list_id

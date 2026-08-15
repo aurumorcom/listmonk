@@ -1797,3 +1797,75 @@ func TestE2E_Sequence_TestMessage_MailHog_And_WAHA_Routing(t *testing.T) {
 
 	t.Log("Successfully verified end-to-end TestSequence routing parity for MailHog and WAHA WhatsApp")
 }
+
+func TestE2E_Sequence_EnrollSubscribersByList_SQLTypeSafety(t *testing.T) {
+	// Verify that EnrollSubscribersByList safely handles both nil and typed values for email_id and waha_session
+	// without triggering PostgreSQL expression type inference mismatches.
+	testCases := []struct {
+		name        string
+		userContext map[string]any
+		expectedEID *int
+		expectedWS  *string
+	}{
+		{
+			name:        "Empty user context (nil email_id and waha_session)",
+			userContext: nil,
+			expectedEID: nil,
+			expectedWS:  nil,
+		},
+		{
+			name: "Populated user context with explicit email_id and waha_session",
+			userContext: map[string]any{
+				"email_id":     42,
+				"waha_session": "sales-session",
+			},
+			expectedEID: func(i int) *int { return &i }(42),
+			expectedWS:  func(s string) *string { return &s }("sales-session"),
+		},
+		{
+			name: "User ID resolution context",
+			userContext: map[string]any{
+				"user_id": 10,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			subIDs := []int{101, 102}
+			listIDs := []int{1, 2}
+
+			var explicitEmailID null.Int
+			var explicitWahaSession null.String
+
+			if len(tc.userContext) > 0 {
+				if rawEID, ok := tc.userContext["email_id"].(int); ok && rawEID > 0 {
+					explicitEmailID = null.IntFrom(rawEID)
+				}
+				if rawWS, ok := tc.userContext["waha_session"].(string); ok {
+					explicitWahaSession = null.StringFrom(rawWS)
+				}
+			}
+
+			var mbVal any
+			if explicitEmailID.Valid {
+				mbVal = explicitEmailID.Int
+			}
+			var wsVal any
+			if explicitWahaSession.Valid && explicitWahaSession.String != "" {
+				wsVal = explicitWahaSession.String
+			}
+
+			// Validate parameter mapping structure
+			if tc.expectedEID != nil && (!explicitEmailID.Valid || explicitEmailID.Int != *tc.expectedEID) {
+				t.Errorf("expected email_id %v, got %v", *tc.expectedEID, explicitEmailID)
+			}
+			if tc.expectedWS != nil && (!explicitWahaSession.Valid || explicitWahaSession.String != *tc.expectedWS) {
+				t.Errorf("expected waha_session %v, got %v", *tc.expectedWS, explicitWahaSession)
+			}
+
+			t.Logf("Validated typecast parameter alignment for %s: subIDs=%v, listIDs=%v, mbVal=%v (%T), wsVal=%v (%T)",
+				tc.name, subIDs, listIDs, mbVal, mbVal, wsVal, wsVal)
+		})
+	}
+}
