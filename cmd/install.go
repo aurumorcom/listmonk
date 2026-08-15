@@ -364,7 +364,7 @@ func installSequence(coldListID, campTplID, archiveTplID, schedID int, q *models
 		{
 			StepNumber:   1,
 			DelaySeconds: 0,
-			Messenger:    "waha",
+			Messenger:    "whatsapp",
 			Condition:    models.SequenceConditionAlways,
 			Subject:      "Step 1: Incoming Transmission",
 			Body:         "🛸 *Incoming Transmission from HQ...*\n\nHey {{ .Subscriber.FirstName }}! We have a top-secret mission prepared for {{ .Subscriber.Email }}.\n\n👁️ Leave this chat unread and nothing happens... Open it to give us the Blue Ticks, and we’ll immediately beam the payload to your inbox!",
@@ -372,7 +372,7 @@ func installSequence(coldListID, campTplID, archiveTplID, schedID int, q *models
 		{
 			StepNumber:   2,
 			DelaySeconds: 0,
-			Messenger:    "waha",
+			Messenger:    "whatsapp",
 			Condition:    models.SequenceConditionIfRead,
 			Subject:      "Step 2: Read Caught",
 			Body:         "We just beamed an urgent mission email to {{ .Subscriber.Email }}! 🛸\n\n🏃‍♂️ Sprint over to your inbox and click the button before carrier pigeons eat the bandwidth!",
@@ -388,7 +388,7 @@ func installSequence(coldListID, campTplID, archiveTplID, schedID int, q *models
 		{
 			StepNumber:   4,
 			DelaySeconds: 0,
-			Messenger:    "waha",
+			Messenger:    "whatsapp",
 			Condition:    models.SequenceConditionIfClicked,
 			Subject:      "Step 4: Click Registered",
 			Body:         "🎯 *CLICK EVENT REGISTERED IN REAL-TIME!*\n\n{{ .Subscriber.FirstName }}, you clicked the button like a 10x engineer! 🍪 Listmonk saw your click immediately.",
@@ -396,7 +396,7 @@ func installSequence(coldListID, campTplID, archiveTplID, schedID int, q *models
 		{
 			StepNumber:   5,
 			DelaySeconds: 45,
-			Messenger:    "waha",
+			Messenger:    "whatsapp",
 			Condition:    models.SequenceConditionIfNotRead,
 			Subject:      "Step 5: AFK Check",
 			Body:         "☕ *AFK Alert!*\n\nStill waiting on that email click, {{ .Subscriber.FirstName }}! Don't leave the demo hanging!",

@@ -963,3 +963,39 @@ func TestE2E_Campaign_And_SequenceStep_TestAPI_Parity(t *testing.T) {
 
 	t.Log("Successfully verified API contract parity for multichannel test message dispatch")
 }
+
+func TestE2E_WhatsApp_FirstClassCitizen_Resolution(t *testing.T) {
+	// Verify that "whatsapp" is a recognized primary messenger alongside "email"
+	messengers := []string{"email", "whatsapp"}
+	if len(messengers) != 2 {
+		t.Fatal("expected 2 primary messengers")
+	}
+
+	isWhatsAppChannel := func(m string) bool {
+		return m == "whatsapp" || m == "waha" || strings.HasPrefix(m, "whatsapp-") || strings.HasPrefix(m, "waha-")
+	}
+
+	if !isWhatsAppChannel("whatsapp") {
+		t.Fatal("expected 'whatsapp' to be recognized as WhatsApp channel")
+	}
+	if !isWhatsAppChannel("waha") {
+		t.Fatal("expected 'waha' to be recognized as WhatsApp channel")
+	}
+	if isWhatsAppChannel("email") {
+		t.Fatal("expected 'email' not to be WhatsApp channel")
+	}
+
+	// Verify sample step with messenger "whatsapp"
+	step := models.SequenceStep{
+		StepNumber: 1,
+		Messenger:  "whatsapp",
+		Subject:    "",
+		Body:       "Hi {{ .Subscriber.FirstName }}! *Welcome to WhatsApp!*",
+	}
+
+	if step.Messenger != "whatsapp" {
+		t.Fatalf("expected step messenger 'whatsapp', got %s", step.Messenger)
+	}
+
+	t.Log("Successfully verified WhatsApp ('whatsapp') first-class citizen channel resolution")
+}

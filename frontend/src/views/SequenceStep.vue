@@ -352,7 +352,7 @@ export default Vue.extend({
       return this.form.messenger === 'email' || this.form.messenger.startsWith('email-');
     },
     isWhatsApp() {
-      return this.form.messenger === 'whatsapp' || this.form.messenger === 'waha';
+      return this.form.messenger === 'whatsapp' || this.form.messenger === 'waha' || (this.form.messenger && this.form.messenger.startsWith('whatsapp-'));
     },
     testPlaceholder() {
       return this.isWhatsApp ? 'Phone numbers (e.g. +14155552671)...' : this.$t('campaigns.testEmails');
@@ -366,7 +366,12 @@ export default Vue.extend({
     },
     otherMessengers() {
       const msgs = (this.serverConfig && this.serverConfig.messengers) || [];
-      return msgs.filter((m) => m !== 'email' && !m.startsWith('email-'));
+      const custom = msgs.filter((m) => m !== 'email' && !m.startsWith('email-'));
+      const hasWA = custom.some((m) => m === 'whatsapp' || m === 'waha' || m.startsWith('whatsapp-') || m.startsWith('waha-'));
+      if (!hasWA) {
+        return ['whatsapp', ...custom];
+      }
+      return custom;
     },
   },
   mounted() {

@@ -798,8 +798,14 @@ func initWAHAMessengers(ko *koanf.Koanf) []manager.Messenger {
 			name = item.String("name")
 			o    waha.Options
 		)
+		if name == "" {
+			name = "whatsapp"
+		}
 		if err := item.UnmarshalWithConf("", &o, koanf.UnmarshalConf{Tag: "json"}); err != nil {
 			lo.Fatalf("error reading WAHA config: %v", err)
+		}
+		if o.Name == "" {
+			o.Name = name
 		}
 
 		w, err := waha.New(o)
