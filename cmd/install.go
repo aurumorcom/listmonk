@@ -307,13 +307,15 @@ func installCampaign(defListID, campTplID, archiveTplID int, q *models.Queries) 
 
 func installSchedule(q *models.Queries) int {
 	var sched models.Schedule
-	defaultWindows := json.RawMessage(`[
-		{"day": "monday", "start_time": "09:00", "end_time": "17:00", "is_active": true},
-		{"day": "tuesday", "start_time": "09:00", "end_time": "17:00", "is_active": true},
-		{"day": "wednesday", "start_time": "09:00", "end_time": "17:00", "is_active": true},
-		{"day": "thursday", "start_time": "09:00", "end_time": "17:00", "is_active": true},
-		{"day": "friday", "start_time": "09:00", "end_time": "17:00", "is_active": true}
-	]`)
+	defaultWindows := json.RawMessage(`{
+		"mon": {"start": "09:00", "end": "17:00"},
+		"tue": {"start": "09:00", "end": "17:00"},
+		"wed": {"start": "09:00", "end": "17:00"},
+		"thu": {"start": "09:00", "end": "17:00"},
+		"fri": {"start": "09:00", "end": "17:00"},
+		"sat": {},
+		"sun": {}
+	}`)
 
 	if err := q.CreateSchedule.Get(&sched,
 		uuid.Must(uuid.NewV4()).String(),
