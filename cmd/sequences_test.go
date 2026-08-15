@@ -1460,11 +1460,6 @@ func TestE2E_Sequence_WAHA_WhatsApp_Lifecycle(t *testing.T) {
 		t.Errorf("expected step4 to have StepNumber 4")
 	}
 
-	// Teardown
-	if isLive && msg1ID != "" {
-		_ = deleteWahaMessage(wahaURL, apiKey, senderSess.Name, receiverSess.JID, msg1ID)
-	}
-
 	t.Log("Successfully validated complete WhatsApp Sequence WAHA lifecycle (Send -> Read ACK -> Tracked Link -> Contact Reply Auto-Stop -> Real Pop)")
 }
 
