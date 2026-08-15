@@ -489,6 +489,13 @@ export default {
     onShowHeaders() {
       this.isHeadersVisible = true;
     },
+    getStepTitle(step, index) {
+      const num = step.stepNumber || step.step_number || (index + 1);
+      if (step.name && step.name !== `Step ${num}`) {
+        return `Step ${num}: ${step.name}`;
+      }
+      return `Step ${num}`;
+    },
     formatStepDuration(sec) {
       if (!sec || sec <= 0) return 'Immediate';
       if (sec % 86400 === 0) return `${sec / 86400}d`;
