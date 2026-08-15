@@ -281,23 +281,28 @@ func (a *App) CreateSubscriber(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusForbidden, a.i18n.Ts("globals.messages.permissionDenied", "name", "lists"))
 	}
 
-	// Insert the subscriber into the DB.
-	sub, _, err := a.core.InsertSubscriber(req.Subscriber, listIDs, nil, req.PreconfirmSubs, false)
-	if err != nil {
-		return err
+	// Resolve sender user context for sequence enrollment
+	var userCtx map[string]any
+	if user.ID > 0 {
+		userCtx = map[string]any{
+			"user_id":  user.ID,
+			"username": user.Name,
+		}
+		if user.EmailID.Valid {
+			userCtx["email_id"] = user.EmailID.Int
+		}
+		if user.WahaSession.Valid && user.WahaSession.String != "" {
+			userCtx["waha_session"] = user.WahaSession.String
+		}
+	}
+	if userRaw, ok := req.Subscriber.Attribs["user"].(map[string]any); ok && len(userRaw) > 0 {
+		userCtx = userRaw
 	}
 
-	// Auto-enroll contact into requested sequences
-	if len(req.Sequences) > 0 {
-		var userCtx map[string]any
-		if userRaw, ok := sub.Attribs["user"].(map[string]any); ok {
-			userCtx = userRaw
-		}
-		for _, seqID := range req.Sequences {
-			if err := a.core.EnrollSequenceContacts(seqID, []int{sub.ID}, userCtx); err != nil {
-				a.log.Printf("error auto-enrolling subscriber %d into sequence %d: %v", sub.ID, seqID, err)
-			}
-		}
+	// Insert the subscriber into the DB and auto-enroll into sequences for target lists.
+	sub, _, err := a.core.InsertSubscriber(req.Subscriber, listIDs, nil, req.PreconfirmSubs, false, userCtx)
+	if err != nil {
+		return err
 	}
 
 	return c.JSON(http.StatusOK, okResp{sub})
@@ -364,22 +369,27 @@ func (a *App) UpdateSubscriber(c echo.Context) error {
 		permittedLists = []int{}
 	}
 
-	out, _, err := a.core.UpdateSubscriberWithLists(id, req.Subscriber, listIDs, nil, req.PreconfirmSubs, true, false, permittedLists, false)
-	if err != nil {
-		return err
+	// Resolve sender user context for sequence enrollment
+	var userCtx map[string]any
+	if user.ID > 0 {
+		userCtx = map[string]any{
+			"user_id":  user.ID,
+			"username": user.Name,
+		}
+		if user.EmailID.Valid {
+			userCtx["email_id"] = user.EmailID.Int
+		}
+		if user.WahaSession.Valid && user.WahaSession.String != "" {
+			userCtx["waha_session"] = user.WahaSession.String
+		}
+	}
+	if userRaw, ok := req.Subscriber.Attribs["user"].(map[string]any); ok && len(userRaw) > 0 {
+		userCtx = userRaw
 	}
 
-	// Auto-enroll contact into requested sequences
-	if len(req.Sequences) > 0 {
-		var userCtx map[string]any
-		if userRaw, ok := out.Attribs["user"].(map[string]any); ok {
-			userCtx = userRaw
-		}
-		for _, seqID := range req.Sequences {
-			if err := a.core.EnrollSequenceContacts(seqID, []int{out.ID}, userCtx); err != nil {
-				a.log.Printf("error auto-enrolling subscriber %d into sequence %d: %v", out.ID, seqID, err)
-			}
-		}
+	out, _, err := a.core.UpdateSubscriberWithLists(id, req.Subscriber, listIDs, nil, req.PreconfirmSubs, true, false, permittedLists, false, userCtx)
+	if err != nil {
+		return err
 	}
 
 	maskRestrictedSubLists(user, &out)
