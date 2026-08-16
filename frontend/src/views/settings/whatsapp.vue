@@ -177,8 +177,6 @@
 
             <hr />
 
-            <!-- Section 3: USER (at the bottom) -->
-            <h5 class="title is-6 mb-3 has-text-weight-bold">USER</h5>
             <div class="columns">
               <div class="column is-6">
                 <b-field label="Assigned User" label-position="on-border" message="User who owns this channel for personal outreach sequences">
