@@ -330,6 +330,18 @@ func (a *App) TestSequence(c echo.Context) error {
 			assignedWahaSession = null.StringFrom(seq.WahaSessions[0])
 		}
 	}
+	if !assignedWahaSession.Valid || assignedWahaSession.String == "" {
+		if user.WahaSession.Valid && user.WahaSession.String != "" {
+			assignedWahaSession = user.WahaSession
+		} else if settings, err := a.core.GetSettings(); err == nil {
+			for _, wm := range settings.WAHASettings {
+				if wm.Enabled && wm.Session != "" {
+					assignedWahaSession = null.StringFrom(wm.Session)
+					break
+				}
+			}
+		}
+	}
 
 	for _, target := range targets {
 		sub := sampleSub
