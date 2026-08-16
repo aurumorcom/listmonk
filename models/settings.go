@@ -212,8 +212,7 @@ type WAHAMessenger struct {
 	MaxConns          int      `json:"max_conns"`
 	Timeout           string   `json:"timeout"`
 	MaxMsgRetries     int      `json:"max_msg_retries"`
-	MessagesPerDay    int      `json:"messages_per_day"`
-	MessagesPerHour   int      `json:"messages_per_hour"`
+	MaxSendPerDay     int      `json:"max_send_per_day"`
 	UserID            null.Int `json:"user_id"`
 	User              string   `json:"user"`
 	Signature         string   `json:"signature"`
