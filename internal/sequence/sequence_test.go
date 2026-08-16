@@ -148,9 +148,9 @@ func TestAllocateSendersCapacityWeighted(t *testing.T) {
 	}
 
 	emails := []models.Email{
-		{Base: models.Base{ID: 1}, EmailsPerDay: 100, EmailsToday: 90}, // Remaining: 10
-		{Base: models.Base{ID: 2}, EmailsPerDay: 100, EmailsToday: 50}, // Remaining: 50
-		{Base: models.Base{ID: 3}, EmailsPerDay: 100, EmailsToday: 60}, // Remaining: 40
+		{Base: models.Base{ID: 1}, MaxSendPerDay: 100, SentToday: 90}, // Remaining: 10
+		{Base: models.Base{ID: 2}, MaxSendPerDay: 100, SentToday: 50}, // Remaining: 50
+		{Base: models.Base{ID: 3}, MaxSendPerDay: 100, SentToday: 60}, // Remaining: 40
 	}
 
 	alloc := core.AllocateSendersCapacityWeighted(subIDs, emails)
@@ -209,5 +209,161 @@ func TestSequence_ParentHTMLLayoutWrapping(t *testing.T) {
 
 	if camp.Tpl == nil {
 		t.Fatalf("expected compiled camp.Tpl")
+	}
+}
+
+type mockSeqMessenger struct {
+	name   string
+	pushed []models.Message
+}
+
+func (m *mockSeqMessenger) Name() string {
+	return m.name
+}
+
+func (m *mockSeqMessenger) Push(msg models.Message) error {
+	m.pushed = append(m.pushed, msg)
+	return nil
+}
+
+func (m *mockSeqMessenger) Flush() error {
+	return nil
+}
+
+func (m *mockSeqMessenger) Close() error {
+	return nil
+}
+
+func TestSequence_PrepareAndDispatchStep_FromResolution(t *testing.T) {
+	msgr := &mockSeqMessenger{name: "email"}
+	mgr := &Manager{
+		messengers: map[string]manager.Messenger{
+			"email": msgr,
+		},
+	}
+
+	step := models.SequenceStep{
+		StepNumber: 1,
+		Messenger:  "email",
+		Subject:    "Intro",
+		Body:       "Hello",
+		EmailType:  models.EmailTypeNewThread,
+	}
+
+	// 1. Contact Attribs User Name persona resolution
+	subWithPersona := models.Subscriber{
+		Name:  "Bob Lead",
+		Email: "bob@target.com",
+		Attribs: models.JSON{
+			"user": map[string]any{
+				"name": "Aryan Singh",
+			},
+		},
+	}
+	seqContact := models.SequenceContact{
+		SequenceID:   1,
+		SubscriberID: 10,
+	}
+
+	// In the absence of DB, we test step execution with contact persona and override recipient
+	err := mgr.PrepareAndDispatchStep(seqContact, subWithPersona, step, "preview@test.com")
+	if err != nil {
+		t.Fatalf("PrepareAndDispatchStep failed: %v", err)
+	}
+
+	if len(msgr.pushed) != 1 {
+		t.Fatalf("expected 1 message pushed, got %d", len(msgr.pushed))
+	}
+	if msgr.pushed[0].To[0] != "preview@test.com" {
+		t.Errorf("expected override recipient 'preview@test.com', got '%s'", msgr.pushed[0].To[0])
+	}
+}
+
+func TestSequence_PrepareAndDispatchStep_StepCompilation_TextAndPrompt(t *testing.T) {
+	msgr := &mockSeqMessenger{name: "email"}
+	mgr := &Manager{
+		messengers: map[string]manager.Messenger{
+			"email": msgr,
+		},
+	}
+
+	step := models.SequenceStep{
+		StepNumber: 1,
+		Messenger:  "email",
+		Subject:    "Proposal for {{ .Subscriber.Name }}",
+		Body:       "Hi {{ .Subscriber.Name }}, how is {{ .Subscriber.Attribs.company }}?",
+		EmailType:  models.EmailTypeNewThread,
+	}
+
+	contact := models.Subscriber{
+		Name:    "Alice Lead",
+		Email:   "alice@leads.com",
+		Attribs: models.JSON{"company": "Acme Inc"},
+	}
+	seqContact := models.SequenceContact{
+		SequenceID:   2,
+		SubscriberID: 20,
+	}
+
+	err := mgr.PrepareAndDispatchStep(seqContact, contact, step, "alice@leads.com")
+	if err != nil {
+		t.Fatalf("PrepareAndDispatchStep failed: %v", err)
+	}
+
+	if len(msgr.pushed) != 1 {
+		t.Fatalf("expected 1 message pushed, got %d", len(msgr.pushed))
+	}
+
+	lastMsg := msgr.pushed[0]
+	if lastMsg.Subject != "Proposal for Alice Lead" {
+		t.Errorf("expected compiled subject 'Proposal for Alice Lead', got '%s'", lastMsg.Subject)
+	}
+	if string(lastMsg.Body) != "Hi Alice Lead, how is Acme Inc?" {
+		t.Errorf("expected compiled body 'Hi Alice Lead, how is Acme Inc?', got '%s'", string(lastMsg.Body))
+	}
+}
+
+func TestSequence_PrepareAndDispatchStep_ThreadingHeaders(t *testing.T) {
+	msgr := &mockSeqMessenger{name: "email"}
+	mgr := &Manager{
+		messengers: map[string]manager.Messenger{
+			"email": msgr,
+		},
+	}
+
+	// Reply step with thread ID
+	step := models.SequenceStep{
+		StepNumber: 2,
+		Messenger:  "email",
+		Subject:    "Re: Follow up",
+		Body:       "Checking back on our last note.",
+		EmailType:  models.EmailTypeReply,
+	}
+
+	contact := models.Subscriber{
+		Name:  "Charlie",
+		Email: "charlie@client.com",
+	}
+	seqContact := models.SequenceContact{
+		SequenceID:      3,
+		SubscriberID:    30,
+		LastThreadMsgID: null.StringFrom("<thread-root-123@listmonk>"),
+	}
+
+	err := mgr.PrepareAndDispatchStep(seqContact, contact, step, "charlie@client.com")
+	if err != nil {
+		t.Fatalf("PrepareAndDispatchStep failed: %v", err)
+	}
+
+	if len(msgr.pushed) != 1 {
+		t.Fatalf("expected 1 pushed message, got %d", len(msgr.pushed))
+	}
+
+	lastMsg := msgr.pushed[0]
+	if lastMsg.Headers == nil || lastMsg.Headers.Get("In-Reply-To") != "<thread-root-123@listmonk>" {
+		t.Errorf("expected In-Reply-To '<thread-root-123@listmonk>', got '%s'", lastMsg.Headers.Get("In-Reply-To"))
+	}
+	if lastMsg.Headers.Get("References") != "<thread-root-123@listmonk>" {
+		t.Errorf("expected References '<thread-root-123@listmonk>', got '%s'", lastMsg.Headers.Get("References"))
 	}
 }
