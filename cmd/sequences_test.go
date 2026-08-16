@@ -2564,3 +2564,63 @@ func TestE2E_Sequence_ProductionMessage_Routing_And_ContactRendering(t *testing.
 
 	t.Log("Successfully verified production sequence message routes to contact with rendered contact data")
 }
+
+func TestE2E_Sequence_RealWorld_Pooled_LoadBalancing(t *testing.T) {
+	// Real-world scenario test: Sequence contacts have waha_session = NULL in DB (unassigned per-contact lock)
+	// Dispatches with step.Messenger = "whatsapp" must resolve across active pooled WAHA instances without falling back to "default"
+
+	msgrA := &mockCmdMessenger{name: "whatsapp-session-a"}
+	msgrB := &mockCmdMessenger{name: "whatsapp-session-b"}
+
+	msgrMap := map[string]manager.Messenger{
+		"whatsapp-session-a": msgrA,
+		"whatsapp-session-b": msgrB,
+		"whatsapp":           msgrA, // Aliased primary pooled messenger
+		"waha":               msgrA,
+	}
+
+	seqMgr := sequence.NewManager(nil, msgrMap, nil, nil)
+
+	step := models.SequenceStep{
+		StepNumber: 1,
+		Messenger:  "whatsapp",
+		Subject:    "Real-World Outreach",
+		Body:       "Hello {{ .Subscriber.Name }}!",
+	}
+
+	// 5 contacts with NULL waha_session (unassigned/unlocked)
+	contacts := []models.Subscriber{
+		{Base: models.Base{ID: 1}, Name: "Contact 1", Phone: null.StringFrom("+14155550001")},
+		{Base: models.Base{ID: 2}, Name: "Contact 2", Phone: null.StringFrom("+14155550002")},
+		{Base: models.Base{ID: 3}, Name: "Contact 3", Phone: null.StringFrom("+14155550003")},
+		{Base: models.Base{ID: 4}, Name: "Contact 4", Phone: null.StringFrom("+14155550004")},
+		{Base: models.Base{ID: 5}, Name: "Contact 5", Phone: null.StringFrom("+14155550005")},
+	}
+
+	for _, c := range contacts {
+		seqContact := models.SequenceContact{
+			SequenceID:   10,
+			SubscriberID: c.ID,
+			CurrentStep:  1,
+			WahaSession:  null.String{}, // NULL in DB (no hardcoded "default")
+		}
+
+		err := seqMgr.PrepareAndDispatchStep(seqContact, c, step, "")
+		if err != nil {
+			t.Fatalf("failed to dispatch pooled step for contact %d: %v", c.ID, err)
+		}
+	}
+
+	totalPushed := len(msgrA.pushed) + len(msgrB.pushed)
+	if totalPushed != 5 {
+		t.Fatalf("expected 5 total messages pushed across pooled messengers, got %d", totalPushed)
+	}
+
+	for _, m := range msgrA.pushed {
+		if m.MessengerSession == "default" {
+			t.Fatalf("unexpected 'default' MessengerSession override in pushed message")
+		}
+	}
+
+	t.Log("Successfully verified real-world sequence dispatch with NULL waha_session without 'default' errors")
+}

@@ -466,7 +466,7 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceContact, contact mod
 		}
 	}
 
-	if (step.Messenger == "whatsapp" || step.Messenger == "waha" || msgr.Name() == "whatsapp" || msgr.Name() == "waha" || strings.HasPrefix(msgr.Name(), "whatsapp-") || strings.HasPrefix(msgr.Name(), "waha-")) && sub.WahaSession.Valid {
+	if (step.Messenger == "whatsapp" || step.Messenger == "waha" || msgr.Name() == "whatsapp" || msgr.Name() == "waha" || strings.HasPrefix(msgr.Name(), "whatsapp-") || strings.HasPrefix(msgr.Name(), "waha-")) && sub.WahaSession.Valid && sub.WahaSession.String != "" && sub.WahaSession.String != "default" {
 		msg.MessengerSession = sub.WahaSession.String
 	}
 

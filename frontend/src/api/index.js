@@ -476,6 +476,12 @@ export const testSMTP = async (data) => http.post(
   { loading: models.settings, disableToast: true },
 );
 
+export const testWAHA = async (data) => http.post(
+  '/api/settings/waha/test',
+  data,
+  { loading: models.settings, disableToast: true },
+);
+
 export const testWebhook = async (data) => http.post(
   '/api/webhooks/test',
   data,
@@ -631,7 +637,10 @@ export const updateSequence = (id, data) => http.put(`/api/sequences/${id}`, dat
 export const changeSequenceStatus = (id, status) => http.put(`/api/sequences/${id}/status`, { status });
 export const updateSequenceArchive = (id, data) => http.put(`/api/sequences/${id}/archive`, data);
 export const testSequence = (id, data) => http.post(`/api/sequences/${id}/test`, data);
-export const previewSequence = (id) => http.get(`/api/sequences/${id}/preview`);
+export const previewSequence = (id, params) => http.get(
+  `/api/sequences/${id}/preview`,
+  { params },
+);
 export const deleteSequence = (id) => http.delete(`/api/sequences/${id}`);
 export const deleteSequences = (params) => http.delete('/api/sequences', { params });
 export const getSequenceSteps = (id) => http.get(`/api/sequences/${id}/steps`);

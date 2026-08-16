@@ -14,11 +14,6 @@ import (
 	null "gopkg.in/volatiletech/null.v6"
 )
 
-type reassignReq struct {
-	EmailID     null.Int    `json:"email_id"`
-	WahaSession null.String `json:"waha_session"`
-}
-
 type sequenceStepsReq struct {
 	Steps []models.SequenceStep `json:"steps"`
 }
@@ -107,21 +102,6 @@ func (a *App) SaveSequenceSteps(c echo.Context) error {
 	}
 
 	if err := a.core.SaveSequenceSteps(id, req.Steps); err != nil {
-		return err
-	}
-	return c.JSON(http.StatusOK, okResp{true})
-}
-
-// ReassignSequenceContactSender updates the locked email account or WAHA session for a sequence contact.
-func (a *App) ReassignSequenceContactSender(c echo.Context) error {
-	id, _ := strconv.Atoi(c.Param("id"))
-	subID, _ := strconv.Atoi(c.Param("sub_id"))
-	var req reassignReq
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, a.i18n.Ts("globals.messages.invalidReq"))
-	}
-
-	if err := a.core.ReassignSequenceContactSender(id, subID, req.EmailID, req.WahaSession); err != nil {
 		return err
 	}
 	return c.JSON(http.StatusOK, okResp{true})
@@ -326,16 +306,16 @@ func (a *App) TestSequence(c echo.Context) error {
 		if len(seq.EmailIDs) > 0 {
 			assignedEmailID = null.IntFrom(int(seq.EmailIDs[0]))
 		}
-		if len(seq.WahaSessions) > 0 {
+		if len(seq.WahaSessions) > 0 && seq.WahaSessions[0] != "" && seq.WahaSessions[0] != "default" {
 			assignedWahaSession = null.StringFrom(seq.WahaSessions[0])
 		}
 	}
-	if !assignedWahaSession.Valid || assignedWahaSession.String == "" {
-		if user.WahaSession.Valid && user.WahaSession.String != "" {
+	if !assignedWahaSession.Valid || assignedWahaSession.String == "" || assignedWahaSession.String == "default" {
+		if user.WahaSession.Valid && user.WahaSession.String != "" && user.WahaSession.String != "default" {
 			assignedWahaSession = user.WahaSession
 		} else if settings, err := a.core.GetSettings(); err == nil {
 			for _, wm := range settings.WAHASettings {
-				if wm.Enabled && wm.Session != "" {
+				if wm.Enabled && wm.Session != "" && wm.Session != "default" {
 					assignedWahaSession = null.StringFrom(wm.Session)
 					break
 				}

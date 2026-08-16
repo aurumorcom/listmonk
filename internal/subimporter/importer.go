@@ -310,7 +310,11 @@ func (s *Session) Start() {
 		}
 
 		if s.opt.Mode == ModeSubscribe {
-			_, err = stmt.Exec(uu, sub.Email, sub.Name, sub.Attribs, pq.Array(listIDs), s.opt.SubStatus, s.opt.OverwriteUserInfo, s.opt.OverwriteSubStatus)
+			var phVal any
+			if sub.Phone.Valid && sub.Phone.String != "" {
+				phVal = sub.Phone.String
+			}
+			_, err = stmt.Exec(uu, sub.Email, sub.Name, sub.Attribs, pq.Array(listIDs), s.opt.SubStatus, s.opt.OverwriteUserInfo, s.opt.OverwriteSubStatus, phVal)
 		} else if s.opt.Mode == ModeBlocklist {
 			_, err = stmt.Exec(uu, sub.Email, sub.Name, sub.Attribs)
 		}
