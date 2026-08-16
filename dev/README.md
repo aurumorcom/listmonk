@@ -35,9 +35,36 @@ Running this will build the appropriate images and initialize the database.
 make init-dev-docker
 ```
 
-### Start frontend and backend apps
+### Fast Real-Time Development (`make dev`)
 
-Running this start your local development stack.
+For the fastest local iteration with instant Vite HMR (< 100ms) and fast Go compilation without Docker filesystem overhead:
+
+```bash
+# Run both frontend and backend together:
+make dev
+
+# OR run in separate terminals:
+make dev-frontend
+make dev-backend
+```
+
+This cross-platform workflow (supported on Windows, Ubuntu/Linux, and macOS):
+1. Starts **PostgreSQL**, **MailHog**, and **WAHA** in background Docker containers (`make dev-deps`).
+2. Automatically runs database setup (`--install --idempotent --yes`).
+3. Runs the **Vite frontend server** natively on the host OS (`make dev-frontend` -> `:8080`).
+4. Runs the **Go backend server** natively on the host OS (`make dev-backend` -> `:9000`).
+
+### Re-Initialize Development Database
+
+To completely drop and re-initialize the development database:
+
+```bash
+make re-init-dev-db
+```
+
+### Fully Containerized Development
+
+Running this starts your full containerized local development stack.
 
 ```bash
 make dev-docker
