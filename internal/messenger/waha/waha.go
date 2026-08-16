@@ -114,6 +114,13 @@ func New(o Options) (*Waha, error) {
 	}, nil
 }
 
+// SetHTTPClient sets a custom HTTP client for testing / VCR transport.
+func (w *Waha) SetHTTPClient(client *http.Client) {
+	if client != nil {
+		w.c = client
+	}
+}
+
 // Name returns the messenger's name.
 func (w *Waha) Name() string {
 	return w.o.Name
