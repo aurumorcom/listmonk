@@ -163,6 +163,13 @@ func NewBifrostClient(cfg BifrostConfig) *BifrostClient {
 	}
 }
 
+// SetHTTPClient sets a custom HTTP client for testing / VCR transport.
+func (b *BifrostClient) SetHTTPClient(client *http.Client) {
+	if client != nil {
+		b.httpClient = client
+	}
+}
+
 // TimeoutContext returns a new context with the configured Bifrost timeout and its cancel function.
 func (b *BifrostClient) TimeoutContext() (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), b.cfg.Timeout)
@@ -192,6 +199,8 @@ func (b *BifrostClient) GeneratePromptWithFormat(ctx context.Context, systemProm
 	endpoint := b.cfg.Endpoint
 	if endpoint == "" {
 		endpoint = "https://api.openai.com/v1/chat/completions"
+	} else if !strings.HasSuffix(endpoint, "/chat/completions") {
+		endpoint = strings.TrimRight(endpoint, "/") + "/v1/chat/completions"
 	}
 
 	messages := []BifrostMessage{}
