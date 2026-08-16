@@ -32,9 +32,6 @@
               </div>
             </div>
 
-            <!-- Section 1: SMTP -->
-            <h5 class="title is-6 mb-3 has-text-weight-bold">SMTP</h5>
-
             <div class="columns">
               <div class="column is-9">
                 <b-field :label="$t('settings.mailserver.host')" label-position="on-border"
@@ -117,11 +114,11 @@
               </div>
             </div><!-- tls -->
 
-            <!-- Performance Limits (Exact Original 2-Row Grid) -->
+            <!-- Performance Limits (Exact Original Grid from smtp.vue) -->
             <div class="columns">
               <div class="column is-4">
-                <b-field :label="$t('settings.smtp.maxConnections')" label-position="on-border"
-                  :message="$t('settings.smtp.maxConnectionsHelp')">
+                <b-field :label="$t('settings.mailserver.maxConns')" label-position="on-border"
+                  :message="$t('settings.mailserver.maxConnsHelp')">
                   <b-numberinput v-model="item.max_conns" name="max_conns" type="is-light" controls-position="compact"
                     placeholder="25" min="1" max="65535" />
                 </b-field>
@@ -202,24 +199,15 @@
 
             <hr />
 
-            <!-- Section 2: IMAP Inbound Reply Listener (1:1 Mirror of SMTP Structure) -->
+            <!-- Section 2: IMAP Inbound Reply Listener -->
             <div class="mb-4">
-              <div class="level is-mobile mb-2">
-                <div class="level-left">
-                  <h5 class="title is-6 mb-0 has-text-weight-bold">IMAP Inbound Reply Tracking</h5>
-                </div>
-                <div class="level-right">
-                  <b-switch v-model="item.imap_enabled" name="imap_enabled" :native-value="true" size="is-small">
-                    {{ item.imap_enabled ? $t('globals.buttons.enabled') : 'Disabled' }}
-                  </b-switch>
-                </div>
-              </div>
+              <h5 class="title is-6 mb-2 has-text-weight-bold">IMAP Inbound Reply Tracking</h5>
               <p class="is-size-7 has-text-grey mb-3">
-                Listmonk monitors this inbox via IMAP to automatically mark contacts as Replied and stop sequences upon response.
+                Listmonk monitors this inbox via IMAP to automatically mark contacts as Replied and stop sequences upon response. Leave host empty to disable.
               </p>
             </div>
 
-            <div v-if="item.imap_enabled">
+            <div>
               <div class="columns">
                 <div class="column is-9">
                   <b-field :label="$t('settings.mailserver.host')" label-position="on-border" message="Incoming mail server (e.g. imap.gmail.com)">
@@ -235,24 +223,14 @@
               </div>
 
               <div class="columns">
-                <div class="column is-3">
-                  <b-field :label="$t('settings.mailserver.authProtocol')" label-position="on-border">
-                    <b-select v-model="item.imap_auth_protocol" name="imap_auth_protocol" expanded>
-                      <option value="login">LOGIN</option>
-                      <option value="cram">CRAM</option>
-                      <option value="plain">PLAIN</option>
-                      <option value="none">None</option>
-                    </b-select>
+                <div class="column is-6">
+                  <b-field :label="$t('settings.mailserver.username')" label-position="on-border" expanded>
+                    <b-input v-model="item.imap_username" name="imap_username" placeholder="user@domain.com" :maxlength="200" />
                   </b-field>
                 </div>
-                <div class="column">
-                  <b-field grouped>
-                    <b-field :label="$t('settings.mailserver.username')" label-position="on-border" expanded>
-                      <b-input v-model="item.imap_username" name="imap_username" placeholder="user@domain.com" :maxlength="200" />
-                    </b-field>
-                    <b-field :label="$t('settings.mailserver.password')" label-position="on-border" expanded message="App-specific password recommended">
-                      <b-input v-model="item.imap_password" name="imap_password" type="password" placeholder="••••••••" :maxlength="200" />
-                    </b-field>
+                <div class="column is-6">
+                  <b-field :label="$t('settings.mailserver.password')" label-position="on-border" expanded message="App-specific password recommended">
+                    <b-input v-model="item.imap_password" name="imap_password" type="password" placeholder="••••••••" :maxlength="200" />
                   </b-field>
                 </div>
               </div>
@@ -263,63 +241,10 @@
                 <a href="#" @click.prevent="() => fillIMAPSettings(n, 'yahoo')">Yahoo IMAP</a>
                 <a href="#" @click.prevent="() => fillIMAPSettings(n, 'zoho')">Zoho IMAP</a>
               </div>
-
-              <hr />
-
-              <div class="columns">
-                <div class="column is-6">
-                  <b-field :label="$t('settings.mailserver.tls')" expanded :message="$t('settings.mailserver.tlsHelp')" label-position="on-border">
-                    <b-select v-model="item.imap_tls_type" name="imap_tls_type">
-                      <option value="none">{{ $t('globals.states.off') }}</option>
-                      <option value="STARTTLS">STARTTLS</option>
-                      <option value="TLS">TLS</option>
-                    </b-select>
-                  </b-field>
-                </div>
-                <div class="column is-6">
-                  <b-field :label="$t('settings.mailserver.skipTLS')" expanded :message="$t('settings.mailserver.skipTLSHelp')" label-position="on-border">
-                    <b-switch v-model="item.imap_tls_skip_verify" name="imap_tls_skip_verify" :native-value="true" />
-                  </b-field>
-                </div>
-              </div>
-
-              <!-- IMAP Performance Limits (Exact 2-Row Mirror) -->
-              <div class="columns">
-                <div class="column is-4">
-                  <b-field :label="$t('settings.smtp.maxConnections')" label-position="on-border" :message="$t('settings.smtp.maxConnectionsHelp')">
-                    <b-numberinput v-model="item.imap_max_conns" name="imap_max_conns" type="is-light" controls-position="compact" placeholder="10" min="1" max="1000" />
-                  </b-field>
-                </div>
-                <div class="column is-4">
-                  <b-field :label="$t('settings.mailserver.idleTimeout')" label-position="on-border" :message="$t('settings.mailserver.idleTimeoutHelp')">
-                    <b-input v-model="item.imap_idle_timeout" name="imap_idle_timeout" placeholder="15s" :pattern="regDuration" :maxlength="10" />
-                  </b-field>
-                </div>
-                <div class="column is-4">
-                  <b-field :label="$t('settings.mailserver.waitTimeout')" label-position="on-border" :message="$t('settings.mailserver.waitTimeoutHelp')">
-                    <b-input v-model="item.imap_wait_timeout" name="imap_wait_timeout" placeholder="5s" :pattern="regDuration" :maxlength="10" />
-                  </b-field>
-                </div>
-              </div>
-
-              <div class="columns">
-                <div class="column is-4">
-                  <b-field :label="$t('settings.smtp.retries')" label-position="on-border" :message="$t('settings.smtp.retriesHelp')">
-                    <b-numberinput v-model="item.imap_max_retries" name="imap_max_retries" type="is-light" controls-position="compact" placeholder="2" min="1" max="1000" />
-                  </b-field>
-                </div>
-                <div class="column is-4">
-                  <b-field :label="$t('settings.smtp.retryDelay')" label-position="on-border" :message="$t('settings.smtp.retryDelayHelp')">
-                    <b-input v-model="item.imap_retry_delay" name="imap_retry_delay" placeholder="0s" :pattern="regDuration" :maxlength="10" />
-                  </b-field>
-                </div>
-              </div>
             </div>
 
             <hr />
 
-            <!-- Section 3: USER (at the bottom) -->
-            <h5 class="title is-6 mb-3 has-text-weight-bold">USER</h5>
             <div class="columns">
               <div class="column is-6">
                 <b-field label="Assigned User" label-position="on-border" message="User who owns this channel for personal outreach sequences">
@@ -387,18 +312,10 @@ const smtpTemplates = {
 };
 
 const imapTemplates = {
-  gmail: {
-    imap_host: 'imap.gmail.com', imap_port: 993, imap_auth_protocol: 'login', imap_tls_type: 'TLS',
-  },
-  outlook: {
-    imap_host: 'outlook.office365.com', imap_port: 993, imap_auth_protocol: 'login', imap_tls_type: 'TLS',
-  },
-  yahoo: {
-    imap_host: 'imap.mail.yahoo.com', imap_port: 993, imap_auth_protocol: 'login', imap_tls_type: 'TLS',
-  },
-  zoho: {
-    imap_host: 'imappro.zoho.com', imap_port: 993, imap_auth_protocol: 'login', imap_tls_type: 'TLS',
-  },
+  gmail: { imap_host: 'imap.gmail.com', imap_port: 993, imap_tls_type: 'TLS' },
+  outlook: { imap_host: 'outlook.office365.com', imap_port: 993, imap_tls_type: 'TLS' },
+  yahoo: { imap_host: 'imap.mail.yahoo.com', imap_port: 993, imap_tls_type: 'TLS' },
+  zoho: { imap_host: 'imappro.zoho.com', imap_port: 993, imap_tls_type: 'TLS' },
 };
 
 export default Vue.extend({
@@ -473,16 +390,9 @@ export default Vue.extend({
         imap_enabled: false,
         imap_host: '',
         imap_port: 993,
-        imap_auth_protocol: 'login',
         imap_username: '',
         imap_password: '',
         imap_tls_type: 'TLS',
-        imap_tls_skip_verify: false,
-        imap_max_conns: 10,
-        imap_idle_timeout: '15s',
-        imap_wait_timeout: '5s',
-        imap_max_retries: 2,
-        imap_retry_delay: '0s',
       });
     },
 
