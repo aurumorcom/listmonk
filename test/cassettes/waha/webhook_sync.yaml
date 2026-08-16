@@ -1,0 +1,72 @@
+---
+version: 2
+interactions:
+  - request:
+      proto: HTTP/1.1
+      proto_major: 1
+      proto_minor: 1
+      method: GET
+      host: localhost:3000
+      url: http://localhost:3000/api/sessions?all=true
+      headers:
+        Content-Type:
+          - application/json
+        X-Api-Key:
+          - "[REDACTED]"
+      body: ""
+    response:
+      proto: HTTP/1.1
+      proto_major: 1
+      proto_minor: 1
+      status: 200 OK
+      code: 200
+      headers:
+        Content-Type:
+          - application/json
+      body: '[{"name":"mock_sender","status":"WORKING","me":{"id":"1000000001@c.us"}}]'
+  - request:
+      proto: HTTP/1.1
+      proto_major: 1
+      proto_minor: 1
+      method: PUT
+      host: localhost:3000
+      url: http://localhost:3000/api/sessions/mock_sender
+      headers:
+        Content-Type:
+          - application/json
+        X-Api-Key:
+          - "[REDACTED]"
+      body: '{"config":{"webhooks":[{"url":"http://backend:9000/api/webhooks/waha","events":["message.ack","message"]}]}}'
+    response:
+      proto: HTTP/1.1
+      proto_major: 1
+      proto_minor: 1
+      status: 200 OK
+      code: 200
+      headers:
+        Content-Type:
+          - application/json
+      body: '{"name":"mock_sender","status":"WORKING"}'
+  - request:
+      proto: HTTP/1.1
+      proto_major: 1
+      proto_minor: 1
+      method: PUT
+      host: localhost:3000
+      url: http://localhost:3000/api/sessions/default
+      headers:
+        Content-Type:
+          - application/json
+        X-Api-Key:
+          - "[REDACTED]"
+      body: '{"config":{"webhooks":[{"url":"http://backend:9000/api/webhooks/waha","events":["message.ack","message"]}]}}'
+    response:
+      proto: HTTP/1.1
+      proto_major: 1
+      proto_minor: 1
+      status: 200 OK
+      code: 200
+      headers:
+        Content-Type:
+          - application/json
+      body: '{"name":"default","status":"WORKING"}'

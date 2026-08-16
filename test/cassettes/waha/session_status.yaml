@@ -1,0 +1,26 @@
+---
+version: 2
+interactions:
+  - request:
+      proto: HTTP/1.1
+      proto_major: 1
+      proto_minor: 1
+      method: GET
+      host: localhost:3000
+      url: http://localhost:3000/api/sessions?all=true
+      headers:
+        Content-Type:
+          - application/json
+        X-Api-Key:
+          - "[REDACTED]"
+      body: ""
+    response:
+      proto: HTTP/1.1
+      proto_major: 1
+      proto_minor: 1
+      status: 200 OK
+      code: 200
+      headers:
+        Content-Type:
+          - application/json
+      body: '[{"name":"default","status":"WORKING","me":{"id":"1000000001@c.us"}},{"name":"receiver","status":"WORKING","me":{"id":"1000000002@c.us"}}]'

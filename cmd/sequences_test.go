@@ -1,3 +1,5 @@
+//go:build integration || e2e || resilience || !unit
+
 package main
 
 import (
@@ -7,6 +9,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -16,6 +20,7 @@ import (
 	"github.com/knadh/listmonk/internal/messenger/email"
 	"github.com/knadh/listmonk/internal/messenger/waha"
 	"github.com/knadh/listmonk/internal/sequence"
+	"github.com/knadh/listmonk/internal/testutil"
 	"github.com/knadh/listmonk/internal/utils"
 	"github.com/knadh/listmonk/models"
 	"github.com/knadh/smtppool/v2"
@@ -1287,10 +1292,16 @@ func TestE2E_Sequence_Email_MailHog_Lifecycle(t *testing.T) {
 }
 
 func TestE2E_Sequence_WAHA_WhatsApp_Lifecycle(t *testing.T) {
-	wahaURL := getEnv("WAHA_ROOT_URL", "http://localhost:3000")
-	apiKey := getEnv("WAHA_API_KEY", "key_JR59f24sOxG1O2OhhLFXIsLVID4ajvLD")
+	testutil.LoadDotEnv()
+	wahaURL := getEnv("WAHA_HOST", "http://localhost:3000")
+	apiKey := getEnv("WAHA_API_KEY", "")
 
-	senderSess, receiverSess, isLive := discoverWahaSessions(wahaURL, apiKey)
+	rec, vcrClient := testutil.NewVCRRecorder(t, "sequences/whatsapp_sequence_lifecycle")
+	if rec == nil {
+		_ = vcrClient
+	}
+
+	senderSess, receiverSess, isLive := discoverWahaSessionsWithClient(wahaURL, apiKey, vcrClient)
 	t.Logf("Dynamically discovered WAHA sessions for Sequence Test: Sender = %s (%s), Receiver = %s (%s) [Live: %v]",
 		senderSess.Name, senderSess.Phone, receiverSess.Name, receiverSess.Phone, isLive)
 
@@ -1371,7 +1382,7 @@ func TestE2E_Sequence_WAHA_WhatsApp_Lifecycle(t *testing.T) {
 			Messenger:        "waha",
 			MessengerSession: senderSess.Name,
 			Subject:          step1.Subject,
-			Body:             []byte(fmt.Sprintf("🚀 [Listmonk Sequence E2E Step 1] Tracked link: %s", "http://localhost:9000/r/waha-seq-deal")),
+			Body:             []byte(fmt.Sprintf("🧪 *TEST:* TestE2E_WhatsAppSequenceLifecycle\n📁 *SUITE:* E2E/Sequences\n🎯 *ACTION:* Sequence Step 1 Dispatch (Direct WhatsApp Text)\n👤 *RECIPIENT:* Contact {{ .Subscriber.Name }}\n✅ *EXPECTED:* Message ACK receipt, last_read_at timestamp update\n🔗 *TRACKED LINK:* %s", "http://localhost:9000/r/waha-seq-deal")),
 			Subscriber: models.Subscriber{
 				Base:  models.Base{ID: subID},
 				Phone: null.StringFrom(receiverSess.Phone),
@@ -1465,16 +1476,22 @@ func TestE2E_Sequence_WAHA_WhatsApp_Lifecycle(t *testing.T) {
 }
 
 func TestE2E_Sequence_Mixed_Messenger_Lifecycle(t *testing.T) {
+	testutil.LoadDotEnv()
 	mailhogHTTP := getEnv("MAILHOG_HTTP_URL", "http://localhost:8025")
 	mailhogSMTPHost := getEnv("MAILHOG_SMTP_HOST", "localhost")
 	mailhogSMTPPort := 1025
-	wahaURL := getEnv("WAHA_ROOT_URL", "http://localhost:3000")
-	apiKey := getEnv("WAHA_API_KEY", "key_JR59f24sOxG1O2OhhLFXIsLVID4ajvLD")
+	wahaURL := getEnv("WAHA_HOST", "http://localhost:3000")
+	apiKey := getEnv("WAHA_API_KEY", "")
+
+	rec, vcrClient := testutil.NewVCRRecorder(t, "sequences/mixed_messenger_sequence")
+	if rec == nil {
+		_ = vcrClient
+	}
 
 	isMailHogLive := isURLReachable(mailhogHTTP + "/api/v2/messages")
 	isWAHALive := isURLReachable(wahaURL + "/api/sessions?all=true")
 
-	senderSess, receiverSess, _ := discoverWahaSessions(wahaURL, apiKey)
+	senderSess, receiverSess, _ := discoverWahaSessionsWithClient(wahaURL, apiKey, vcrClient)
 
 	seqID := int(time.Now().UnixNano() % 100000)
 	subID := 3003
@@ -1594,7 +1611,7 @@ func TestE2E_Sequence_Mixed_Messenger_Lifecycle(t *testing.T) {
 			Messenger:        "waha",
 			MessengerSession: senderSess.Name,
 			Subject:          step2.Subject,
-			Body:             []byte(fmt.Sprintf("🚀 [Listmonk Mixed E2E Step 2 WhatsApp] %s", step2.Body)),
+			Body:             []byte(fmt.Sprintf("🧪 *TEST:* TestE2E_MixedSequenceLifecycle\n📁 *SUITE:* E2E/MixedSequences\n🎯 *ACTION:* Sequence Step 2 Dispatch (WhatsApp Follow-Up)\n👤 *RECIPIENT:* Contact {{ .Subscriber.Name }}\n✅ *EXPECTED:* Cross-channel sender stickiness (User Alice session waha-alice-1)\n🔗 *TRACKED LINK:* %s", "http://localhost:9000/r/mixed-exclusive")),
 			Subscriber: models.Subscriber{
 				Base:  models.Base{ID: subID},
 				Phone: null.StringFrom(receiverSess.Phone),
@@ -1750,9 +1767,15 @@ func TestE2E_UI_User_Assigned_Sender_CrossChannel_Continuity(t *testing.T) {
 }
 
 func TestE2E_Sequence_TestMessage_MailHog_And_WAHA_Routing(t *testing.T) {
+	testutil.LoadDotEnv()
 	mailhogHTTP := getEnv("MAILHOG_HTTP_URL", "http://localhost:8025")
-	wahaURL := getEnv("WAHA_ROOT_URL", "http://localhost:3000")
+	wahaURL := getEnv("WAHA_HOST", "http://localhost:3000")
 	apiKey := getEnv("WAHA_API_KEY", "")
+
+	rec, vcrClient := testutil.NewVCRRecorder(t, "sequences/waha_routing_test_msg")
+	if rec == nil {
+		_ = vcrClient
+	}
 
 	// 1. Verify Email Test Message Dispatch (targeting MailHog)
 	testEmailReq := sequenceTestReq{
@@ -1776,13 +1799,13 @@ func TestE2E_Sequence_TestMessage_MailHog_And_WAHA_Routing(t *testing.T) {
 	}
 
 	// 2. Verify WhatsApp Test Message Dispatch (targeting WAHA)
-	senderSess, receiverSess, isWAHALive := discoverWahaSessions(wahaURL, apiKey)
+	senderSess, receiverSess, isWAHALive := discoverWahaSessionsWithClient(wahaURL, apiKey, vcrClient)
 	testWhatsAppReq := sequenceTestReq{
 		ID:               1,
 		StepNumber:       2,
 		Messenger:        "whatsapp",
 		Subject:          "E2E Test Message: WAHA WhatsApp",
-		Body:             "🚀 *Test WhatsApp Step Message from Listmonk*",
+		Body:             "🧪 *TEST:* TestE2E_Sequence_TestMessage_MailHog_And_WAHA_Routing\n📁 *SUITE:* E2E/Sequences\n🎯 *ACTION:* Test Message Delivery Verification\n👤 *RECIPIENT:* WhatsApp Target\n✅ *EXPECTED:* Successful routing to WAHA messenger",
 		SubscriberEmails: []string{receiverSess.Phone},
 	}
 
@@ -2218,4 +2241,50 @@ func TestE2E_Campaign_And_Sequence_DispatchParity(t *testing.T) {
 	}
 
 	t.Log("Successfully verified 100% compilation and template parity between Campaign and Sequence pipelines")
+}
+
+func TestResilience_SequenceWorker_ConcurrentTickContention(t *testing.T) {
+	msgr := &mockCmdMessenger{name: "email"}
+	seqMgr := sequence.NewManager(nil, map[string]manager.Messenger{"email": msgr}, nil, nil)
+
+	const numWorkers = 10
+	sub := models.Subscriber{
+		Name:    "Resilience Target",
+		Email:   "resilience@test.com",
+		Attribs: models.JSON{"company": "Contention Corp"},
+	}
+	step := models.SequenceStep{
+		ID:         1,
+		SequenceID: 100,
+		StepNumber: 1,
+		Messenger:  "email",
+		Subject:    "Resilience Check",
+		Body:       "Concurrent dispatch test",
+	}
+	seqContact := models.SequenceContact{
+		SequenceID:   100,
+		SubscriberID: 1001,
+	}
+
+	var errCount int64
+	var wg sync.WaitGroup
+
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			err := seqMgr.PrepareAndDispatchStep(seqContact, sub, step, "sender@test.com")
+			if err != nil {
+				atomic.AddInt64(&errCount, 1)
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	if errCount > 0 {
+		t.Errorf("encountered %d errors during 10-worker sequence dispatch contention", errCount)
+	}
+
+	t.Logf("Successfully completed %d concurrent sequence worker dispatch attempts without panics or errors", numWorkers)
 }

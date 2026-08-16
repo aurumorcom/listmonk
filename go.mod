@@ -28,6 +28,7 @@ require (
 	github.com/knadh/stuffbin v1.3.0
 	github.com/labstack/echo/v4 v4.13.4
 	github.com/lib/pq v1.10.9
+	github.com/mileusna/useragent v1.3.5
 	github.com/nyaruka/phonenumbers v1.8.1
 	github.com/paulbellamy/ratecounter v0.2.0
 	github.com/pquerna/otp v1.5.0
@@ -40,6 +41,7 @@ require (
 	golang.org/x/mod v0.35.0
 	golang.org/x/oauth2 v0.30.0
 	golang.org/x/text v0.37.0
+	gopkg.in/dnaeon/go-vcr.v3 v3.2.0
 	gopkg.in/volatiletech/null.v6 v6.0.0-20170828023728-0bef4e07ae1b
 )
 
@@ -57,7 +59,6 @@ require (
 	github.com/labstack/gommon v0.4.2 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/mileusna/useragent v1.3.5 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
@@ -71,4 +72,5 @@ require (
 	golang.org/x/sys v0.45.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

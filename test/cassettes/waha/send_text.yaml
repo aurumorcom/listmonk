@@ -1,0 +1,26 @@
+---
+version: 2
+interactions:
+  - request:
+      proto: HTTP/1.1
+      proto_major: 1
+      proto_minor: 1
+      method: POST
+      host: localhost:3000
+      url: http://localhost:3000/api/sendText
+      headers:
+        Content-Type:
+          - application/json
+        X-Api-Key:
+          - "[REDACTED]"
+      body: '{"session":"default","chatId":"1000000002@c.us","text":"WAHA Text Message Payload"}'
+    response:
+      proto: HTTP/1.1
+      proto_major: 1
+      proto_minor: 1
+      status: 200 OK
+      code: 200
+      headers:
+        Content-Type:
+          - application/json
+      body: '{"id":"3EB0WAHATEXTMOCK123"}'

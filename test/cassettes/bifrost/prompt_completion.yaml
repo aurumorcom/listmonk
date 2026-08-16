@@ -1,0 +1,26 @@
+---
+version: 2
+interactions:
+  - request:
+      proto: HTTP/1.1
+      proto_major: 1
+      proto_minor: 1
+      method: POST
+      host: litellm.aurumor.com
+      url: https://litellm.aurumor.com/v1/chat/completions
+      headers:
+        Content-Type:
+          - application/json
+        X-Api-Key:
+          - "[REDACTED]"
+      body: '{"model":"gemini-3.5-flash-lite","messages":[{"role":"system","content":"You are a professional B2B outreach manager writing compelling outreach emails."},{"role":"user","content":"Write a quick 2-sentence introduction email to Alice at Acme Corp."}]}'
+    response:
+      proto: HTTP/1.1
+      proto_major: 1
+      proto_minor: 1
+      status: 200 OK
+      code: 200
+      headers:
+        Content-Type:
+          - application/json
+      body: '{"id":"chatcmpl-bifrost-mock","object":"chat.completion","created":1700000000,"model":"gemini-3.5-flash-lite","choices":[{"index":0,"message":{"role":"assistant","content":"{\"subject\":\"Hello Alice - Quick intro from Listmonk\",\"body\":\"Hi Alice,\n\nI reached out to introduce Listmonk outreach platform.\n\nBest regards,\nB2B Manager\"}"},"finish_reason":"stop"}]}'

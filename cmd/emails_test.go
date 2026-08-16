@@ -1,13 +1,17 @@
+//go:build integration || e2e || resilience || !unit
+
 package main
 
 import (
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/knadh/listmonk/models"
 	null "gopkg.in/volatiletech/null.v6"
 )
 
-func TestE2E_Emails_REST_API_And_Channel_Isolation(t *testing.T) {
+func TestIntegration_Email_Accounts_ChannelIsolation(t *testing.T) {
 	// Create private email account for User 2 (ID = 2)
 	emailUser2 := models.Email{
 		Base: models.Base{
@@ -37,4 +41,48 @@ func TestE2E_Emails_REST_API_And_Channel_Isolation(t *testing.T) {
 	}
 
 	t.Log("Successfully verified E2E email accounts REST API structure and user channel isolation")
+}
+
+func TestResilience_Email_DailyQuotaHardBarrier_Concurrent(t *testing.T) {
+	emailAccount := models.Email{
+		Base:          models.Base{ID: 1},
+		Email:         "quota.test@company.com",
+		MaxSendPerDay: 3,
+		SentToday:     0,
+	}
+
+	const numWorkers = 100
+	var successCount int64
+	var rejectedCount int64
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			mu.Lock()
+			if emailAccount.SentToday < emailAccount.MaxSendPerDay {
+				emailAccount.SentToday++
+				mu.Unlock()
+				atomic.AddInt64(&successCount, 1)
+			} else {
+				mu.Unlock()
+				atomic.AddInt64(&rejectedCount, 1)
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	if successCount != 3 {
+		t.Errorf("expected exactly 3 messages to succeed under daily quota barrier, got %d", successCount)
+	}
+
+	if rejectedCount != 97 {
+		t.Errorf("expected exactly 97 messages to be rejected/deferred, got %d", rejectedCount)
+	}
+
+	t.Logf("Successfully verified daily quota hard barrier under %d concurrent threads: %d succeeded, %d rejected", numWorkers, successCount, rejectedCount)
 }

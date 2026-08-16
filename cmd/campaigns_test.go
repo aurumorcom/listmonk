@@ -1,3 +1,5 @@
+//go:build integration || e2e || resilience || !unit
+
 package main
 
 import (
@@ -9,6 +11,8 @@ import (
 	"net/http/httptest"
 	"regexp"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -16,6 +20,7 @@ import (
 	"github.com/knadh/listmonk/internal/messenger/email"
 	"github.com/knadh/listmonk/internal/messenger/waha"
 	"github.com/knadh/listmonk/internal/sequence"
+	"github.com/knadh/listmonk/internal/testutil"
 	"github.com/knadh/listmonk/models"
 	"github.com/knadh/smtppool/v2"
 	"github.com/labstack/echo/v4"
@@ -221,7 +226,13 @@ type wahaSessionTarget struct {
 }
 
 func discoverWahaSessions(wahaURL, apiKey string) (sender wahaSessionTarget, receiver wahaSessionTarget, isLive bool) {
-	client := &http.Client{Timeout: 3 * time.Second}
+	return discoverWahaSessionsWithClient(wahaURL, apiKey, nil)
+}
+
+func discoverWahaSessionsWithClient(wahaURL, apiKey string, client *http.Client) (sender wahaSessionTarget, receiver wahaSessionTarget, isLive bool) {
+	if client == nil {
+		client = &http.Client{Timeout: 3 * time.Second}
+	}
 	req, err := http.NewRequest(http.MethodGet, strings.TrimRight(wahaURL, "/")+"/api/sessions?all=true", nil)
 	if err != nil {
 		return sender, receiver, false
@@ -279,15 +290,18 @@ func discoverWahaSessions(wahaURL, apiKey string) (sender wahaSessionTarget, rec
 	} else if len(working) == 1 {
 		return working[0], working[0], true
 	}
-	return wahaSessionTarget{Name: "mock_sender", Phone: "1000000001", JID: "1000000001@c.us"},
-		wahaSessionTarget{Name: "mock_receiver", Phone: "1000000002", JID: "1000000002@c.us"}, false
+	return wahaSessionTarget{Name: "mock_sender", Phone: "+14155552671", JID: "14155552671@c.us"},
+		wahaSessionTarget{Name: "mock_receiver", Phone: "+14155552672", JID: "14155552672@c.us"}, false
 }
 
 func TestE2E_Campaign_WhatsApp_WAHA(t *testing.T) {
-	wahaURL := getEnv("WAHA_ROOT_URL", "http://localhost:3000")
-	apiKey := getEnv("WAHA_API_KEY", "key_JR59f24sOxG1O2OhhLFXIsLVID4ajvLD")
+	testutil.LoadDotEnv()
+	wahaURL := getEnv("WAHA_HOST", "http://localhost:3000")
+	apiKey := getEnv("WAHA_API_KEY", "")
 
-	senderSess, receiverSess, isLive := discoverWahaSessions(wahaURL, apiKey)
+	rec, vcrClient := testutil.NewVCRRecorder(t, "campaigns/whatsapp_campaign_dispatch")
+
+	senderSess, receiverSess, isLive := discoverWahaSessionsWithClient(wahaURL, apiKey, vcrClient)
 	t.Logf("Dynamically discovered WAHA sessions: Sender = %s (%s), Receiver = %s (%s) [Live: %v]",
 		senderSess.Name, senderSess.Phone, receiverSess.Name, receiverSess.Phone, isLive)
 
@@ -304,9 +318,13 @@ func TestE2E_Campaign_WhatsApp_WAHA(t *testing.T) {
 		t.Fatalf("failed to initialize WAHA messenger: %v", err)
 	}
 
+	if rec != nil {
+		wmsgr.SetHTTPClient(vcrClient)
+	}
+
 	msgID := fmt.Sprintf("3EB0CAMP%d", time.Now().UnixNano()%10000000)
 	trackedLink := "http://localhost:9000/r/waha-campaign-special"
-	campaignBody := fmt.Sprintf("🚀 [Listmonk Campaign E2E] Dynamic dual-session WhatsApp campaign test! Tracked link: %s", trackedLink)
+	campaignBody := fmt.Sprintf("🧪 *TEST:* TestE2E_WAHABulkCampaignLifecycle\n📁 *SUITE:* E2E/Campaigns\n🎯 *ACTION:* Bulk WhatsApp Campaign Dispatch via WAHA Dual-Session\n👤 *RECIPIENT:* Subscriber {{ .Subscriber.Name }} (+14155552671)\n✅ *EXPECTED:* Session load balancing, read receipt webhook emission\n🔗 *TRACKED LINK:* %s", trackedLink)
 
 	// Send message targeting the receiver's phone number
 	msg := models.Message{
@@ -445,13 +463,16 @@ func TestE2E_SendTestMessageBox_Email_MailHog(t *testing.T) {
 }
 
 func TestE2E_SendTestMessageBox_WhatsApp_WAHA(t *testing.T) {
-	wahaURL := getEnv("WAHA_ROOT_URL", "http://localhost:3000")
-	apiKey := getEnv("WAHA_API_KEY", "key_JR59f24sOxG1O2OhhLFXIsLVID4ajvLD")
+	testutil.LoadDotEnv()
+	wahaURL := getEnv("WAHA_HOST", "http://localhost:3000")
+	apiKey := getEnv("WAHA_API_KEY", "")
 
-	senderSess, receiverSess, isWAHALive := discoverWahaSessions(wahaURL, apiKey)
+	rec, vcrClient := testutil.NewVCRRecorder(t, "campaigns/whatsapp_test_message")
+
+	senderSess, receiverSess, isWAHALive := discoverWahaSessionsWithClient(wahaURL, apiKey, vcrClient)
 	testPhoneRecipient := receiverSess.Phone
-	if testPhoneRecipient == "" {
-		testPhoneRecipient = "918935885359"
+	if testPhoneRecipient == "" || testPhoneRecipient == "1000000002" {
+		testPhoneRecipient = "+14155552671"
 	}
 
 	wmsgr, err := waha.New(waha.Options{
@@ -466,9 +487,13 @@ func TestE2E_SendTestMessageBox_WhatsApp_WAHA(t *testing.T) {
 		t.Fatalf("failed to initialize WAHA messenger: %v", err)
 	}
 
+	if rec != nil {
+		wmsgr.SetHTTPClient(vcrClient)
+	}
+
 	testWhatsAppMsg := models.Message{
 		Subject:          "Test WhatsApp from UI Box",
-		Body:             []byte("🚀 Hello from the Send test message box on WhatsApp!"),
+		Body:             []byte("🧪 *TEST:* TestIntegration_Campaign_SendTestMessageBox\n📁 *SUITE:* Integration/Campaigns\n🎯 *ACTION:* Test Message Dispatch Endpoint (POST /api/campaigns/:id/test)\n👤 *RECIPIENT:* Test Target (+14155552671)\n✅ *EXPECTED:* Verification of real-time messenger session routing"),
 		MessengerSession: senderSess.Name,
 		Subscriber: models.Subscriber{
 			Base:  models.Base{ID: 1},
@@ -613,4 +638,37 @@ func TestCampaignBypassesMessengerDailyQuota(t *testing.T) {
 	}
 
 	t.Log("Successfully verified that broadcast campaign dispatch operates independently of messenger daily quotas")
+}
+
+func TestResilience_CampaignManager_MultiWorkerThreadContention(t *testing.T) {
+	const numWorkers = 20
+	var wg sync.WaitGroup
+	var processCount int64
+
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go func(workerID int) {
+			defer wg.Done()
+			// Simulate concurrent message compilation and worker processing
+			camp := models.Campaign{
+				Base:        models.Base{ID: workerID},
+				Name:        fmt.Sprintf("Concurrent Campaign %d", workerID),
+				Subject:     "Bulk Test Subject",
+				Body:        "Bulk test body content",
+				ContentType: "richtext",
+			}
+			err := camp.CompileTemplate(nil)
+			if err == nil {
+				atomic.AddInt64(&processCount, 1)
+			}
+		}(i)
+	}
+
+	wg.Wait()
+
+	if processCount != numWorkers {
+		t.Errorf("expected %d worker thread compilations to succeed, got %d", numWorkers, processCount)
+	}
+
+	t.Logf("Successfully executed %d parallel campaign worker thread compilations without contention errors", numWorkers)
 }
