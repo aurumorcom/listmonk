@@ -441,6 +441,54 @@ func (m *Manager) GenericTemplateFuncs() template.FuncMap {
 	return m.tplFuncs
 }
 
+// SequenceTemplateFuncs returns template functions to be applied during sequence step rendering.
+func (m *Manager) SequenceTemplateFuncs() template.FuncMap {
+	f := template.FuncMap{
+		"TrackLink": func(url string, args ...any) string {
+			return url
+		},
+		"TrackView": func(args ...any) template.HTML {
+			return template.HTML("")
+		},
+		"UnsubscribeURL": func(args ...any) string {
+			if m != nil && m.cfg.UnsubURL != "" {
+				return m.cfg.UnsubURL
+			}
+			return ""
+		},
+		"ManageURL": func(args ...any) string {
+			if m != nil && m.cfg.UnsubURL != "" {
+				return m.cfg.UnsubURL + "?manage=true"
+			}
+			return ""
+		},
+		"OptinURL": func(args ...any) string {
+			return ""
+		},
+		"MessageURL": func(args ...any) string {
+			return ""
+		},
+		"ArchiveURL": func() string {
+			if m != nil {
+				return m.cfg.ArchiveURL
+			}
+			return ""
+		},
+		"RootURL": func() string {
+			if m != nil {
+				return m.cfg.RootURL
+			}
+			return ""
+		},
+	}
+
+	if m != nil && m.tplFuncs != nil {
+		maps.Copy(f, m.tplFuncs)
+	}
+
+	return f
+}
+
 // StopCampaign marks a running campaign as stopped so that all its queued messages are ignored.
 func (m *Manager) StopCampaign(id int) {
 	m.pipesMut.RLock()

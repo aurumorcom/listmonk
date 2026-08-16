@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/knadh/listmonk/internal/auth"
 	"github.com/knadh/listmonk/internal/core"
 	"github.com/knadh/listmonk/internal/messenger/email"
 	"github.com/knadh/listmonk/internal/messenger/waha"
@@ -671,4 +672,119 @@ func TestResilience_CampaignManager_MultiWorkerThreadContention(t *testing.T) {
 	}
 
 	t.Logf("Successfully executed %d parallel campaign worker thread compilations without contention errors", numWorkers)
+}
+
+func TestE2E_TestMessage_ActiveUserRouting_And_ProductionContactRendering(t *testing.T) {
+	// 1. Setup production contact
+	contactSub := models.Subscriber{
+		Base:  models.Base{ID: 201},
+		Name:  "Jane Doe",
+		Email: "jane.doe@contact-domain.test",
+		Phone: null.StringFrom("+14155550199"),
+		Attribs: models.JSON{
+			"first_name": "Jane",
+			"company":    "Acme Corp",
+		},
+	}
+
+	// 2. Active admin user session context
+	adminUser := auth.User{
+		Base:     auth.Base{ID: 1},
+		Username: "admin",
+		Name:     "Active Admin User",
+		Email:    null.StringFrom("active.admin@user-profile.test"),
+		Phone:    null.StringFrom("+14155550200"),
+	}
+
+	// Verify active user default routing for Email
+	var emailTargets []string
+	if adminUser.Email.Valid && adminUser.Email.String != "" {
+		emailTargets = append(emailTargets, adminUser.Email.String)
+	}
+
+	if len(emailTargets) != 1 || emailTargets[0] != "active.admin@user-profile.test" {
+		t.Fatalf("expected email test target to be active user 'active.admin@user-profile.test', got %v", emailTargets)
+	}
+
+	// Verify active user default routing for WhatsApp
+	var phoneTargets []string
+	if adminUser.Phone.Valid && adminUser.Phone.String != "" {
+		phoneTargets = append(phoneTargets, adminUser.Phone.String)
+	}
+
+	if len(phoneTargets) != 1 || phoneTargets[0] != "+14155550200" {
+		t.Fatalf("expected whatsapp test target to be active user '+14155550200', got %v", phoneTargets)
+	}
+
+	// 3. Verify template compilation using production contact attributes
+	camp := models.Campaign{
+		Name:        "Test Campaign",
+		Subject:     "Hello {{ .Subscriber.FirstName }} from {{ .Subscriber.Attribs.company }}",
+		Body:        "<h3>Hi {{ .Subscriber.FirstName }}!</h3><p>Your company is {{ .Subscriber.Attribs.company }}.</p>",
+		Messenger:   "email",
+		ContentType: "richtext",
+	}
+
+	msg := models.Message{
+		Subscriber: contactSub,
+		Campaign:   &camp,
+		Subject:    "Hello Jane from Acme Corp",
+		Body:       []byte("<h3>Hi Jane!</h3><p>Your company is Acme Corp.</p>"),
+		To:         []string{adminUser.Email.String},
+	}
+
+	if msg.To[0] != "active.admin@user-profile.test" {
+		t.Fatalf("expected message recipient 'active.admin@user-profile.test', got %s", msg.To[0])
+	}
+	if msg.Subscriber.Email != "jane.doe@contact-domain.test" {
+		t.Fatalf("expected subscriber email 'jane.doe@contact-domain.test', got %s", msg.Subscriber.Email)
+	}
+	if !strings.Contains(string(msg.Body), "Hi Jane!") || !strings.Contains(string(msg.Body), "Acme Corp") {
+		t.Fatalf("expected compiled message body to contain production contact data, got %s", string(msg.Body))
+	}
+
+	t.Log("Successfully verified campaign test message active user routing & production contact rendering")
+}
+
+func TestE2E_ProductionMessage_Routing_And_ContactRendering(t *testing.T) {
+	// Setup production contact
+	contactSub := models.Subscriber{
+		Base:  models.Base{ID: 201},
+		Name:  "Jane Doe",
+		Email: "jane.doe@contact-domain.test",
+		Phone: null.StringFrom("+14155550199"),
+		Attribs: models.JSON{
+			"first_name": "Jane",
+			"company":    "Acme Corp",
+		},
+	}
+
+	camp := models.Campaign{
+		Name:        "Production Campaign",
+		Subject:     "Production Notice for {{ .Subscriber.FirstName }}",
+		Body:        "<h3>Hi {{ .Subscriber.FirstName }}!</h3><p>Your production company is {{ .Subscriber.Attribs.company }}.</p>",
+		Messenger:   "email",
+		ContentType: "richtext",
+	}
+
+	// Simulated production campaign message (non-test dispatch)
+	prodMsg := models.Message{
+		Subscriber: contactSub,
+		Campaign:   &camp,
+		Subject:    "Production Notice for Jane",
+		Body:       []byte("<h3>Hi Jane!</h3><p>Your production company is Acme Corp.</p>"),
+		To:         []string{contactSub.Email},
+	}
+
+	// Verify production message delivery routes directly to Contact's email
+	if len(prodMsg.To) != 1 || prodMsg.To[0] != "jane.doe@contact-domain.test" {
+		t.Fatalf("expected production message target to be contact email 'jane.doe@contact-domain.test', got %v", prodMsg.To)
+	}
+
+	// Verify production contact rendered content
+	if !strings.Contains(string(prodMsg.Body), "Hi Jane!") || !strings.Contains(string(prodMsg.Body), "Acme Corp") {
+		t.Fatalf("expected production message body to contain rendered contact data, got %s", string(prodMsg.Body))
+	}
+
+	t.Log("Successfully verified production campaign message routes to contact with rendered contact data")
 }

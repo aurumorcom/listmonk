@@ -247,8 +247,16 @@ func (a *App) TestSequence(c echo.Context) error {
 
 	user := auth.GetUser(c)
 
-	// Resolve preview subscriber for context (prioritizing user profile/matching subscriber before dummy fallback)
-	sampleSub := a.resolveTestPreviewSubscriber(req.SubscriberID, user)
+	// Resolve subscriber context for template compilation (preferring explicit production contact)
+	var sampleSub models.Subscriber
+	if req.SubscriberID > 0 {
+		if sub, err := a.core.GetSubscriber(req.SubscriberID, "", ""); err == nil && sub.ID > 0 {
+			sampleSub = sub
+		}
+	}
+	if sampleSub.ID == 0 {
+		sampleSub = a.resolveTestPreviewSubscriber(req.SubscriberID, user)
+	}
 
 	if req.Messenger == "" && req.StepNumber > 0 {
 		if steps, err := a.core.GetSequenceSteps(id); err == nil && len(steps) >= req.StepNumber {
@@ -259,23 +267,21 @@ func (a *App) TestSequence(c echo.Context) error {
 		req.ContentType = models.CampaignContentTypeRichtext
 	}
 
-	// Prepare targets based on messenger type and user profile
+	// Prepare targets based on messenger type and active user profile
 	isWhatsApp := req.Messenger == "whatsapp" || req.Messenger == "waha" || strings.HasPrefix(req.Messenger, "whatsapp-") || strings.HasPrefix(req.Messenger, "waha-")
 
-	targets := req.SubscriberEmails
-	if len(targets) == 0 {
-		if isWhatsApp {
-			if req.TestPhone != "" {
-				targets = append(targets, req.TestPhone)
-			} else if user.Phone.Valid && user.Phone.String != "" {
-				targets = append(targets, user.Phone.String)
-			}
-		} else {
-			if req.TestEmail != "" {
-				targets = append(targets, req.TestEmail)
-			} else if user.Email.Valid && user.Email.String != "" {
-				targets = append(targets, user.Email.String)
-			}
+	var targets []string
+	if isWhatsApp {
+		if req.TestPhone != "" {
+			targets = append(targets, req.TestPhone)
+		} else if user.Phone.Valid && user.Phone.String != "" {
+			targets = append(targets, user.Phone.String)
+		}
+	} else {
+		if req.TestEmail != "" {
+			targets = append(targets, req.TestEmail)
+		} else if user.Email.Valid && user.Email.String != "" {
+			targets = append(targets, user.Email.String)
 		}
 	}
 
@@ -329,24 +335,6 @@ func (a *App) TestSequence(c echo.Context) error {
 		sub := sampleSub
 		target = strings.TrimSpace(target)
 		targetMessenger := req.Messenger
-
-		if req.SubscriberID == 0 {
-			if strings.Contains(target, "@") {
-				if targetSub, err := a.core.GetSubscriber(0, "", strings.ToLower(target)); err == nil && targetSub.ID > 0 {
-					sub = targetSub
-				} else {
-					sub.Email = strings.ToLower(target)
-				}
-			} else if ph, err := utils.SanitizePhone(target); err == nil {
-				if targetSub, err := a.core.GetSubscriberByPhone(ph); err == nil && targetSub.ID > 0 {
-					sub = targetSub
-				} else {
-					sub.Phone = null.StringFrom(ph)
-				}
-			} else {
-				sub.Email = target
-			}
-		}
 
 		if targetMessenger == "" {
 			if strings.Contains(target, "@") {

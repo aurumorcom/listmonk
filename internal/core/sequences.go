@@ -798,13 +798,14 @@ func (c *Core) ReassignSequenceContactSender(sequenceID, subID int, emailID null
 	return nil
 }
 
-// GetDueSequenceContacts returns sequence contacts due for sending.
+// GetDueSequenceContacts returns sequence contacts due for sending for active sequences.
 func (c *Core) GetDueSequenceContacts(limit int) ([]models.SequenceContact, error) {
 	var out []models.SequenceContact
-	err := c.db.Select(&out, `SELECT sequence_id, subscriber_id, email_id, waha_session, status, current_step, next_send_at, last_read_at, last_clicked_at, last_message_id, last_thread_msg_id, created_at
-		FROM sequence_contacts
-		WHERE status IN ('scheduled', 'in_progress') AND next_send_at <= NOW()
-		LIMIT $1`, limit)
+	err := c.db.Select(&out, `SELECT sc.sequence_id, sc.subscriber_id, sc.email_id, sc.waha_session, sc.status, sc.current_step, sc.next_send_at, sc.last_read_at, sc.last_clicked_at, sc.last_message_id, sc.last_thread_msg_id, sc.created_at
+		FROM sequence_contacts sc
+		JOIN sequences s ON s.id = sc.sequence_id
+		WHERE s.status = $1 AND sc.status IN ('scheduled', 'in_progress') AND sc.next_send_at <= NOW()
+		LIMIT $2`, models.SequenceStatusActive, limit)
 	if err != nil {
 		c.log.Printf("error getting due sequence contacts: %v", err)
 		return nil, err

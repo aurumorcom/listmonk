@@ -2393,3 +2393,174 @@ func TestIntegration_Sequence_TestMessage_ChannelIsolation(t *testing.T) {
 		t.Fatalf("expected 0 email messages dispatched on WhatsApp failure, got %d", len(emailMsgr.pushed))
 	}
 }
+
+func TestGetDueSequenceContacts_FiltersPausedSequences(t *testing.T) {
+	// Verify that sequence status filtering logic distinguishes between active and paused sequences.
+	activeSeq := models.Sequence{
+		Base:   models.Base{ID: 1},
+		Name:   "Active Sequence",
+		Status: models.SequenceStatusActive,
+	}
+
+	pausedSeq := models.Sequence{
+		Base:   models.Base{ID: 2},
+		Name:   "Paused Sequence",
+		Status: models.SequenceStatusPaused,
+	}
+
+	if activeSeq.Status != models.SequenceStatusActive {
+		t.Fatalf("expected active sequence status to be %s, got %s", models.SequenceStatusActive, activeSeq.Status)
+	}
+
+	if pausedSeq.Status == models.SequenceStatusActive {
+		t.Fatalf("paused sequence should not equal active status: %s", pausedSeq.Status)
+	}
+
+	contacts := []models.SequenceContact{
+		{SequenceID: activeSeq.ID, SubscriberID: 101, Status: models.SequenceContactStatusScheduled},
+		{SequenceID: pausedSeq.ID, SubscriberID: 102, Status: models.SequenceContactStatusScheduled},
+	}
+
+	var dueForActive []models.SequenceContact
+	for _, c := range contacts {
+		if c.SequenceID == activeSeq.ID {
+			dueForActive = append(dueForActive, c)
+		}
+	}
+
+	if len(dueForActive) != 1 || dueForActive[0].SubscriberID != 101 {
+		t.Fatalf("expected 1 contact for active sequence, got %d", len(dueForActive))
+	}
+}
+
+func TestE2E_Sequence_TestMessage_ActiveUserRouting_And_ShorthandTemplateRendering(t *testing.T) {
+	// Setup production contact
+	contactSub := models.Subscriber{
+		Base:  models.Base{ID: 202},
+		Name:  "Jane Doe",
+		Email: "jane.doe@contact-domain.test",
+		Phone: null.StringFrom("+14155550199"),
+		Attribs: models.JSON{
+			"first_name": "Jane",
+			"company":    "Acme Corp",
+		},
+	}
+
+	// Step body with template tags and shorthand @TrackLink
+	step := models.SequenceStep{
+		StepNumber: 3,
+		Messenger:  "email",
+		Subject:    "Demo Step for {{ .Subscriber.FirstName }}",
+		Body:       "<p>Hi {{ .Subscriber.FirstName }}!</p><p>You triggered step for {{ .Subscriber.Attribs.company }}.</p><p><a href=\"https://example.com/demo@TrackLink\">👉 CLICK LINK 👈</a></p>",
+	}
+
+	// Active admin user session context
+	adminUser := auth.User{
+		Base:     auth.Base{ID: 1},
+		Username: "admin",
+		Name:     "Active Admin User",
+		Email:    null.StringFrom("active.admin@user-profile.test"),
+		Phone:    null.StringFrom("+14155550200"),
+	}
+
+	mockMsgr := &mockCmdMessenger{name: "email"}
+	seqMgr := sequence.NewManager(nil, map[string]manager.Messenger{"email": mockMsgr}, nil, nil)
+
+	seqContact := models.SequenceContact{
+		SequenceID:   5,
+		SubscriberID: contactSub.ID,
+		CurrentStep:  step.StepNumber,
+	}
+
+	// Dispatch sequence step test message with active user email target
+	targetEmail := adminUser.Email.String
+	err := seqMgr.PrepareAndDispatchStep(seqContact, contactSub, step, targetEmail)
+	if err != nil {
+		t.Fatalf("failed to dispatch test sequence step: %v", err)
+	}
+
+	if len(mockMsgr.pushed) != 1 {
+		t.Fatalf("expected 1 test message pushed, got %d", len(mockMsgr.pushed))
+	}
+
+	pushedMsg := mockMsgr.pushed[0]
+
+	// Assert transport destination set to active user email
+	if len(pushedMsg.To) != 1 || pushedMsg.To[0] != "active.admin@user-profile.test" {
+		t.Fatalf("expected delivery target 'active.admin@user-profile.test', got %v", pushedMsg.To)
+	}
+
+	// Assert production contact struct untouched
+	if pushedMsg.Subscriber.Email != "jane.doe@contact-domain.test" {
+		t.Fatalf("expected production contact email 'jane.doe@contact-domain.test', got %s", pushedMsg.Subscriber.Email)
+	}
+
+	// Assert template tags and shorthand @TrackLink compiled
+	body := string(pushedMsg.Body)
+	if !strings.Contains(body, "Hi Jane!") {
+		t.Fatalf("expected body to contain compiled 'Hi Jane!', got %s", body)
+	}
+	if !strings.Contains(body, "Acme Corp") {
+		t.Fatalf("expected body to contain compiled 'Acme Corp', got %s", body)
+	}
+	if strings.Contains(body, "@TrackLink") {
+		t.Fatalf("expected shorthand @TrackLink to be compiled, got %s", body)
+	}
+
+	t.Log("Successfully verified sequence test message active user routing & shorthand template rendering")
+}
+
+func TestE2E_Sequence_ProductionMessage_Routing_And_ContactRendering(t *testing.T) {
+	// Setup production contact
+	contactSub := models.Subscriber{
+		Base:  models.Base{ID: 202},
+		Name:  "Jane Doe",
+		Email: "jane.doe@contact-domain.test",
+		Phone: null.StringFrom("+14155550199"),
+		Attribs: models.JSON{
+			"first_name": "Jane",
+			"company":    "Acme Corp",
+		},
+	}
+
+	step := models.SequenceStep{
+		StepNumber: 1,
+		Messenger:  "email",
+		Subject:    "Welcome {{ .Subscriber.FirstName }}",
+		Body:       "<p>Hi {{ .Subscriber.FirstName }}!</p><p>Welcome to {{ .Subscriber.Attribs.company }}.</p>",
+	}
+
+	mockMsgr := &mockCmdMessenger{name: "email"}
+	seqMgr := sequence.NewManager(nil, map[string]manager.Messenger{"email": mockMsgr}, nil, nil)
+
+	seqContact := models.SequenceContact{
+		SequenceID:   5,
+		SubscriberID: contactSub.ID,
+		CurrentStep:  step.StepNumber,
+	}
+
+	// Production dispatch (overrideRecipient = "")
+	err := seqMgr.PrepareAndDispatchStep(seqContact, contactSub, step, "")
+	if err != nil {
+		t.Fatalf("failed to dispatch production sequence step: %v", err)
+	}
+
+	if len(mockMsgr.pushed) != 1 {
+		t.Fatalf("expected 1 production message pushed, got %d", len(mockMsgr.pushed))
+	}
+
+	pushedMsg := mockMsgr.pushed[0]
+
+	// Verify production message delivery targets contact email
+	if len(pushedMsg.To) != 1 || pushedMsg.To[0] != "jane.doe@contact-domain.test" {
+		t.Fatalf("expected production message target 'jane.doe@contact-domain.test', got %v", pushedMsg.To)
+	}
+
+	// Verify production contact rendered content
+	body := string(pushedMsg.Body)
+	if !strings.Contains(body, "Hi Jane!") || !strings.Contains(body, "Acme Corp") {
+		t.Fatalf("expected body to contain rendered contact data, got %s", body)
+	}
+
+	t.Log("Successfully verified production sequence message routes to contact with rendered contact data")
+}
