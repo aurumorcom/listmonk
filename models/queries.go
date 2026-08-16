@@ -14,30 +14,30 @@ type Queries struct {
 	GetDashboardCharts *sqlx.Stmt `query:"get-dashboard-charts"`
 	GetDashboardCounts *sqlx.Stmt `query:"get-dashboard-counts"`
 
-	InsertSubscriber                     *sqlx.Stmt `query:"insert-subscriber"`
-	UpsertSubscriber                     *sqlx.Stmt `query:"upsert-subscriber"`
-	UpsertBlocklistSubscriber            *sqlx.Stmt `query:"upsert-blocklist-subscriber"`
-	GetSubscriber                        *sqlx.Stmt `query:"get-subscriber"`
-	GetSubscriberByPhone                 *sqlx.Stmt `query:"get-subscriber-by-phone"`
-	HasSubscriberLists                   *sqlx.Stmt `query:"has-subscriber-list"`
-	GetSubscribersByEmails               *sqlx.Stmt `query:"get-subscribers-by-emails"`
-	GetSubscriberLists                   *sqlx.Stmt `query:"get-subscriber-lists"`
-	GetSubscriptions                     *sqlx.Stmt `query:"get-subscriptions"`
-	GetSubscriberListsLazy               *sqlx.Stmt `query:"get-subscriber-lists-lazy"`
-	UpdateSubscriber                     *sqlx.Stmt `query:"update-subscriber"`
-	UpdateSubscriberWithLists            *sqlx.Stmt `query:"update-subscriber-with-lists"`
-	BlocklistSubscribers                 *sqlx.Stmt `query:"blocklist-subscribers"`
-	AddSubscribersToLists                *sqlx.Stmt `query:"add-subscribers-to-lists"`
-	DeleteSubscriptions                  *sqlx.Stmt `query:"delete-subscriptions"`
-	DeleteUnconfirmedSubscriptions       *sqlx.Stmt `query:"delete-unconfirmed-subscriptions"`
-	ConfirmSubscriptionOptin             *sqlx.Stmt `query:"confirm-subscription-optin"`
-	UnsubscribeSubscribersFromLists      *sqlx.Stmt `query:"unsubscribe-subscribers-from-lists"`
-	DeleteSubscribers                    *sqlx.Stmt `query:"delete-subscribers"`
-	DeleteBlocklistedSubscribers         *sqlx.Stmt `query:"delete-blocklisted-subscribers"`
-	DeleteOrphanSubscribers              *sqlx.Stmt `query:"delete-orphan-subscribers"`
-	UnsubscribeByCampaign                *sqlx.Stmt `query:"unsubscribe-by-campaign"`
-	ExportSubscriberData                 *sqlx.Stmt `query:"export-subscriber-data"`
-	GetSubscriberActivity                *sqlx.Stmt `query:"get-subscriber-activity"`
+	InsertSubscriber                *sqlx.Stmt `query:"insert-subscriber"`
+	UpsertSubscriber                *sqlx.Stmt `query:"upsert-subscriber"`
+	UpsertBlocklistSubscriber       *sqlx.Stmt `query:"upsert-blocklist-subscriber"`
+	GetSubscriber                   *sqlx.Stmt `query:"get-subscriber"`
+	GetSubscriberByPhone            *sqlx.Stmt `query:"get-subscriber-by-phone"`
+	HasSubscriberLists              *sqlx.Stmt `query:"has-subscriber-list"`
+	GetSubscribersByEmails          *sqlx.Stmt `query:"get-subscribers-by-emails"`
+	GetSubscriberLists              *sqlx.Stmt `query:"get-subscriber-lists"`
+	GetSubscriptions                *sqlx.Stmt `query:"get-subscriptions"`
+	GetSubscriberListsLazy          *sqlx.Stmt `query:"get-subscriber-lists-lazy"`
+	UpdateSubscriber                *sqlx.Stmt `query:"update-subscriber"`
+	UpdateSubscriberWithLists       *sqlx.Stmt `query:"update-subscriber-with-lists"`
+	BlocklistSubscribers            *sqlx.Stmt `query:"blocklist-subscribers"`
+	AddSubscribersToLists           *sqlx.Stmt `query:"add-subscribers-to-lists"`
+	DeleteSubscriptions             *sqlx.Stmt `query:"delete-subscriptions"`
+	DeleteUnconfirmedSubscriptions  *sqlx.Stmt `query:"delete-unconfirmed-subscriptions"`
+	ConfirmSubscriptionOptin        *sqlx.Stmt `query:"confirm-subscription-optin"`
+	UnsubscribeSubscribersFromLists *sqlx.Stmt `query:"unsubscribe-subscribers-from-lists"`
+	DeleteSubscribers               *sqlx.Stmt `query:"delete-subscribers"`
+	DeleteBlocklistedSubscribers    *sqlx.Stmt `query:"delete-blocklisted-subscribers"`
+	DeleteOrphanSubscribers         *sqlx.Stmt `query:"delete-orphan-subscribers"`
+	UnsubscribeByCampaign           *sqlx.Stmt `query:"unsubscribe-by-campaign"`
+	ExportSubscriberData            *sqlx.Stmt `query:"export-subscriber-data"`
+	GetSubscriberActivity           *sqlx.Stmt `query:"get-subscriber-activity"`
 
 	// Non-prepared arbitrary subscriber queries.
 	QuerySubscribers                       string     `query:"query-subscribers"`
@@ -147,16 +147,16 @@ type Queries struct {
 	UpsertListPermissions *sqlx.Stmt `query:"upsert-list-permissions"`
 	DeleteListPermission  *sqlx.Stmt `query:"delete-list-permission"`
 
-	GetWebhooks                *sqlx.Stmt `query:"get-webhook-endpoints"`
-	GetWebhookByID             *sqlx.Stmt `query:"get-webhook-endpoint-by-id"`
-	GetActiveEndpointsForEvent *sqlx.Stmt `query:"get-active-endpoints-for-event"`
-	InsertWebhook              *sqlx.Stmt `query:"insert-webhook-endpoint"`
-	UpdateWebhook              *sqlx.Stmt `query:"update-webhook-endpoint"`
-	DeleteWebhook              *sqlx.Stmt `query:"delete-webhook-endpoint"`
-	EnqueueWebhookLog          *sqlx.Stmt `query:"enqueue-webhook-log"`
-	PopPendingWebhookLogs      *sqlx.Stmt `query:"pop-pending-webhook-logs"`
-	UpdateWebhookLogStatus     *sqlx.Stmt `query:"update-webhook-log-status"`
-	GetWebhookLogs             *sqlx.Stmt `query:"get-webhook-logs"`
+	GetWebhooks               *sqlx.Stmt `query:"get-webhooks"`
+	GetWebhookByID            *sqlx.Stmt `query:"get-webhook-by-id"`
+	GetActiveWebhooksForEvent *sqlx.Stmt `query:"get-active-webhooks-for-event"`
+	InsertWebhook             *sqlx.Stmt `query:"insert-webhook"`
+	UpdateWebhook             *sqlx.Stmt `query:"update-webhook"`
+	DeleteWebhook             *sqlx.Stmt `query:"delete-webhook"`
+	EnqueueWebhookLog         *sqlx.Stmt `query:"enqueue-webhook-log"`
+	PopPendingWebhookLogs     *sqlx.Stmt `query:"pop-pending-webhook-logs"`
+	UpdateWebhookLogStatus    *sqlx.Stmt `query:"update-webhook-log-status"`
+	GetWebhookLogs            *sqlx.Stmt `query:"get-webhook-logs"`
 }
 
 // compileSubscriberQueryTpl takes an arbitrary WHERE expressions

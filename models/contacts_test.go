@@ -1,7 +1,10 @@
 package models
 
-import "testing"
-import null "gopkg.in/volatiletech/null.v6"
+import (
+	"testing"
+
+	null "gopkg.in/volatiletech/null.v6"
+)
 
 func TestContactAliasEquivalence(t *testing.T) {
 	sub := Subscriber{
@@ -115,5 +118,62 @@ func TestTimezoneResolutionHierarchy(t *testing.T) {
 	emptySeq := Sequence{}
 	if loc := c2.ResolveTimezone(emptySeq); loc.String() != "UTC" {
 		t.Errorf("expected UTC, got %s", loc.String())
+	}
+}
+
+func TestContactToContactSummary(t *testing.T) {
+	c := Contact{
+		Base: Base{
+			ID: 42,
+		},
+		UUID:  "12345678-1234-1234-1234-123456789012",
+		Name:  "Jane Doe",
+		Email: "jane@example.com",
+		Phone: null.StringFrom("+15550001111"),
+	}
+
+	summary := c.ToContactSummary()
+	if summary.ID != 42 || summary.UUID != "12345678-1234-1234-1234-123456789012" || summary.Name != "Jane Doe" || summary.Email != "jane@example.com" || summary.Phone != "+15550001111" {
+		t.Errorf("unexpected ContactSummary values: %+v", summary)
+	}
+}
+
+func TestSettingsStructsMapping(t *testing.T) {
+	smtp := SMTPSettings{
+		Name:      "Main SMTP",
+		Host:      "smtp.example.com",
+		Port:      587,
+		Signature: "<p>SMTP Sig</p>",
+	}
+	imap := IMAPSettings{
+		Host:   "imap.example.com",
+		Port:   993,
+		Folder: "INBOX",
+	}
+	emailSettings := EmailSettings{
+		SMTP:   smtp,
+		IMAP:   imap,
+		UserID: null.IntFrom(1),
+		User:   "admin",
+	}
+
+	if emailSettings.SMTP.Host != "smtp.example.com" || emailSettings.IMAP.Host != "imap.example.com" || emailSettings.SMTP.Signature != "<p>SMTP Sig</p>" {
+		t.Errorf("unexpected EmailSettings mapping: %+v", emailSettings)
+	}
+
+	waha := WAHASettings{
+		Name:      "Main WhatsApp",
+		Host:      "http://localhost:3000",
+		Session:   "default",
+		Signature: "<p>WAHA Sig</p>",
+	}
+	waSettings := WhatsappSettings{
+		WAHA:   waha,
+		UserID: null.IntFrom(1),
+		User:   "admin",
+	}
+
+	if waSettings.WAHA.Host != "http://localhost:3000" || waSettings.WAHA.Signature != "<p>WAHA Sig</p>" {
+		t.Errorf("unexpected WhatsappSettings mapping: %+v", waSettings)
 	}
 }

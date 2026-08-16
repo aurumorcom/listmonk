@@ -21,7 +21,7 @@ type Webhook struct {
 // WebhookLog represents an outbound webhook delivery queue item and log record.
 type WebhookLog struct {
 	ID           int64     `db:"id" json:"id"`
-	EndpointID   int       `db:"endpoint_id" json:"endpoint_id"`
+	WebhookID    int       `db:"webhook_id" json:"webhook_id"`
 	EventType    string    `db:"event_type" json:"event_type"`
 	Payload      []byte    `db:"payload" json:"payload"`
 	Status       string    `db:"status" json:"status"`
