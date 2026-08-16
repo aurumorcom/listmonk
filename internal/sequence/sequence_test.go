@@ -367,3 +367,37 @@ func TestSequence_PrepareAndDispatchStep_ThreadingHeaders(t *testing.T) {
 		t.Errorf("expected References '<thread-root-123@listmonk>', got '%s'", lastMsg.Headers.Get("References"))
 	}
 }
+
+func TestSequence_PrepareAndDispatchStep_MissingWhatsAppMessenger_ReturnsError(t *testing.T) {
+	emailMsgr := &mockSeqMessenger{name: "email"}
+	mgr := &Manager{
+		messengers: map[string]manager.Messenger{
+			"email": emailMsgr,
+		},
+	}
+
+	step := models.SequenceStep{
+		StepNumber: 1,
+		Messenger:  "whatsapp",
+		Subject:    "WAHA Step",
+		Body:       "Hello via WhatsApp",
+	}
+
+	contact := models.Subscriber{
+		Name:  "Target Contact",
+		Phone: null.StringFrom("+918935885359"),
+	}
+	seqContact := models.SequenceContact{
+		SequenceID:   10,
+		SubscriberID: 100,
+	}
+
+	err := mgr.PrepareAndDispatchStep(seqContact, contact, step, "+918935885359")
+	if err == nil {
+		t.Fatal("expected error when WhatsApp messenger is missing, got nil")
+	}
+
+	if len(emailMsgr.pushed) != 0 {
+		t.Fatalf("expected 0 email messages pushed on WhatsApp failure, got %d", len(emailMsgr.pushed))
+	}
+}

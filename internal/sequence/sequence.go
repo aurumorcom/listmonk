@@ -164,12 +164,14 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceContact, contact mod
 			msgr, ok = m.messengers["whatsapp"]
 		}
 		if !ok {
-			msgr, ok = m.messengers["email"]
-		}
-		if !ok {
-			// Try finding any messenger matching prefix
+			// Try finding any messenger matching prefix for the target messenger type
+			isWhatsApp := step.Messenger == "whatsapp" || step.Messenger == "waha" || strings.HasPrefix(step.Messenger, "whatsapp-") || strings.HasPrefix(step.Messenger, "waha-")
 			for name, cand := range m.messengers {
-				if strings.HasPrefix(name, step.Messenger) || strings.HasPrefix(step.Messenger, name) {
+				if isWhatsApp && (name == "whatsapp" || name == "waha" || strings.HasPrefix(name, "whatsapp-") || strings.HasPrefix(name, "waha-")) {
+					msgr = cand
+					ok = true
+					break
+				} else if !isWhatsApp && (strings.HasPrefix(name, step.Messenger) || strings.HasPrefix(step.Messenger, name)) {
 					msgr = cand
 					ok = true
 					break
@@ -195,6 +197,11 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceContact, contact mod
 					return fmt.Errorf("email account %d reached daily limit", mb.ID)
 				}
 				activeEmail = mb
+			}
+		}
+		if activeEmail == nil && m.core != nil {
+			if emails, err := m.core.GetEmails(); err == nil && len(emails) > 0 {
+				activeEmail = &emails[0]
 			}
 		}
 	}
@@ -230,10 +237,13 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceContact, contact mod
 	}
 
 	if activeEmail != nil {
+		fromEmail := activeEmail.Email
 		if userName != "" {
-			msg.From = fmt.Sprintf("%s <%s>", userName, activeEmail.Email)
+			msg.From = fmt.Sprintf("%s <%s>", userName, fromEmail)
+		} else if activeEmail.Name != "" {
+			msg.From = fmt.Sprintf("%s <%s>", activeEmail.Name, fromEmail)
 		} else {
-			msg.From = activeEmail.Email
+			msg.From = fromEmail
 		}
 	} else if userEmail != "" {
 		if userName != "" {
