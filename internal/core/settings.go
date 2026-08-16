@@ -196,7 +196,7 @@ func (c *Core) UpdateSettings(s models.Settings) error {
 			}
 
 			imapCfg := models.JSON{
-				"enabled":  item.IMAPEnabled,
+				"enabled":  item.IMAPEnabled || len(strings.TrimSpace(item.IMAPHost)) > 0,
 				"host":     item.IMAPHost,
 				"port":     item.IMAPPort,
 				"username": item.IMAPUsername,
