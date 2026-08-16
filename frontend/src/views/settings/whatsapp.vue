@@ -240,10 +240,32 @@ export default Vue.extend({
     if (this.data.waha.length === 0) {
       this.addMessenger();
     }
+    this.prepopulateDefaults();
     this.fetchUsers();
   },
 
+  watch: {
+    form: {
+      handler() {
+        this.prepopulateDefaults();
+      },
+      deep: true,
+      immediate: true,
+    },
+  },
+
   methods: {
+    prepopulateDefaults() {
+      if (!this.data || !Array.isArray(this.data.waha)) return;
+      this.data.waha.forEach((item) => {
+        if (item.cpm === undefined || item.cpm === null || item.cpm === '') this.$set(item, 'cpm', 240);
+        if (item.error_rate === undefined || item.error_rate === null || item.error_rate === '') this.$set(item, 'error_rate', 0.02);
+        if (item.reading_wpm === undefined || item.reading_wpm === null || item.reading_wpm === '') this.$set(item, 'reading_wpm', 200);
+        if (!item.min_reaction_delay) this.$set(item, 'min_reaction_delay', '1.2s');
+        if (!item.max_reaction_delay) this.$set(item, 'max_reaction_delay', '3.5s');
+      });
+    },
+
     async fetchUsers() {
       try {
         const res = await this.$api.getUsers();

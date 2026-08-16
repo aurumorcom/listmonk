@@ -474,10 +474,39 @@ export default Vue.extend({
     if (this.data.smtp.length === 0) {
       this.addEmailAccount();
     }
+    this.prepopulateDefaults();
     this.fetchUsers();
   },
 
+  watch: {
+    form: {
+      handler() {
+        this.prepopulateDefaults();
+      },
+      deep: true,
+      immediate: true,
+    },
+  },
+
   methods: {
+    prepopulateDefaults() {
+      if (!this.data || !Array.isArray(this.data.smtp)) return;
+      this.data.smtp.forEach((item) => {
+        if (!item.idle_timeout) this.$set(item, 'idle_timeout', '15s');
+        if (!item.wait_timeout) this.$set(item, 'wait_timeout', '5s');
+        if (!item.msg_retry_delay) this.$set(item, 'msg_retry_delay', '0s');
+        if (!item.imap_auth_protocol) this.$set(item, 'imap_auth_protocol', 'login');
+        if (!item.imap_tls_type) this.$set(item, 'imap_tls_type', 'TLS');
+        if (!item.imap_folder) this.$set(item, 'imap_folder', 'INBOX');
+        if (!item.imap_interval) this.$set(item, 'imap_interval', '30s');
+        if (!item.imap_max_conns) this.$set(item, 'imap_max_conns', 5);
+        if (!item.imap_idle_timeout) this.$set(item, 'imap_idle_timeout', '15s');
+        if (!item.imap_wait_timeout) this.$set(item, 'imap_wait_timeout', '5s');
+        if (!item.imap_max_retries) this.$set(item, 'imap_max_retries', 3);
+        if (!item.imap_retry_delay) this.$set(item, 'imap_retry_delay', '30s');
+      });
+    },
+
     async fetchUsers() {
       try {
         const res = await this.$api.getUsers();
