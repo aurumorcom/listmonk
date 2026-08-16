@@ -27,7 +27,7 @@
                 </b-field>
               </div>
               <div class="column is-6">
-                <b-field label="Root URL" label-position="on-border" message="HTTP endpoint of the WAHA container">
+                <b-field label="Host" label-position="on-border" message="HTTP endpoint of the WAHA container">
                   <b-input v-model="item.root_url" name="root_url" placeholder="http://waha:3000" :maxlength="200" expanded type="url" />
                 </b-field>
               </div>
@@ -74,13 +74,8 @@
             <!-- Standardized Sending Limits Section -->
             <div class="columns">
               <div class="column is-6">
-                <b-field label="Messages sent per day" label-position="on-border" message="Daily max sending quota for this WhatsApp session (0 = unlimited)">
-                  <b-numberinput v-model="item.messages_per_day" name="messages_per_day" type="is-light" controls-position="compact" placeholder="0" min="0" max="100000" />
-                </b-field>
-              </div>
-              <div class="column is-6">
-                <b-field label="Messages sent per hour" label-position="on-border" message="Hourly max sending quota for this WhatsApp session (0 = unlimited)">
-                  <b-numberinput v-model="item.messages_per_hour" name="messages_per_hour" type="is-light" controls-position="compact" placeholder="0" min="0" max="10000" />
+                <b-field label="Max Send" label-position="on-border" message="Daily max sending quota for this WhatsApp session (0 = unlimited)">
+                  <b-numberinput v-model="item.max_send_per_day" name="max_send_per_day" type="is-light" controls-position="compact" placeholder="0" min="0" max="100000" />
                 </b-field>
               </div>
             </div>
@@ -147,22 +142,6 @@
 
             <hr />
 
-            <!-- Assigned User & Persona Attribution Section -->
-            <div class="columns">
-              <div class="column is-6">
-                <b-field label="Assigned User" label-position="on-border" message="User who owns this channel for personal outreach sequences">
-                  <b-select v-model="item.user_id" placeholder="Select assigned user..." expanded>
-                    <option :value="null">-- Shared Team Channel (Unassigned) --</option>
-                    <option v-for="user in users" :key="user.id" :value="user.id">
-                      {{ user.name }} ({{ user.email }})
-                    </option>
-                  </b-select>
-                </b-field>
-              </div>
-            </div>
-
-            <hr />
-
             <!-- Test Connection Section -->
             <form>
               <div class="columns">
@@ -194,6 +173,31 @@
                 </b-field>
               </div>
             </form>
+
+            <hr />
+
+            <!-- Section 3: USER (at the bottom) -->
+            <h5 class="title is-6 mb-3 has-text-weight-bold">USER</h5>
+            <div class="columns">
+              <div class="column is-6">
+                <b-field label="Assigned User" label-position="on-border" message="User who owns this channel for personal outreach sequences">
+                  <b-select v-model="item.user_id" placeholder="Select assigned user..." expanded>
+                    <option :value="null">-- Shared Team Channel (Unassigned) --</option>
+                    <option v-for="user in users" :key="user.id" :value="user.id">
+                      {{ user.name ? `${user.name} (${user.email || user.username})` : (user.email || user.username) }}
+                    </option>
+                  </b-select>
+                </b-field>
+              </div>
+            </div>
+
+            <div class="columns">
+              <div class="column is-12">
+                <b-field label="Persona Signature (HTML / Markdown)" label-position="on-border" message="Signature appended to cold outreach sequences sent from this WhatsApp session">
+                  <b-input v-model="item.signature" type="textarea" placeholder="Best regards,&#10;John Doe&#10;Account Executive" :rows="3" />
+                </b-field>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -244,10 +248,12 @@ export default Vue.extend({
     async fetchUsers() {
       try {
         const res = await this.$api.getUsers();
-        if (res && res.data && res.data.results) {
-          this.users = res.data.results;
-        } else if (Array.isArray(res.data)) {
+        if (Array.isArray(res)) {
+          this.users = res;
+        } else if (res && Array.isArray(res.data)) {
           this.users = res.data;
+        } else if (res && Array.isArray(res.results)) {
+          this.users = res.results;
         }
       } catch (err) {
         // Ignored if permissions not present
@@ -265,8 +271,7 @@ export default Vue.extend({
         max_conns: 10,
         max_msg_retries: 2,
         timeout: '10s',
-        messages_per_day: 0,
-        messages_per_hour: 0,
+        max_send_per_day: 0,
         typing_mode: 'human',
         cpm: 240,
         error_rate: 0.02,
@@ -276,6 +281,7 @@ export default Vue.extend({
         simulate_micro_pauses: true,
         simulate_burstiness: true,
         user_id: null,
+        signature: '',
       });
     },
 

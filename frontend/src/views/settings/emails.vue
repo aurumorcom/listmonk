@@ -144,30 +144,43 @@
             <!-- Standardized Sending Limits Section -->
             <div class="columns">
               <div class="column is-6">
-                <b-field label="Daily sending quota" label-position="on-border" message="Daily max sending quota for this email account (0 = unlimited)">
+                <b-field label="Max Send" label-position="on-border" message="Daily max sending quota for this email account (0 = unlimited)">
                   <b-numberinput v-model="item.max_send_per_day" name="max_send_per_day" type="is-light" controls-position="compact" placeholder="0" min="0" max="100000" />
-                </b-field>
-              </div>
-              <div class="column is-6">
-                <b-field label="Assigned User" label-position="on-border" message="User who owns this channel for personal outreach sequences">
-                  <b-select v-model="item.user_id" placeholder="Select assigned user..." expanded>
-                    <option :value="null">-- Shared Team Channel (Unassigned) --</option>
-                    <option v-for="user in users" :key="user.id" :value="user.id">
-                      {{ user.name }} ({{ user.email }})
-                    </option>
-                  </b-select>
                 </b-field>
               </div>
             </div>
 
-            <!-- Dedicated Persona Signature Section -->
-            <div class="columns">
-              <div class="column is-12">
-                <b-field label="Persona Signature (HTML / Markdown)" label-position="on-border" message="Signature appended to cold outreach sequences sent from this email account">
-                  <b-input v-model="item.signature" type="textarea" placeholder="Best regards,&#10;John Doe&#10;Account Executive" :rows="3" />
+            <!-- Test Connection Section -->
+            <form>
+              <div class="columns">
+                <template v-if="smtpTestItem === n">
+                  <div class="column is-5">
+                    <p class="is-size-7 has-text-grey mt-2">
+                      {{ $t('settings.smtp.testHelp') }}
+                    </p>
+                  </div>
+                  <div class="column is-4">
+                    <b-field :label="$t('settings.smtp.toEmail')" label-position="on-border">
+                      <b-input type="email" required v-model="testEmail" :ref="'testEmailTo'"
+                        :placeholder="$t('settings.smtp.toEmailHelp')" :custom-class="`test-email-${n}`" :maxlength="200" />
+                    </b-field>
+                  </div>
+                </template>
+                <div class="column has-text-right">
+                  <b-button v-if="smtpTestItem === n" class="is-primary" @click.prevent="() => doSMTPTest(item)">
+                    {{ $t('settings.smtp.sendTest') }}
+                  </b-button>
+                  <a href="#" v-else class="is-primary" @click.prevent="showTestForm(n)">
+                    <b-icon icon="rocket-launch-outline" /> {{ $t('settings.smtp.testConnection') }}
+                  </a>
+                </div>
+              </div>
+              <div v-if="errMsg && smtpTestItem === n">
+                <b-field class="mt-4" type="is-danger">
+                  <p class="help is-danger">{{ errMsg }}</p>
                 </b-field>
               </div>
-            </div>
+            </form>
 
             <hr />
 
@@ -226,37 +239,28 @@
 
             <hr />
 
-            <!-- Test Connection Section -->
-            <form>
-              <div class="columns">
-                <template v-if="smtpTestItem === n">
-                  <div class="column is-5">
-                    <p class="is-size-7 has-text-grey mt-2">
-                      {{ $t('settings.smtp.testHelp') }}
-                    </p>
-                  </div>
-                  <div class="column is-4">
-                    <b-field :label="$t('settings.smtp.toEmail')" label-position="on-border">
-                      <b-input type="email" required v-model="testEmail" :ref="'testEmailTo'"
-                        :placeholder="$t('settings.smtp.toEmailHelp')" :custom-class="`test-email-${n}`" :maxlength="200" />
-                    </b-field>
-                  </div>
-                </template>
-                <div class="column has-text-right">
-                  <b-button v-if="smtpTestItem === n" class="is-primary" @click.prevent="() => doSMTPTest(item)">
-                    {{ $t('settings.smtp.sendTest') }}
-                  </b-button>
-                  <a href="#" v-else class="is-primary" @click.prevent="showTestForm(n)">
-                    <b-icon icon="rocket-launch-outline" /> {{ $t('settings.smtp.testConnection') }}
-                  </a>
-                </div>
-              </div>
-              <div v-if="errMsg && smtpTestItem === n">
-                <b-field class="mt-4" type="is-danger">
-                  <p class="help is-danger">{{ errMsg }}</p>
+            <!-- Section 3: USER (at the bottom) -->
+            <h5 class="title is-6 mb-3 has-text-weight-bold">USER</h5>
+            <div class="columns">
+              <div class="column is-6">
+                <b-field label="Assigned User" label-position="on-border" message="User who owns this channel for personal outreach sequences">
+                  <b-select v-model="item.user_id" placeholder="Select assigned user..." expanded>
+                    <option :value="null">-- Shared Team Channel (Unassigned) --</option>
+                    <option v-for="user in users" :key="user.id" :value="user.id">
+                      {{ user.name ? `${user.name} (${user.email || user.username})` : (user.email || user.username) }}
+                    </option>
+                  </b-select>
                 </b-field>
               </div>
-            </form>
+            </div>
+
+            <div class="columns">
+              <div class="column is-12">
+                <b-field label="Persona Signature (HTML / Markdown)" label-position="on-border" message="Signature appended to cold outreach sequences sent from this email account">
+                  <b-input v-model="item.signature" type="textarea" placeholder="Best regards,&#10;John Doe&#10;Account Executive" :rows="3" />
+                </b-field>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -345,10 +349,12 @@ export default Vue.extend({
     async fetchUsers() {
       try {
         const res = await this.$api.getUsers();
-        if (res && res.data && res.data.results) {
-          this.users = res.data.results;
-        } else if (Array.isArray(res.data)) {
+        if (Array.isArray(res)) {
+          this.users = res;
+        } else if (res && Array.isArray(res.data)) {
           this.users = res.data;
+        } else if (res && Array.isArray(res.results)) {
+          this.users = res.results;
         }
       } catch (err) {
         // Ignored

@@ -295,8 +295,7 @@ export default Vue.extend({
               wpm_std: 10,
               keyboard_layout: 'qwerty',
               max_typing_delay_sec: 30,
-              messages_per_day: 0,
-              messages_per_hour: 0,
+              max_send_per_day: 0,
             },
           ];
         }
