@@ -868,46 +868,96 @@ func initPostbackMessengers(ko *koanf.Koanf) []manager.Messenger {
 
 // initWAHAMessengers initializes and returns all the enabled
 // WAHA WhatsApp messenger backends.
-func initWAHAMessengers(ko *koanf.Koanf) []manager.Messenger {
-	items := ko.Slices("waha")
-	if len(items) == 0 {
+func initWAHAMessengers(co *core.Core, ko *koanf.Koanf) []manager.Messenger {
+	var (
+		out         []manager.Messenger
+		wahaConfigs []waha.Options
+	)
+
+	// Load dynamic WAHA settings from database if available
+	if co != nil {
+		if dbSettings, err := co.GetSettings(); err == nil && len(dbSettings.WAHASettings) > 0 {
+			for _, wm := range dbSettings.WAHASettings {
+				if !wm.Enabled {
+					continue
+				}
+				wHost := wm.Host
+				if wHost == "" {
+					wHost = wm.RootURL
+				}
+				dur, _ := time.ParseDuration(wm.Timeout)
+				o := waha.Options{
+					Name:              wm.Name,
+					Host:              wHost,
+					RootURL:           wHost,
+					APIKey:            wm.APIKey,
+					Session:           wm.Session,
+					PhoneAttribute:    wm.PhoneAttribute,
+					TypingDelayMs:     wm.TypingDelayMs,
+					TargetWPM:         wm.TargetWPM,
+					WPMStd:            wm.WPMStd,
+					KeyboardLayout:    wm.KeyboardLayout,
+					TypingMode:        wm.TypingMode,
+					MaxTypingDelaySec: wm.MaxTypingDelaySec,
+					MaxConns:          wm.MaxConns,
+					Timeout:           dur,
+				}
+				if o.Name == "" {
+					if o.Session != "" && o.Session != "default" {
+						o.Name = "whatsapp-" + o.Session
+					} else {
+						o.Name = "whatsapp"
+					}
+				}
+				wahaConfigs = append(wahaConfigs, o)
+			}
+		}
+	}
+
+	// Fallback to static config.toml if no database WAHA settings were loaded
+	if len(wahaConfigs) == 0 {
+		items := ko.Slices("waha")
+		for _, item := range items {
+			if !item.Bool("enabled") {
+				continue
+			}
+
+			var (
+				name = item.String("name")
+				o    waha.Options
+			)
+			if name == "" {
+				name = "whatsapp"
+			}
+			if err := item.UnmarshalWithConf("", &o, koanf.UnmarshalConf{Tag: "json"}); err != nil {
+				lo.Fatalf("error reading WAHA config: %v", err)
+			}
+			if o.Name == "" {
+				o.Name = name
+			}
+			wahaConfigs = append(wahaConfigs, o)
+		}
+	}
+
+	if len(wahaConfigs) == 0 {
 		return nil
 	}
 
-	var out []manager.Messenger
-	for _, item := range items {
-		if !item.Bool("enabled") {
-			continue
-		}
-
-		var (
-			name = item.String("name")
-			o    waha.Options
-		)
-		if name == "" {
-			name = "whatsapp"
-		}
-		if err := item.UnmarshalWithConf("", &o, koanf.UnmarshalConf{Tag: "json"}); err != nil {
-			lo.Fatalf("error reading WAHA config: %v", err)
-		}
-		if o.Name == "" {
-			o.Name = name
-		}
-
+	rootURL := ko.String("app.root_url")
+	for _, o := range wahaConfigs {
 		w, err := waha.New(o)
 		if err != nil {
-			lo.Fatalf("error initializing WAHA messenger %s: %v", name, err)
+			lo.Fatalf("error initializing WAHA messenger %s: %v", o.Name, err)
 		}
 
-		if rootURL := ko.String("app.root_url"); rootURL != "" {
+		if rootURL != "" {
 			if err := w.SyncWebhook(rootURL); err != nil {
-				lo.Printf("warning: failed to sync WAHA webhook for %s: %v", name, err)
+				lo.Printf("warning: failed to sync WAHA webhook for %s: %v", o.Name, err)
 			}
 		}
 
 		out = append(out, w)
-
-		lo.Printf("loaded WAHA messenger: %s", name)
+		lo.Printf("loaded WAHA messenger: %s (session: %s)", o.Name, o.Session)
 	}
 
 	return out
