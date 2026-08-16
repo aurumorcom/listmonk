@@ -96,7 +96,7 @@ type Settings struct {
 		MaxMsgRetries int    `json:"max_msg_retries"`
 	} `json:"messengers"`
 
-	WAHAMessengers []WAHAMessenger `json:"waha"`
+	WAHASettings []WAHASettings `json:"waha"`
 
 	BounceEnabled        bool `json:"bounce.enabled"`
 	BounceEnableWebhooks bool `json:"bounce.webhooks_enabled"`
@@ -151,12 +151,28 @@ type Settings struct {
 	PublicCustomJS  string `json:"appearance.public.custom_js"`
 }
 
+// IMAPSettings represents individual IMAP server and inbound account settings.
+type IMAPSettings struct {
+	Enabled       bool   `json:"enabled"`
+	Host          string `json:"host"`
+	Port          int    `json:"port"`
+	AuthProtocol  string `json:"auth_protocol"`
+	Username      string `json:"username"`
+	Password      string `json:"password,omitempty"`
+	TLSType       string `json:"tls_type"`
+	TLSSkipVerify bool   `json:"tls_skip_verify"`
+	Folder        string `json:"folder"`
+	Interval      string `json:"interval"`
+	MaxConns      int    `json:"max_conns"`
+	IdleTimeout   string `json:"idle_timeout"`
+	WaitTimeout   string `json:"wait_timeout"`
+	MaxRetries    int    `json:"max_retries"`
+	RetryDelay    string `json:"retry_delay"`
+}
+
 // SMTPSettings represents individual SMTP server and email account settings.
 type SMTPSettings struct {
 	Name          string              `json:"name"`
-	User          string              `json:"user"`
-	UserID        null.Int            `json:"user_id"`
-	Signature     string              `json:"signature"`
 	UUID          string              `json:"uuid"`
 	Enabled       bool                `json:"enabled"`
 	Host          string              `json:"host"`
@@ -175,45 +191,42 @@ type SMTPSettings struct {
 	TLSSkipVerify bool                `json:"tls_skip_verify"`
 	FromAddresses []string            `json:"from_addresses"`
 	MaxSendPerDay int                 `json:"max_send_per_day"`
-
-	// IMAP settings
-	IMAPEnabled       bool   `json:"imap_enabled"`
-	IMAPHost          string `json:"imap_host"`
-	IMAPPort          int    `json:"imap_port"`
-	IMAPAuthProtocol  string `json:"imap_auth_protocol"`
-	IMAPUsername      string `json:"imap_username"`
-	IMAPPassword      string `json:"imap_password,omitempty"`
-	IMAPTLSType       string `json:"imap_tls_type"`
-	IMAPTLSSkipVerify bool   `json:"imap_tls_skip_verify"`
-	IMAPFolder        string `json:"imap_folder"`
-	IMAPInterval      string `json:"imap_interval"`
-	IMAPMaxConns      int    `json:"imap_max_conns"`
-	IMAPIdleTimeout   string `json:"imap_idle_timeout"`
-	IMAPWaitTimeout   string `json:"imap_wait_timeout"`
-	IMAPMaxRetries    int    `json:"imap_max_retries"`
-	IMAPRetryDelay    string `json:"imap_retry_delay"`
+	Signature     string              `json:"signature"`
 }
 
-// WAHAMessenger represents individual WAHA messenger configuration settings.
-type WAHAMessenger struct {
-	UUID              string   `json:"uuid"`
-	Enabled           bool     `json:"enabled"`
-	Name              string   `json:"name"`
-	RootURL           string   `json:"root_url"`
-	APIKey            string   `json:"api_key,omitempty"`
-	Session           string   `json:"session"`
-	PhoneAttribute    string   `json:"phone_attribute"`
-	TypingDelayMs     int      `json:"typing_delay_ms"`
-	TargetWPM         int      `json:"target_wpm"`
-	WPMStd            float64  `json:"wpm_std"`
-	KeyboardLayout    string   `json:"keyboard_layout"`
-	TypingMode        string   `json:"typing_mode"`
-	MaxTypingDelaySec int      `json:"max_typing_delay_sec"`
-	MaxConns          int      `json:"max_conns"`
-	Timeout           string   `json:"timeout"`
-	MaxMsgRetries     int      `json:"max_msg_retries"`
-	MaxSendPerDay     int      `json:"max_send_per_day"`
-	UserID            null.Int `json:"user_id"`
-	User              string   `json:"user"`
-	Signature         string   `json:"signature"`
+// WAHASettings represents individual WAHA messenger configuration settings.
+type WAHASettings struct {
+	UUID              string  `json:"uuid"`
+	Enabled           bool    `json:"enabled"`
+	Name              string  `json:"name"`
+	Host              string  `json:"host"`
+	APIKey            string  `json:"api_key,omitempty"`
+	Session           string  `json:"session"`
+	PhoneAttribute    string  `json:"phone_attribute"`
+	TypingDelayMs     int     `json:"typing_delay_ms"`
+	TargetWPM         int     `json:"target_wpm"`
+	WPMStd            float64 `json:"wpm_std"`
+	KeyboardLayout    string  `json:"keyboard_layout"`
+	TypingMode        string  `json:"typing_mode"`
+	MaxTypingDelaySec int     `json:"max_typing_delay_sec"`
+	MaxConns          int     `json:"max_conns"`
+	Timeout           string  `json:"timeout"`
+	MaxMsgRetries     int     `json:"max_msg_retries"`
+	MaxSendPerDay     int     `json:"max_send_per_day"`
+	Signature         string  `json:"signature"`
+}
+
+// EmailSettings represents an email channel configuration combining SMTPSettings, IMAPSettings, and associated user.
+type EmailSettings struct {
+	SMTP   SMTPSettings `json:"smtp"`
+	IMAP   IMAPSettings `json:"imap"`
+	UserID null.Int     `json:"user_id"`
+	User   string       `json:"user"`
+}
+
+// WhatsappSettings represents a WhatsApp channel configuration combining WAHASettings and associated user.
+type WhatsappSettings struct {
+	WAHA   WAHASettings `json:"waha"`
+	UserID null.Int     `json:"user_id"`
+	User   string       `json:"user"`
 }

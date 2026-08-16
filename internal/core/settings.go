@@ -39,10 +39,6 @@ func (c *Core) GetSettings() (models.Settings, error) {
 			if len(em.SMTPConfig) > 0 {
 				smtpMap = em.SMTPConfig
 			}
-			var imapMap map[string]any
-			if len(em.IMAPConfig) > 0 {
-				imapMap = em.IMAPConfig
-			}
 
 			optMap, _ := smtpMap["opt"].(map[string]any)
 
@@ -101,7 +97,6 @@ func (c *Core) GetSettings() (models.Settings, error) {
 
 			entry := models.SMTPSettings{
 				Name:          em.Name,
-				UserID:        em.UserID,
 				Signature:     em.Signature,
 				UUID:          getString(smtpMap, "uuid", ""),
 				Enabled:       true,
@@ -118,12 +113,6 @@ func (c *Core) GetSettings() (models.Settings, error) {
 				MsgRetryDelay: retryDelay,
 				FromAddresses: fromAddrs,
 				MaxSendPerDay: em.MaxSendPerDay,
-				IMAPEnabled:   getBool(imapMap, "enabled", false),
-				IMAPHost:      getString(imapMap, "host", ""),
-				IMAPPort:      getInt(imapMap, "port", 993),
-				IMAPUsername:  getString(imapMap, "username", ""),
-				IMAPPassword:  getString(imapMap, "password", ""),
-				IMAPTLSType:   getString(imapMap, "tls_type", "TLS"),
 			}
 
 			smtpList = append(smtpList, entry)
@@ -195,22 +184,11 @@ func (c *Core) UpdateSettings(s models.Settings) error {
 				},
 			}
 
-			imapCfg := models.JSON{
-				"enabled":  item.IMAPEnabled || len(strings.TrimSpace(item.IMAPHost)) > 0,
-				"host":     item.IMAPHost,
-				"port":     item.IMAPPort,
-				"username": item.IMAPUsername,
-				"password": item.IMAPPassword,
-				"tls_type": item.IMAPTLSType,
-			}
-
 			if existing, ok := existingByEmail[strings.ToLower(emailAddr)]; ok {
 				// Update existing
 				existing.Name = item.Name
 				existing.SMTPConfig = smtpCfg
-				existing.IMAPConfig = imapCfg
 				existing.MaxSendPerDay = item.MaxSendPerDay
-				existing.UserID = item.UserID
 				existing.Signature = item.Signature
 				_, _ = c.UpdateEmail(existing)
 			} else {
@@ -219,9 +197,7 @@ func (c *Core) UpdateSettings(s models.Settings) error {
 					Name:          item.Name,
 					Email:         emailAddr,
 					SMTPConfig:    smtpCfg,
-					IMAPConfig:    imapCfg,
 					MaxSendPerDay: item.MaxSendPerDay,
-					UserID:        item.UserID,
 					Signature:     item.Signature,
 				}
 				_, _ = c.CreateEmail(newEmail)
