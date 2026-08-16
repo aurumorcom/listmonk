@@ -1,0 +1,26 @@
+---
+version: 2
+interactions:
+  - request:
+      proto: HTTP/1.1
+      proto_major: 1
+      proto_minor: 1
+      method: POST
+      host: litellm.aurumor.com
+      url: https://litellm.aurumor.com/v1/chat/completions
+      headers:
+        Content-Type:
+          - application/json
+        X-Api-Key:
+          - "[REDACTED]"
+      body: '{"model":"gemini-3.5-flash-lite","messages":[{"role":"system","content":"Classify inbound reply intent."},{"role":"user","content":"I would love to learn more and see a demo!"}]}'
+    response:
+      proto: HTTP/1.1
+      proto_major: 1
+      proto_minor: 1
+      status: 200 OK
+      code: 200
+      headers:
+        Content-Type:
+          - application/json
+      body: '{"id":"chatcmpl-classify-mock","object":"chat.completion","created":1700000000,"model":"gemini-3.5-flash-lite","choices":[{"index":0,"message":{"role":"assistant","content":"{\"intent\":\"interested\",\"reason\":\"User requested a demo and expressed positive interest.\",\"ooo_until\":\"\"}"},"finish_reason":"stop"}]}'
