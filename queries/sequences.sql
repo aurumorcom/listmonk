@@ -56,7 +56,15 @@ JOIN subscriber_lists subl ON subl.list_id = sl.list_id
     )
 JOIN subscribers s ON s.id = subl.subscriber_id AND s.status = 'enabled'
 WHERE sl.sequence_id = $1
-ON CONFLICT (sequence_id, subscriber_id) DO NOTHING;
+ON CONFLICT (sequence_id, subscriber_id) DO UPDATE SET
+    status = CASE
+        WHEN sequence_contacts.status = 'opted_out' THEN 'scheduled'
+        ELSE sequence_contacts.status
+    END,
+    next_send_at = CASE
+        WHEN sequence_contacts.status = 'opted_out' THEN NOW()
+        ELSE sequence_contacts.next_send_at
+    END;
 
 -- name: enroll-subscribers-into-active-sequences-for-lists
 INSERT INTO sequence_contacts (sequence_id, subscriber_id, status, current_step, next_send_at)
@@ -71,7 +79,15 @@ JOIN lists l ON l.id = sl.list_id
     )
 JOIN sequences seq ON seq.id = sl.sequence_id AND seq.status = 'active'
 WHERE s.id = ANY($1::INT[]) AND subl.list_id = ANY($2::INT[]) AND s.status = 'enabled'
-ON CONFLICT (sequence_id, subscriber_id) DO NOTHING;
+ON CONFLICT (sequence_id, subscriber_id) DO UPDATE SET
+    status = CASE
+        WHEN sequence_contacts.status = 'opted_out' THEN 'scheduled'
+        ELSE sequence_contacts.status
+    END,
+    next_send_at = CASE
+        WHEN sequence_contacts.status = 'opted_out' THEN NOW()
+        ELSE sequence_contacts.next_send_at
+    END;
 
 -- name: optout-subscribers-from-sequences-for-removed-lists
 UPDATE sequence_contacts sc

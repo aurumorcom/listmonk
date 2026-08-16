@@ -66,7 +66,15 @@ func (c *Core) AddSubscriptionsByQuery(searchStr, queryExp string, sourceListIDs
 				JOIN sequences seq ON seq.id = sl.sequence_id AND seq.status = 'active'
 				JOIN subscribers s ON s.id = subl.subscriber_id AND s.status = 'enabled'
 				WHERE sl.list_id = $1
-				ON CONFLICT (sequence_id, subscriber_id) DO NOTHING`, lID)
+				ON CONFLICT (sequence_id, subscriber_id) DO UPDATE SET
+					status = CASE
+						WHEN sequence_contacts.status = 'opted_out' THEN 'scheduled'
+						ELSE sequence_contacts.status
+					END,
+					next_send_at = CASE
+						WHEN sequence_contacts.status = 'opted_out' THEN NOW()
+						ELSE sequence_contacts.next_send_at
+					END`, lID)
 		}
 	}
 
