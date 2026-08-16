@@ -143,6 +143,29 @@
 
             <hr />
 
+            <div class="columns">
+              <div class="column is-12">
+                <b-field label="Signature" label-position="on-border" message="Signature appended to cold outreach sequences sent from this WhatsApp session (supports HTML & Markdown)">
+                  <b-input v-model="item.signature" type="textarea" placeholder="Best regards,&#10;John Doe&#10;Account Executive" :rows="3" />
+                </b-field>
+              </div>
+            </div>
+
+            <div class="columns">
+              <div class="column is-6">
+                <b-field label="User" label-position="on-border" message="User who owns this channel for personal outreach sequences">
+                  <b-select v-model="item.user_id" placeholder="Select user..." expanded>
+                    <option :value="null">&mdash; {{ $t("globals.terms.none") }} &mdash;</option>
+                    <option v-for="user in users" :key="user.id" :value="user.id">
+                      {{ user.name ? `${user.name} (${user.email || user.username})` : (user.email || user.username) }}
+                    </option>
+                  </b-select>
+                </b-field>
+              </div>
+            </div>
+
+            <hr />
+
             <!-- Test Connection Section -->
             <form>
               <div class="columns">
@@ -174,29 +197,6 @@
                 </b-field>
               </div>
             </form>
-
-            <hr />
-
-            <div class="columns">
-              <div class="column is-6">
-                <b-field label="Assigned User" label-position="on-border" message="User who owns this channel for personal outreach sequences">
-                  <b-select v-model="item.user_id" placeholder="Select assigned user..." expanded>
-                    <option :value="null">&mdash; {{ $t("globals.terms.none") }} &mdash;</option>
-                    <option v-for="user in users" :key="user.id" :value="user.id">
-                      {{ user.name ? `${user.name} (${user.email || user.username})` : (user.email || user.username) }}
-                    </option>
-                  </b-select>
-                </b-field>
-              </div>
-            </div>
-
-            <div class="columns">
-              <div class="column is-12">
-                <b-field label="Persona Signature (HTML / Markdown)" label-position="on-border" message="Signature appended to cold outreach sequences sent from this WhatsApp session">
-                  <b-input v-model="item.signature" type="textarea" placeholder="Best regards,&#10;John Doe&#10;Account Executive" :rows="3" />
-                </b-field>
-              </div>
-            </div>
           </div>
         </div>
       </div>
