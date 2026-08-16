@@ -1,3 +1,5 @@
+//go:build integration || e2e || resilience || !unit
+
 package main
 
 import (
@@ -7,6 +9,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1371,7 +1375,7 @@ func TestE2E_Sequence_WAHA_WhatsApp_Lifecycle(t *testing.T) {
 			Messenger:        "waha",
 			MessengerSession: senderSess.Name,
 			Subject:          step1.Subject,
-			Body:             []byte(fmt.Sprintf("🚀 [Listmonk Sequence E2E Step 1] Tracked link: %s", "http://localhost:9000/r/waha-seq-deal")),
+			Body:             []byte(fmt.Sprintf("🧪 *TEST:* TestE2E_WhatsAppSequenceLifecycle\n📁 *SUITE:* E2E/Sequences\n🎯 *ACTION:* Sequence Step 1 Dispatch (Direct WhatsApp Text)\n👤 *RECIPIENT:* Contact {{ .Subscriber.Name }}\n✅ *EXPECTED:* Message ACK receipt, last_read_at timestamp update\n🔗 *TRACKED LINK:* %s", "http://localhost:9000/r/waha-seq-deal")),
 			Subscriber: models.Subscriber{
 				Base:  models.Base{ID: subID},
 				Phone: null.StringFrom(receiverSess.Phone),
@@ -1594,7 +1598,7 @@ func TestE2E_Sequence_Mixed_Messenger_Lifecycle(t *testing.T) {
 			Messenger:        "waha",
 			MessengerSession: senderSess.Name,
 			Subject:          step2.Subject,
-			Body:             []byte(fmt.Sprintf("🚀 [Listmonk Mixed E2E Step 2 WhatsApp] %s", step2.Body)),
+			Body:             []byte(fmt.Sprintf("🧪 *TEST:* TestE2E_MixedSequenceLifecycle\n📁 *SUITE:* E2E/MixedSequences\n🎯 *ACTION:* Sequence Step 2 Dispatch (WhatsApp Follow-Up)\n👤 *RECIPIENT:* Contact {{ .Subscriber.Name }}\n✅ *EXPECTED:* Cross-channel sender stickiness (User Alice session waha-alice-1)\n🔗 *TRACKED LINK:* %s", "http://localhost:9000/r/mixed-exclusive")),
 			Subscriber: models.Subscriber{
 				Base:  models.Base{ID: subID},
 				Phone: null.StringFrom(receiverSess.Phone),
@@ -1782,7 +1786,7 @@ func TestE2E_Sequence_TestMessage_MailHog_And_WAHA_Routing(t *testing.T) {
 		StepNumber:       2,
 		Messenger:        "whatsapp",
 		Subject:          "E2E Test Message: WAHA WhatsApp",
-		Body:             "🚀 *Test WhatsApp Step Message from Listmonk*",
+		Body:             "🧪 *TEST:* TestE2E_Sequence_TestMessage_MailHog_And_WAHA_Routing\n📁 *SUITE:* E2E/Sequences\n🎯 *ACTION:* Test Message Delivery Verification\n👤 *RECIPIENT:* WhatsApp Target\n✅ *EXPECTED:* Successful routing to WAHA messenger",
 		SubscriberEmails: []string{receiverSess.Phone},
 	}
 
@@ -2218,4 +2222,50 @@ func TestE2E_Campaign_And_Sequence_DispatchParity(t *testing.T) {
 	}
 
 	t.Log("Successfully verified 100% compilation and template parity between Campaign and Sequence pipelines")
+}
+
+func TestResilience_SequenceWorker_ConcurrentTickContention(t *testing.T) {
+	msgr := &mockCmdMessenger{name: "email"}
+	seqMgr := sequence.NewManager(nil, map[string]manager.Messenger{"email": msgr}, nil, nil)
+
+	const numWorkers = 10
+	sub := models.Subscriber{
+		Name:    "Resilience Target",
+		Email:   "resilience@test.com",
+		Attribs: models.JSON{"company": "Contention Corp"},
+	}
+	step := models.SequenceStep{
+		ID:         1,
+		SequenceID: 100,
+		StepNumber: 1,
+		Messenger:  "email",
+		Subject:    "Resilience Check",
+		Body:       "Concurrent dispatch test",
+	}
+	seqContact := models.SequenceContact{
+		SequenceID:   100,
+		SubscriberID: 1001,
+	}
+
+	var errCount int64
+	var wg sync.WaitGroup
+
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			err := seqMgr.PrepareAndDispatchStep(seqContact, sub, step, "sender@test.com")
+			if err != nil {
+				atomic.AddInt64(&errCount, 1)
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	if errCount > 0 {
+		t.Errorf("encountered %d errors during 10-worker sequence dispatch contention", errCount)
+	}
+
+	t.Logf("Successfully completed %d concurrent sequence worker dispatch attempts without panics or errors", numWorkers)
 }

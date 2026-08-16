@@ -1,3 +1,5 @@
+//go:build integration || e2e || resilience || !unit
+
 package main
 
 import (
@@ -9,6 +11,8 @@ import (
 	"net/http/httptest"
 	"regexp"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -306,7 +310,7 @@ func TestE2E_Campaign_WhatsApp_WAHA(t *testing.T) {
 
 	msgID := fmt.Sprintf("3EB0CAMP%d", time.Now().UnixNano()%10000000)
 	trackedLink := "http://localhost:9000/r/waha-campaign-special"
-	campaignBody := fmt.Sprintf("🚀 [Listmonk Campaign E2E] Dynamic dual-session WhatsApp campaign test! Tracked link: %s", trackedLink)
+	campaignBody := fmt.Sprintf("🧪 *TEST:* TestE2E_WAHABulkCampaignLifecycle\n📁 *SUITE:* E2E/Campaigns\n🎯 *ACTION:* Bulk WhatsApp Campaign Dispatch via WAHA Dual-Session\n👤 *RECIPIENT:* Subscriber {{ .Subscriber.Name }} (+14155552671)\n✅ *EXPECTED:* Session load balancing, read receipt webhook emission\n🔗 *TRACKED LINK:* %s", trackedLink)
 
 	// Send message targeting the receiver's phone number
 	msg := models.Message{
@@ -468,7 +472,7 @@ func TestE2E_SendTestMessageBox_WhatsApp_WAHA(t *testing.T) {
 
 	testWhatsAppMsg := models.Message{
 		Subject:          "Test WhatsApp from UI Box",
-		Body:             []byte("🚀 Hello from the Send test message box on WhatsApp!"),
+		Body:             []byte("🧪 *TEST:* TestIntegration_Campaign_SendTestMessageBox\n📁 *SUITE:* Integration/Campaigns\n🎯 *ACTION:* Test Message Dispatch Endpoint (POST /api/campaigns/:id/test)\n👤 *RECIPIENT:* Test Target (+14155552671)\n✅ *EXPECTED:* Verification of real-time messenger session routing"),
 		MessengerSession: senderSess.Name,
 		Subscriber: models.Subscriber{
 			Base:  models.Base{ID: 1},
@@ -613,4 +617,37 @@ func TestCampaignBypassesMessengerDailyQuota(t *testing.T) {
 	}
 
 	t.Log("Successfully verified that broadcast campaign dispatch operates independently of messenger daily quotas")
+}
+
+func TestResilience_CampaignManager_MultiWorkerThreadContention(t *testing.T) {
+	const numWorkers = 20
+	var wg sync.WaitGroup
+	var processCount int64
+
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go func(workerID int) {
+			defer wg.Done()
+			// Simulate concurrent message compilation and worker processing
+			camp := models.Campaign{
+				Base:        models.Base{ID: workerID},
+				Name:        fmt.Sprintf("Concurrent Campaign %d", workerID),
+				Subject:     "Bulk Test Subject",
+				Body:        "Bulk test body content",
+				ContentType: "richtext",
+			}
+			err := camp.CompileTemplate(nil)
+			if err == nil {
+				atomic.AddInt64(&processCount, 1)
+			}
+		}(i)
+	}
+
+	wg.Wait()
+
+	if processCount != numWorkers {
+		t.Errorf("expected %d worker thread compilations to succeed, got %d", numWorkers, processCount)
+	}
+
+	t.Logf("Successfully executed %d parallel campaign worker thread compilations without contention errors", numWorkers)
 }

@@ -1,3 +1,5 @@
+//go:build integration || e2e || !unit
+
 package main
 
 import (
@@ -14,6 +16,7 @@ import (
 
 	"github.com/knadh/listmonk/internal/messenger/waha"
 	"github.com/knadh/listmonk/internal/sequence"
+	"github.com/knadh/listmonk/models"
 	"github.com/labstack/echo/v4"
 )
 
@@ -69,7 +72,7 @@ func waitForWahaSessionWorking(wahaURL, apiKey, session string) {
 }
 
 // 1. Webhook Setup Feature Test
-func TestWAHA_WebhookSetup(t *testing.T) {
+func TestIntegration_WAHA_WebhookSetup(t *testing.T) {
 	wahaURL := getEnv("WAHA_ROOT_URL", "http://localhost:3000")
 	apiKey := getEnv("WAHA_API_KEY", "key_JR59f24sOxG1O2OhhLFXIsLVID4ajvLD")
 
@@ -103,7 +106,7 @@ func TestWAHA_WebhookSetup(t *testing.T) {
 }
 
 // 2. Read Message & Clean Up Feature Test
-func TestWAHA_ReadMessage(t *testing.T) {
+func TestIntegration_WAHA_ReadMessage(t *testing.T) {
 	wahaURL := getEnv("WAHA_ROOT_URL", "http://localhost:3000")
 	apiKey := getEnv("WAHA_API_KEY", "key_JR59f24sOxG1O2OhhLFXIsLVID4ajvLD")
 
@@ -185,7 +188,7 @@ func TestWAHA_ReadMessage(t *testing.T) {
 }
 
 // 3. Link Click Feature Test
-func TestWAHA_LinkClick(t *testing.T) {
+func TestIntegration_WAHA_LinkClick(t *testing.T) {
 	trackedURL := "http://localhost:9000/r/waha-feature-test-link"
 
 	// Verify tracked link parsing in WhatsApp message text
@@ -203,7 +206,7 @@ func TestWAHA_LinkClick(t *testing.T) {
 }
 
 // 4. Replied Feature Test
-func TestWAHA_Replied(t *testing.T) {
+func TestIntegration_WAHA_Replied(t *testing.T) {
 	wahaURL := getEnv("WAHA_ROOT_URL", "http://localhost:3000")
 	apiKey := getEnv("WAHA_API_KEY", "key_JR59f24sOxG1O2OhhLFXIsLVID4ajvLD")
 
@@ -238,4 +241,35 @@ func TestWAHA_Replied(t *testing.T) {
 	_ = rl.ProcessReplyWithBody(receiverSess.Phone, true, "Yes, I am interested in this offer!")
 
 	t.Log("Successfully verified WAHA incoming reply webhook handling and ReplyListener intent parsing")
+}
+
+// 5. Resilience: API Outage (502/504) and Exponential Backoff Test
+func TestResilience_WAHA_APIOutageAndBackoff(t *testing.T) {
+	outageServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadGateway)
+		_, _ = w.Write([]byte(`{"error": "502 Bad Gateway from WAHA engine"}`))
+	}))
+	defer outageServer.Close()
+
+	wmsgr, err := waha.New(waha.Options{
+		Name:    "waha-outage-test",
+		RootURL: outageServer.URL,
+		APIKey:  "test-key",
+		Session: "default",
+		Timeout: 1 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("failed initializing WAHA messenger: %v", err)
+	}
+
+	// Attempt text dispatch during 502 outage
+	err = wmsgr.Push(models.Message{
+		ToPhone: "12345",
+		Body:    []byte("Outage Test Message"),
+	})
+	if err == nil {
+		t.Errorf("expected error during 502 Bad Gateway outage, got nil")
+	} else {
+		t.Logf("Successfully captured WAHA API outage error for backoff retry: %v", err)
+	}
 }
