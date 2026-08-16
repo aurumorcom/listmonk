@@ -98,6 +98,7 @@ func (c *Core) GetSettings() (models.Settings, error) {
 			entry := models.SMTPSettings{
 				Name:          em.Name,
 				Signature:     em.Signature,
+				UserID:        em.UserID,
 				UUID:          getString(smtpMap, "uuid", ""),
 				Enabled:       true,
 				Host:          host,
@@ -190,6 +191,7 @@ func (c *Core) UpdateSettings(s models.Settings) error {
 				existing.SMTPConfig = smtpCfg
 				existing.MaxSendPerDay = item.MaxSendPerDay
 				existing.Signature = item.Signature
+				existing.UserID = item.UserID
 				_, _ = c.UpdateEmail(existing)
 			} else {
 				// Create new
@@ -199,6 +201,7 @@ func (c *Core) UpdateSettings(s models.Settings) error {
 					SMTPConfig:    smtpCfg,
 					MaxSendPerDay: item.MaxSendPerDay,
 					Signature:     item.Signature,
+					UserID:        item.UserID,
 				}
 				_, _ = c.CreateEmail(newEmail)
 			}

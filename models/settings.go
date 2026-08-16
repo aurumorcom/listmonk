@@ -197,6 +197,8 @@ type SMTPSettings struct {
 	MaxSendPerDay int                 `json:"max_send_per_day"`
 	SentToday     map[string]int      `json:"sent_today,omitempty"`
 	Signature     string              `json:"signature"`
+	UserID        null.Int            `json:"user_id"`
+	User          string              `json:"user,omitempty"`
 }
 
 // UnmarshalJSON implements custom JSON unmarshaling for SMTPSettings to support both
@@ -267,25 +269,27 @@ func (s *SMTPSettings) UnmarshalJSON(b []byte) error {
 
 // WAHASettings represents individual WAHA messenger configuration settings.
 type WAHASettings struct {
-	UUID              string  `json:"uuid"`
-	Enabled           bool    `json:"enabled"`
-	Name              string  `json:"name"`
-	Host              string  `json:"host"`
-	RootURL           string  `json:"root_url,omitempty"`
-	APIKey            string  `json:"api_key,omitempty"`
-	Session           string  `json:"session"`
-	PhoneAttribute    string  `json:"phone_attribute"`
-	TypingDelayMs     int     `json:"typing_delay_ms"`
-	TargetWPM         int     `json:"target_wpm"`
-	WPMStd            float64 `json:"wpm_std"`
-	KeyboardLayout    string  `json:"keyboard_layout"`
-	TypingMode        string  `json:"typing_mode"`
-	MaxTypingDelaySec int     `json:"max_typing_delay_sec"`
-	MaxConns          int     `json:"max_conns"`
-	Timeout           string  `json:"timeout"`
-	MaxMsgRetries     int     `json:"max_msg_retries"`
-	MaxSendPerDay     int     `json:"max_send_per_day"`
-	Signature         string  `json:"signature"`
+	UUID              string   `json:"uuid"`
+	Enabled           bool     `json:"enabled"`
+	Name              string   `json:"name"`
+	Host              string   `json:"host"`
+	RootURL           string   `json:"root_url,omitempty"`
+	APIKey            string   `json:"api_key,omitempty"`
+	Session           string   `json:"session"`
+	PhoneAttribute    string   `json:"phone_attribute"`
+	TypingDelayMs     int      `json:"typing_delay_ms"`
+	TargetWPM         int      `json:"target_wpm"`
+	WPMStd            float64  `json:"wpm_std"`
+	KeyboardLayout    string   `json:"keyboard_layout"`
+	TypingMode        string   `json:"typing_mode"`
+	MaxTypingDelaySec int      `json:"max_typing_delay_sec"`
+	MaxConns          int      `json:"max_conns"`
+	Timeout           string   `json:"timeout"`
+	MaxMsgRetries     int      `json:"max_msg_retries"`
+	MaxSendPerDay     int      `json:"max_send_per_day"`
+	Signature         string   `json:"signature"`
+	UserID            null.Int `json:"user_id"`
+	User              string   `json:"user,omitempty"`
 }
 
 // EmailSettings represents an email channel configuration combining SMTPSettings, IMAPSettings, and associated user.
