@@ -7,12 +7,14 @@ import (
 	"fmt"
 	htmltpl "html/template"
 	"log"
+	"maps"
 	"net/textproto"
 	"strings"
 	"sync"
 	txttpl "text/template"
 	"time"
 
+	"github.com/Masterminds/sprig/v3"
 	"github.com/gofrs/uuid/v5"
 	"github.com/knadh/listmonk/internal/auth"
 	"github.com/knadh/listmonk/internal/core"
@@ -34,6 +36,53 @@ type Manager struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
+}
+
+// TemplateFuncs returns template functions to be applied during sequence step rendering.
+func (m *Manager) TemplateFuncs() htmltpl.FuncMap {
+	f := htmltpl.FuncMap{
+		"TrackLink": func(url string, args ...any) string {
+			return url
+		},
+		"TrackView": func(args ...any) htmltpl.HTML {
+			return htmltpl.HTML("")
+		},
+		"UnsubscribeURL": func(args ...any) string {
+			return ""
+		},
+		"ManageURL": func(args ...any) string {
+			return ""
+		},
+		"OptinURL": func(args ...any) string {
+			return ""
+		},
+		"MessageURL": func(args ...any) string {
+			return ""
+		},
+		"ArchiveURL": func() string {
+			return ""
+		},
+		"RootURL": func() string {
+			return ""
+		},
+		"Date": func(layout string) string {
+			if layout == "" {
+				layout = time.ANSIC
+			}
+			return time.Now().Format(layout)
+		},
+		"Safe": func(safeHTML string) htmltpl.HTML {
+			return htmltpl.HTML(safeHTML)
+		},
+	}
+
+	sprigFuncs := sprig.GenericFuncMap()
+	delete(sprigFuncs, "env")
+	delete(sprigFuncs, "expandenv")
+	delete(sprigFuncs, "getHostByName")
+
+	maps.Copy(f, sprigFuncs)
+	return f
 }
 
 // SetBifrostClient sets the Bifrost AI client on the sequence manager.
@@ -389,7 +438,8 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceContact, contact mod
 				TemplateBody: tpl.Body,
 				Body:         step.Body,
 			}
-			if err := camp.CompileTemplate(htmltpl.FuncMap{}); err == nil {
+			funcs := m.TemplateFuncs()
+			if err := camp.CompileTemplate(funcs); err == nil {
 				var buf bytes.Buffer
 				if err := camp.Tpl.ExecuteTemplate(&buf, models.BaseTpl, scope); err == nil {
 					msg.Body = buf.Bytes()
@@ -397,14 +447,18 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceContact, contact mod
 			}
 		}
 	} else {
-		// Plain text / standard template interpolation
-		if ut, err := txttpl.New("body").Parse(string(msg.Body)); err == nil {
+		// Plain text / standard template interpolation with full FuncMap and shorthand tags replacement
+		funcs := txttpl.FuncMap(m.TemplateFuncs())
+		bodyStr := models.SubstituteTplShorthand(string(msg.Body))
+		subjStr := models.SubstituteTplShorthand(msg.Subject)
+
+		if ut, err := txttpl.New("body").Funcs(funcs).Parse(bodyStr); err == nil {
 			var ub bytes.Buffer
 			if err := ut.Execute(&ub, scope); err == nil {
 				msg.Body = ub.Bytes()
 			}
 		}
-		if st, err := txttpl.New("subj").Parse(msg.Subject); err == nil {
+		if st, err := txttpl.New("subj").Funcs(funcs).Parse(subjStr); err == nil {
 			var sb bytes.Buffer
 			if err := st.Execute(&sb, scope); err == nil {
 				msg.Subject = sb.String()
@@ -460,10 +514,8 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceContact, contact mod
 	if overrideRecipient != "" {
 		if strings.Contains(overrideRecipient, "@") {
 			msg.To = []string{overrideRecipient}
-			msg.Subscriber.Email = overrideRecipient
 		} else {
 			msg.ToPhone = overrideRecipient
-			msg.Subscriber.Phone = null.StringFrom(overrideRecipient)
 		}
 	}
 
