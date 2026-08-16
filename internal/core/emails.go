@@ -102,8 +102,26 @@ func (c *Core) IncrementEmailSent(id int) error {
 	return err
 }
 
+// IncrementEmailAddressSent atomically increments daily sent count for a specific address inside smtp_config JSON.
+func (c *Core) IncrementEmailAddressSent(id int, addr string) error {
+	if addr != "" {
+		query := `
+			UPDATE emails 
+			SET sent_today = sent_today + 1,
+				smtp_config = jsonb_set(
+					COALESCE(smtp_config, '{}'::jsonb), 
+					ARRAY['sent_today', $2], 
+					(COALESCE(smtp_config->'sent_today'->$2, '0')::int + 1)::text::jsonb
+				) 
+			WHERE id = $1`
+		_, err := c.db.Exec(query, id, addr)
+		return err
+	}
+	return c.IncrementEmailSent(id)
+}
+
 // ResetEmailDailyCounts resets daily counts across all email accounts.
 func (c *Core) ResetEmailDailyCounts() error {
-	_, err := c.db.Exec("UPDATE emails SET sent_today = 0")
+	_, err := c.db.Exec("UPDATE emails SET sent_today = 0, smtp_config = jsonb_set(smtp_config, '{sent_today}', '{}'::jsonb)")
 	return err
 }
