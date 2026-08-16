@@ -141,8 +141,6 @@
               </div>
             </div>
 
-            <hr />
-
             <div class="columns">
               <div class="column is-12">
                 <b-field label="Signature" label-position="on-border" message="Signature appended to cold outreach sequences sent from this WhatsApp session (supports HTML & Markdown)">
