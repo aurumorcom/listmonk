@@ -89,6 +89,7 @@ type SequenceContact struct {
 	SequenceID      int         `db:"sequence_id" json:"sequence_id"`
 	SubscriberID    int         `db:"subscriber_id" json:"subscriber_id"`
 	EmailID         null.Int    `db:"email_id" json:"email_id"`
+	FromAddress     null.String `db:"from_address" json:"from_address"`
 	WahaSession     null.String `db:"waha_session" json:"waha_session"`
 	Status          string      `db:"status" json:"status"`
 	CurrentStep     int         `db:"current_step" json:"current_step"`

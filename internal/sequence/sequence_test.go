@@ -367,3 +367,180 @@ func TestSequence_PrepareAndDispatchStep_ThreadingHeaders(t *testing.T) {
 		t.Errorf("expected References '<thread-root-123@listmonk>', got '%s'", lastMsg.Headers.Get("References"))
 	}
 }
+
+func TestSequence_PrepareAndDispatchStep_MissingWhatsAppMessenger_ReturnsError(t *testing.T) {
+	emailMsgr := &mockSeqMessenger{name: "email"}
+	mgr := &Manager{
+		messengers: map[string]manager.Messenger{
+			"email": emailMsgr,
+		},
+	}
+
+	step := models.SequenceStep{
+		StepNumber: 1,
+		Messenger:  "whatsapp",
+		Subject:    "WAHA Step",
+		Body:       "Hello via WhatsApp",
+	}
+
+	contact := models.Subscriber{
+		Name:  "Target Contact",
+		Phone: null.StringFrom("+918935885359"),
+	}
+	seqContact := models.SequenceContact{
+		SequenceID:   10,
+		SubscriberID: 100,
+	}
+
+	err := mgr.PrepareAndDispatchStep(seqContact, contact, step, "+918935885359")
+	if err == nil {
+		t.Fatal("expected error when WhatsApp messenger is missing, got nil")
+	}
+
+	if len(emailMsgr.pushed) != 0 {
+		t.Fatalf("expected 0 email messages pushed on WhatsApp failure, got %d", len(emailMsgr.pushed))
+	}
+}
+
+func TestEmail_SMTPSettings_SentTodayMap(t *testing.T) {
+	emailAcct := models.Email{
+		Name:          "Sales Rep Account",
+		Email:         "smtp_login@acme.com",
+		MaxSendPerDay: 50,
+		SMTPConfig: models.JSON{
+			"from_addresses": []any{"rep1@acme.com", "rep2@acme.com"},
+			"sent_today": map[string]any{
+				"rep1@acme.com": 15,
+				"rep2@acme.com": 20,
+			},
+		},
+	}
+
+	addrs := emailAcct.FromAddresses()
+	if len(addrs) != 2 || addrs[0] != "rep1@acme.com" || addrs[1] != "rep2@acme.com" {
+		t.Fatalf("unexpected FromAddresses: %v", addrs)
+	}
+
+	if emailAcct.GetAddressSent("rep1@acme.com") != 15 {
+		t.Errorf("expected 15 sent for rep1@acme.com, got %d", emailAcct.GetAddressSent("rep1@acme.com"))
+	}
+	if emailAcct.GetAddressSent("rep2@acme.com") != 20 {
+		t.Errorf("expected 20 sent for rep2@acme.com, got %d", emailAcct.GetAddressSent("rep2@acme.com"))
+	}
+	if emailAcct.GetTotalSent() != 35 {
+		t.Errorf("expected total sent 35, got %d", emailAcct.GetTotalSent())
+	}
+}
+
+func TestSequence_ContactStickyFromAddress_TestVsProdRouting(t *testing.T) {
+	msgr := &mockSeqMessenger{name: "email"}
+	mgr := &Manager{
+		messengers: map[string]manager.Messenger{
+			"email": msgr,
+		},
+	}
+
+	step := models.SequenceStep{
+		StepNumber: 1,
+		Messenger:  "email",
+		Subject:    "Welcome",
+		Body:       "Hello contact",
+	}
+
+	contact := models.Subscriber{
+		Name:  "Lead Person",
+		Email: "lead@client.com",
+		Attribs: models.JSON{
+			"user": map[string]any{
+				"name": "Active Admin User",
+			},
+		},
+	}
+
+	seqContact := models.SequenceContact{
+		SequenceID:   1,
+		SubscriberID: 10,
+		FromAddress:  null.StringFrom("sticky.rep@acme.com"),
+	}
+
+	// 1. Test Mode dispatch (overrideRecipient != "")
+	err := mgr.PrepareAndDispatchStep(seqContact, contact, step, "preview.admin@company.com")
+	if err != nil {
+		t.Fatalf("Test mode PrepareAndDispatchStep failed: %v", err)
+	}
+
+	if len(msgr.pushed) != 1 {
+		t.Fatalf("expected 1 message pushed in test mode, got %d", len(msgr.pushed))
+	}
+
+	testMsg := msgr.pushed[0]
+	if testMsg.To[0] != "preview.admin@company.com" {
+		t.Errorf("expected test destination 'preview.admin@company.com', got '%s'", testMsg.To[0])
+	}
+	if testMsg.From != "Active Admin User <sticky.rep@acme.com>" {
+		t.Errorf("expected test sender 'Active Admin User <sticky.rep@acme.com>', got '%s'", testMsg.From)
+	}
+
+	// Reset mock messenger
+	msgr.pushed = nil
+
+	// 2. Production Mode dispatch (overrideRecipient == "")
+	err = mgr.PrepareAndDispatchStep(seqContact, contact, step, "")
+	if err != nil {
+		t.Fatalf("Prod mode PrepareAndDispatchStep failed: %v", err)
+	}
+
+	if len(msgr.pushed) != 1 {
+		t.Fatalf("expected 1 message pushed in prod mode, got %d", len(msgr.pushed))
+	}
+
+	prodMsg := msgr.pushed[0]
+	if prodMsg.To[0] != "lead@client.com" {
+		t.Errorf("expected prod destination 'lead@client.com', got '%s'", prodMsg.To[0])
+	}
+	if prodMsg.From != "Test Account <sticky.rep@acme.com>" {
+		t.Errorf("expected prod sender 'Test Account <sticky.rep@acme.com>', got '%s'", prodMsg.From)
+	}
+}
+
+func TestSequence_PerAddressDailyLimitFailover(t *testing.T) {
+	msgr := &mockSeqMessenger{name: "email"}
+	mgr := &Manager{
+		messengers: map[string]manager.Messenger{
+			"email": msgr,
+		},
+	}
+
+	step := models.SequenceStep{
+		StepNumber: 1,
+		Messenger:  "email",
+		Subject:    "Outreach",
+		Body:       "Body text",
+	}
+
+	contact := models.Subscriber{
+		Name:  "Lead",
+		Email: "target@lead.com",
+	}
+
+	// Contact assigned to primary@acme.com
+	seqContact := models.SequenceContact{
+		SequenceID:   1,
+		SubscriberID: 10,
+		FromAddress:  null.StringFrom("primary@acme.com"),
+	}
+
+	// Dispatch in test mode with sticky address
+	err := mgr.PrepareAndDispatchStep(seqContact, contact, step, "preview@admin.com")
+	if err != nil {
+		t.Fatalf("PrepareAndDispatchStep failed: %v", err)
+	}
+
+	if len(msgr.pushed) != 1 {
+		t.Fatalf("expected 1 pushed message, got %d", len(msgr.pushed))
+	}
+
+	if msgr.pushed[0].From != "Test Account <primary@acme.com>" {
+		t.Errorf("expected From header 'Test Account <primary@acme.com>', got '%s'", msgr.pushed[0].From)
+	}
+}

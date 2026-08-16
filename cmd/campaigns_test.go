@@ -126,7 +126,7 @@ func TestE2E_Campaign_Email_MailHog(t *testing.T) {
 <img src="http://localhost:9000/campaign/%s/%s/px.png" alt="tracker">`, linkUUID, campUUID, subUUID, campUUID, subUUID)
 
 	msg := models.Message{
-		From:    "Listmonk Campaign <noreply@listmonk.app>",
+		From:    "Listmonk Campaign <campaign@listmonk.app>",
 		To:      []string{recipientEmail},
 		Subject: "E2E Campaign Test Subject",
 		Body:    []byte(rawBody),

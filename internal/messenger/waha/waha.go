@@ -22,6 +22,7 @@ import (
 // Options represents WAHA messenger options.
 type Options struct {
 	Name              string        `json:"name"`
+	Host              string        `json:"host"`
 	RootURL           string        `json:"root_url"`
 	APIKey            string        `json:"api_key"`
 	Session           string        `json:"session"`
@@ -69,6 +70,12 @@ type filePayload struct {
 
 // New returns a new instance of the WAHA messenger with zero-config defaults.
 func New(o Options) (*Waha, error) {
+	if o.RootURL == "" && o.Host != "" {
+		o.RootURL = o.Host
+	}
+	if o.Host == "" && o.RootURL != "" {
+		o.Host = o.RootURL
+	}
 	if o.Session == "" {
 		o.Session = "default"
 	}

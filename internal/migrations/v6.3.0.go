@@ -42,6 +42,7 @@ func V6_3_0(db *sqlx.DB, fs stuffbin.FileSystem, ko *koanf.Koanf, lo *log.Logger
 
 		ALTER TABLE sequence_contacts
 			ADD COLUMN IF NOT EXISTS email_id INTEGER NULL REFERENCES emails(id) ON DELETE SET NULL,
+			ADD COLUMN IF NOT EXISTS from_address TEXT NULL,
 			ADD COLUMN IF NOT EXISTS waha_session TEXT NULL,
 			ADD COLUMN IF NOT EXISTS last_thread_msg_id TEXT NULL;
 		CREATE INDEX IF NOT EXISTS idx_seq_contacts_sender ON sequence_contacts(sequence_id, email_id, waha_session);

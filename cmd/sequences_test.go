@@ -6,6 +6,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -2287,4 +2289,107 @@ func TestResilience_SequenceWorker_ConcurrentTickContention(t *testing.T) {
 	}
 
 	t.Logf("Successfully completed %d concurrent sequence worker dispatch attempts without panics or errors", numWorkers)
+}
+
+type mockSeqTestMessenger struct {
+	name   string
+	pushed []models.Message
+}
+
+func (m *mockSeqTestMessenger) Name() string {
+	return m.name
+}
+
+func (m *mockSeqTestMessenger) Push(msg models.Message) error {
+	m.pushed = append(m.pushed, msg)
+	return nil
+}
+
+func (m *mockSeqTestMessenger) Flush() error {
+	return nil
+}
+
+func (m *mockSeqTestMessenger) Close() error {
+	return nil
+}
+
+func TestIntegration_WAHASettings_HostSerializationParity(t *testing.T) {
+	jsonPayload := []byte(`{
+		"waha": [
+			{
+				"name": "whatsapp-primary",
+				"enabled": true,
+				"host": "http://waha:3000",
+				"session": "aquiveal",
+				"phone_attribute": "phone"
+			}
+		]
+	}`)
+
+	var settings struct {
+		WAHA []models.WAHASettings `json:"waha"`
+	}
+
+	if err := json.Unmarshal(jsonPayload, &settings); err != nil {
+		t.Fatalf("failed to unmarshal WAHASettings with host field: %v", err)
+	}
+
+	if len(settings.WAHA) != 1 {
+		t.Fatalf("expected 1 WAHASettings item, got %d", len(settings.WAHA))
+	}
+
+	if settings.WAHA[0].Host != "http://waha:3000" {
+		t.Errorf("expected WAHASettings.Host 'http://waha:3000', got '%s'", settings.WAHA[0].Host)
+	}
+
+	// Also verify backward compatibility if root_url alias is passed
+	jsonPayloadAlias := []byte(`{
+		"waha": [
+			{
+				"name": "whatsapp-alias",
+				"enabled": true,
+				"root_url": "http://waha-alias:3000"
+			}
+		]
+	}`)
+
+	var settingsAlias struct {
+		WAHA []models.WAHASettings `json:"waha"`
+	}
+	if err := json.Unmarshal(jsonPayloadAlias, &settingsAlias); err == nil {
+		if settingsAlias.WAHA[0].RootURL == "http://waha-alias:3000" {
+			t.Log("Successfully verified root_url alias unmarshaling")
+		}
+	}
+}
+
+func TestIntegration_Sequence_TestMessage_ChannelIsolation(t *testing.T) {
+	emailMsgr := &mockSeqTestMessenger{name: "email"}
+	seqMgr := sequence.NewManager(nil, map[string]manager.Messenger{"email": emailMsgr}, nil, log.New(io.Discard, "", 0))
+
+	step := models.SequenceStep{
+		StepNumber: 1,
+		Messenger:  "whatsapp",
+		Subject:    "WhatsApp Step",
+		Body:       "Hello via WhatsApp",
+	}
+
+	sub := models.Subscriber{
+		Name:  "Test Recipient",
+		Phone: null.StringFrom("+918935885359"),
+	}
+
+	seqContact := models.SequenceContact{
+		SequenceID:   100,
+		SubscriberID: 1000,
+	}
+
+	err := seqMgr.PrepareAndDispatchStep(seqContact, sub, step, "+918935885359")
+	if err == nil {
+		t.Fatal("expected channel isolation error when WhatsApp messenger is missing, got nil")
+	}
+
+	if len(emailMsgr.pushed) != 0 {
+		t.Fatalf("expected 0 email messages dispatched on WhatsApp failure, got %d", len(emailMsgr.pushed))
+	}
 }

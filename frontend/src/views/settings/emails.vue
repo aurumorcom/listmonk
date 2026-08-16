@@ -18,20 +18,6 @@
           </div><!-- first column -->
 
           <div class="column" :class="{ disabled: !item.enabled }">
-            <!-- Account Identifiers -->
-            <div class="columns">
-              <div class="column is-6">
-                <b-field :label="$t('globals.fields.name')" label-position="on-border" :message="$t('settings.mailserver.nameHelp')">
-                  <b-input v-model="item.name" name="name" placeholder="email-primary" :maxlength="200" />
-                </b-field>
-              </div>
-              <div class="column is-6">
-                <b-field :label="$t('settings.smtp.fromAddresses')" label-position="on-border" :message="$t('settings.smtp.fromAddressesHelp')">
-                  <b-input v-model="item.from_addresses[0]" name="email" placeholder="sales@mycompany.com" :maxlength="200" />
-                </b-field>
-              </div>
-            </div>
-
             <div class="columns">
               <div class="column is-9">
                 <b-field :label="$t('settings.mailserver.host')" label-position="on-border"
@@ -52,10 +38,18 @@
               <div class="column is-3">
                 <b-field :label="$t('settings.mailserver.authProtocol')" label-position="on-border">
                   <b-select v-model="item.auth_protocol" name="auth_protocol" expanded>
-                    <option value="login">LOGIN</option>
-                    <option value="cram">CRAM</option>
-                    <option value="plain">PLAIN</option>
-                    <option value="none">None</option>
+                    <option value="login">
+                      LOGIN
+                    </option>
+                    <option value="cram">
+                      CRAM
+                    </option>
+                    <option value="plain">
+                      PLAIN
+                    </option>
+                    <option value="none">
+                      None
+                    </option>
                   </b-select>
                 </b-field>
               </div>
@@ -100,21 +94,28 @@
                   <b-field :label="$t('settings.mailserver.tls')" expanded :message="$t('settings.mailserver.tlsHelp')"
                     label-position="on-border">
                     <b-select v-model="item.tls_type" name="tls_type">
-                      <option value="none">{{ $t('globals.states.off') }}</option>
-                      <option value="STARTTLS">STARTTLS</option>
-                      <option value="TLS">TLS</option>
+                      <option value="none">
+                        {{ $t('globals.states.off') }}
+                      </option>
+                      <option value="STARTTLS">
+                        STARTTLS
+                      </option>
+                      <option value="TLS">
+                        SSL/TLS
+                      </option>
                     </b-select>
                   </b-field>
-                  <b-field :label="$t('settings.mailserver.skipTLS')" expanded
-                    :message="$t('settings.mailserver.skipTLSHelp')" label-position="on-border">
-                    <b-switch v-model="item.tls_skip_verify" name="tls_skip_verify" :native-value="true"
-                      data-cy="btn-skip-tls-verify" />
+                  <b-field expanded :message="$t('settings.mailserver.skipTLSHelp')">
+                    <b-switch v-model="item.tls_skip_verify" :disabled="item.tls_type === 'none'"
+                      name="tls_skip_verify">
+                      {{ $t('settings.mailserver.skipTLS') }}
+                    </b-switch>
                   </b-field>
                 </b-field>
               </div>
-            </div><!-- tls -->
+            </div><!-- TLS -->
+            <hr />
 
-            <!-- Performance Limits (Exact Original Grid from smtp.vue) -->
             <div class="columns">
               <div class="column is-4">
                 <b-field :label="$t('settings.mailserver.maxConns')" label-position="on-border"
@@ -154,35 +155,70 @@
                     :maxlength="10" />
                 </b-field>
               </div>
-            </div>
-
-            <!-- Standardized Sending Limits Section -->
-            <div class="columns">
-              <div class="column is-6">
+              <div class="column is-4">
                 <b-field label="Max Send" label-position="on-border" message="Daily max sending quota for this email account (0 = unlimited)">
                   <b-numberinput v-model="item.max_send_per_day" name="max_send_per_day" type="is-light" controls-position="compact" placeholder="0" min="0" max="100000" />
                 </b-field>
               </div>
             </div>
 
-            <!-- Test Connection Section -->
-            <form>
+            <hr />
+            <div class="columns">
+              <div class="column is-6">
+                <b-field :label="$t('globals.fields.name')" label-position="on-border"
+                  :message="$t('settings.mailserver.nameHelp')">
+                  <b-input v-model="item.name" name="name" placeholder="email-primary" :maxlength="100" />
+                </b-field>
+              </div>
+              <div class="column is-6">
+                <b-field :label="$t('settings.smtp.fromAddresses')" label-position="on-border"
+                  :message="$t('settings.smtp.fromAddressesHelp')">
+                  <b-taginput v-model="item.from_addresses" name="from_addresses" ellipsis icon="tag-outline"
+                    :before-adding="validateFromAddress" placeholder="user@example.com, anothersite.com" />
+                </b-field>
+              </div>
+            </div>
+
+            <div class="columns">
+              <div class="column is-12">
+                <b-field label="Persona Signature (HTML / Markdown)" label-position="on-border" message="Signature appended to cold outreach sequences sent from this email account">
+                  <b-input v-model="item.signature" type="textarea" placeholder="Best regards,&#10;John Doe&#10;Account Executive" :rows="3" />
+                </b-field>
+              </div>
+            </div>
+
+            <div class="columns">
+              <div class="column">
+                <p v-if="(!item.email_headers || item.email_headers.length === 0) && !item.showHeaders">
+                  <a href="#" @click.prevent="() => showSMTPHeaders(n)">
+                    <b-icon icon="plus" />{{ $t('settings.smtp.setCustomHeaders') }}</a>
+                </p>
+                <b-field v-if="(item.email_headers && item.email_headers.length > 0) || item.showHeaders" label-position="on-border"
+                  :message="$t('settings.smtp.customHeadersHelp')">
+                  <b-input v-model="item.strEmailHeaders" name="email_headers" type="textarea"
+                    placeholder="[{&quot;X-Custom&quot;: &quot;value&quot;}, {&quot;X-Custom2&quot;: &quot;value&quot;}]" />
+                </b-field>
+              </div>
+            </div>
+            <hr />
+
+            <form @submit.prevent="() => doSMTPTest(item, n)">
               <div class="columns">
                 <template v-if="smtpTestItem === n">
                   <div class="column is-5">
-                    <p class="is-size-7 has-text-grey mt-2">
-                      {{ $t('settings.smtp.testHelp') }}
-                    </p>
+                    <strong>{{ $t('settings.general.fromEmail') }}</strong>
+                    <br />
+                    {{ settings['app.from_email'] }}
                   </div>
                   <div class="column is-4">
                     <b-field :label="$t('settings.smtp.toEmail')" label-position="on-border">
                       <b-input type="email" required v-model="testEmail" :ref="'testEmailTo'"
-                        :placeholder="$t('settings.smtp.toEmailHelp')" :custom-class="`test-email-${n}`" :maxlength="200" />
+                        placeholder="email@site.com" :custom-class="`test-email-${n}`" />
                     </b-field>
                   </div>
                 </template>
                 <div class="column has-text-right">
-                  <b-button v-if="smtpTestItem === n" class="is-primary" @click.prevent="() => doSMTPTest(item)">
+                  <b-button v-if="smtpTestItem === n" class="is-primary" @click.prevent="() => doSMTPTest(item, n)">
                     {{ $t('settings.smtp.sendTest') }}
                   </b-button>
                   <a href="#" v-else class="is-primary" @click.prevent="showTestForm(n)">
@@ -195,19 +231,15 @@
                   <p class="help is-danger">{{ errMsg }}</p>
                 </b-field>
               </div>
-            </form>
+            </form><!-- smtp test -->
 
             <hr />
 
-            <!-- Section 2: IMAP Inbound Reply Listener -->
-            <div class="mb-4">
-              <h5 class="title is-6 mb-2 has-text-weight-bold">IMAP Inbound Reply Tracking</h5>
+            <!-- IMAP Settings -->
+            <div>
               <p class="is-size-7 has-text-grey mb-3">
                 Listmonk monitors this inbox via IMAP to automatically mark contacts as Replied and stop sequences upon response. Leave host empty to disable.
               </p>
-            </div>
-
-            <div>
               <div class="columns">
                 <div class="column is-9">
                   <b-field :label="$t('settings.mailserver.host')" label-position="on-border" message="Incoming mail server (e.g. imap.gmail.com)">
@@ -257,29 +289,21 @@
                 </b-field>
               </div>
             </div>
-
-            <div class="columns">
-              <div class="column is-12">
-                <b-field label="Persona Signature (HTML / Markdown)" label-position="on-border" message="Signature appended to cold outreach sequences sent from this email account">
-                  <b-input v-model="item.signature" type="textarea" placeholder="Best regards,&#10;John Doe&#10;Account Executive" :rows="3" />
-                </b-field>
-              </div>
-            </div>
           </div>
-        </div>
-      </div>
-    </div>
+        </div><!-- second container column -->
+      </div><!-- block -->
+    </div><!-- mail-servers -->
 
-    <div class="buttons">
-      <b-button type="is-primary" icon-left="plus" @click="addEmailAccount" data-cy="btn-add-email">
-        Add Email Account
-      </b-button>
-    </div>
+    <b-button @click="addEmailAccount" icon-left="plus" type="is-primary">
+      {{ $t('globals.buttons.addNew') }}
+    </b-button>
   </div>
 </template>
 
 <script>
 import Vue from 'vue';
+import { mapState } from 'vuex';
+import { regDuration } from '../../constants';
 
 const smtpTemplates = {
   gmail: {
@@ -292,7 +316,7 @@ const smtpTemplates = {
     host: 'smtp.azurecomm.net', port: 587, auth_protocol: 'login', tls_type: 'STARTTLS',
   },
   mailjet: {
-    host: 'in-v3.mailjet.com', port: 465, auth_protocol: 'login', tls_type: 'TLS',
+    host: 'in-v3.mailjet.com', port: 465, auth_protocol: 'cram', tls_type: 'TLS',
   },
   mailgun: {
     host: 'smtp.mailgun.org', port: 465, auth_protocol: 'login', tls_type: 'TLS',
@@ -335,7 +359,7 @@ export default Vue.extend({
       smtpTestItem: null,
       testEmail: '',
       errMsg: '',
-      regDuration: '^(([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+)$',
+      regDuration,
     };
   },
 
@@ -378,7 +402,7 @@ export default Vue.extend({
         hello_hostname: '',
         tls_type: 'STARTTLS',
         tls_skip_verify: false,
-        from_addresses: [''],
+        from_addresses: [],
         max_conns: 10,
         idle_timeout: '15s',
         wait_timeout: '5s',
@@ -398,6 +422,12 @@ export default Vue.extend({
 
     removeEmailAccount(i) {
       this.data.smtp.splice(i, 1);
+    },
+
+    showSMTPHeaders(i) {
+      const s = this.data.smtp[i];
+      s.showHeaders = true;
+      this.data.smtp.splice(i, 1, s);
     },
 
     doSMTPTest(item) {
@@ -425,6 +455,11 @@ export default Vue.extend({
       });
     },
 
+    validateFromAddress(v) {
+      // Accept an e-mail address (user@example.com) or a domain (example.com).
+      return /^[^\s@]+(\.[^\s@]+)+$|^[^\s@]+@[^\s@]+(\.[^\s@]+)+$/.test(v);
+    },
+
     fillSettings(n, key) {
       this.data.smtp.splice(n, 1, {
         ...this.data.smtp[n],
@@ -442,6 +477,10 @@ export default Vue.extend({
         ...imapTemplates[key],
       });
     },
+  },
+
+  computed: {
+    ...mapState(['settings']),
   },
 });
 </script>
