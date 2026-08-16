@@ -1,6 +1,10 @@
 package models
 
-import "gopkg.in/volatiletech/null.v6"
+import (
+	"encoding/json"
+
+	"gopkg.in/volatiletech/null.v6"
+)
 
 // Settings represents the app settings stored in the DB.
 type Settings struct {
@@ -193,6 +197,72 @@ type SMTPSettings struct {
 	MaxSendPerDay int                 `json:"max_send_per_day"`
 	SentToday     map[string]int      `json:"sent_today,omitempty"`
 	Signature     string              `json:"signature"`
+}
+
+// UnmarshalJSON implements custom JSON unmarshaling for SMTPSettings to support both
+// flattened fields and nested "opt" sub-objects in SMTPConfig JSON payloads.
+func (s *SMTPSettings) UnmarshalJSON(b []byte) error {
+	type settingsAlias SMTPSettings
+	var aux struct {
+		settingsAlias
+		Opt *struct {
+			Host          string `json:"host"`
+			Port          int    `json:"port"`
+			Username      string `json:"username"`
+			Password      string `json:"password"`
+			HelloHostname string `json:"hello_hostname"`
+			TLSSkipVerify *bool  `json:"tls_skip_verify"`
+			MaxConns      int    `json:"max_conns"`
+			MaxMsgRetries int    `json:"max_msg_retries"`
+			MsgRetryDelay string `json:"msg_retry_delay"`
+			IdleTimeout   string `json:"idle_timeout"`
+			WaitTimeout   string `json:"wait_timeout"`
+		} `json:"opt"`
+	}
+
+	if err := json.Unmarshal(b, &aux); err != nil {
+		return err
+	}
+
+	*s = SMTPSettings(aux.settingsAlias)
+
+	if aux.Opt != nil {
+		if aux.Opt.Host != "" {
+			s.Host = aux.Opt.Host
+		}
+		if aux.Opt.Port != 0 {
+			s.Port = aux.Opt.Port
+		}
+		if aux.Opt.Username != "" {
+			s.Username = aux.Opt.Username
+		}
+		if aux.Opt.Password != "" {
+			s.Password = aux.Opt.Password
+		}
+		if aux.Opt.HelloHostname != "" {
+			s.HelloHostname = aux.Opt.HelloHostname
+		}
+		if aux.Opt.TLSSkipVerify != nil {
+			s.TLSSkipVerify = *aux.Opt.TLSSkipVerify
+		}
+		if aux.Opt.MaxConns != 0 {
+			s.MaxConns = aux.Opt.MaxConns
+		}
+		if aux.Opt.MaxMsgRetries != 0 {
+			s.MaxMsgRetries = aux.Opt.MaxMsgRetries
+		}
+		if aux.Opt.MsgRetryDelay != "" {
+			s.MsgRetryDelay = aux.Opt.MsgRetryDelay
+		}
+		if aux.Opt.IdleTimeout != "" {
+			s.IdleTimeout = aux.Opt.IdleTimeout
+		}
+		if aux.Opt.WaitTimeout != "" {
+			s.WaitTimeout = aux.Opt.WaitTimeout
+		}
+	}
+
+	return nil
 }
 
 // WAHASettings represents individual WAHA messenger configuration settings.
