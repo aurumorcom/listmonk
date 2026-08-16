@@ -198,6 +198,10 @@ google.golang.org/appengine v1.6.5/go.mod h1:8WjMMxjGQR8xUklV/ARdw2HLXBOI7O7uCID
 google.golang.org/protobuf v1.36.11 h1:fV6ZwhNocDyBLK0dj+fg8ektcVegBBuEolpbTQyBNVE=
 google.golang.org/protobuf v1.36.11/go.mod h1:HTf+CrKn2C3g5S8VImy6tdcUvCska2kB7j23XfzDpco=
 gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
+gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 h1:YR8cESwS4TdDjEe65xsg0ogRM/Nc3DYOhEAlW+xobZo=
+gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
+gopkg.in/dnaeon/go-vcr.v3 v3.2.0 h1:Rltp0Vf+Aq0u4rQXgmXgtgoRDStTnFN83cWgSGSoRzM=
+gopkg.in/dnaeon/go-vcr.v3 v3.2.0/go.mod h1:2IMOnnlx9I6u9x+YBsM3tAMx6AlOxnJ0pWxQAzZ79Ag=
 gopkg.in/volatiletech/null.v6 v6.0.0-20170828023728-0bef4e07ae1b h1:P+3+n9hUbqSDkSdtusWHVPQRrpRpLiLFzlZ02xXskM0=
 gopkg.in/volatiletech/null.v6 v6.0.0-20170828023728-0bef4e07ae1b/go.mod h1:0LRKfykySnChgQpG3Qpk+bkZFWazQ+MMfc5oldQCwnY=
 gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
