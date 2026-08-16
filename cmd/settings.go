@@ -144,6 +144,25 @@ func (a *App) UpdateSettings(c echo.Context) error {
 		// This is a common mistake when copy-pasting SMTP settings.
 		set.SMTP[i].Host = strings.TrimSpace(s.Host)
 
+		// Sanitize & default SMTP duration fields if empty.
+		if strings.TrimSpace(s.IdleTimeout) == "" {
+			set.SMTP[i].IdleTimeout = "15s"
+		} else if _, err := time.ParseDuration(s.IdleTimeout); err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, a.i18n.Ts("settings.invalidDuration", "field", "idle_timeout"))
+		}
+
+		if strings.TrimSpace(s.WaitTimeout) == "" {
+			set.SMTP[i].WaitTimeout = "5s"
+		} else if _, err := time.ParseDuration(s.WaitTimeout); err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, a.i18n.Ts("settings.invalidDuration", "field", "wait_timeout"))
+		}
+
+		if strings.TrimSpace(s.MsgRetryDelay) == "" {
+			set.SMTP[i].MsgRetryDelay = "0s"
+		} else if _, err := time.ParseDuration(s.MsgRetryDelay); err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, a.i18n.Ts("settings.invalidDuration", "field", "msg_retry_delay"))
+		}
+
 		// If there's no password coming in from the frontend or it's masked, copy the existing
 		// password by matching UUID, Name, or Username.
 		if s.Password == "" || strings.Contains(s.Password, pwdMask) {
