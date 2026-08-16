@@ -582,6 +582,7 @@ CREATE TABLE sequence_contacts (
     sequence_id        INTEGER NOT NULL REFERENCES sequences(id) ON DELETE CASCADE,
     subscriber_id      INTEGER NOT NULL REFERENCES subscribers(id) ON DELETE CASCADE,
     email_id           INTEGER NULL REFERENCES emails(id) ON DELETE SET NULL,
+    from_address       TEXT NULL,
     waha_session       TEXT NULL,
     status             TEXT NOT NULL DEFAULT 'scheduled',
     current_step       INTEGER NOT NULL DEFAULT 1,
