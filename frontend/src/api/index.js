@@ -638,3 +638,10 @@ export const getSequenceSteps = (id) => http.get(`/api/sequences/${id}/steps`);
 export const saveSequenceSteps = (id, data) => http.post(`/api/sequences/${id}/steps`, data);
 export const manageContactLists = (data) => http.put('/api/contacts/lists', data);
 export const manageContactListsByQuery = (data) => http.put('/api/contacts/query/lists', data);
+
+// Email Accounts (PostgreSQL emails table)
+export const getEmails = () => http.get('/api/emails');
+export const getEmail = (id) => http.get(`/api/emails/${id}`);
+export const createEmail = (data) => http.post('/api/emails', data);
+export const updateEmail = (id, data) => http.put(`/api/emails/${id}`, data);
+export const deleteEmail = (id) => http.delete(`/api/emails/${id}`);

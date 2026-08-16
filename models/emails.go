@@ -13,9 +13,8 @@ type Email struct {
 	Email         string   `db:"email" json:"email"`
 	SMTPConfig    JSON     `db:"smtp_config" json:"smtp_config"`
 	IMAPConfig    JSON     `db:"imap_config" json:"imap_config"`
-	EmailsPerDay  int      `db:"emails_per_day" json:"emails_per_day"`
-	EmailsPerHour int      `db:"emails_per_hour" json:"emails_per_hour"`
-	EmailsToday   int      `db:"emails_today" json:"emails_today"`
+	MaxSendPerDay int      `db:"max_send_per_day" json:"max_send_per_day"`
+	SentToday     int      `db:"sent_today" json:"sent_today"`
 	UserID        null.Int `db:"user_id" json:"user_id"`
 	Signature     string   `db:"signature" json:"signature"`
 }

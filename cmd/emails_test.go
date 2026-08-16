@@ -15,8 +15,8 @@ func TestE2E_Emails_REST_API_And_Channel_Isolation(t *testing.T) {
 		},
 		Name:          "Sales Rep User 2",
 		Email:         "rep2@outreach.com",
-		EmailsPerDay:  100,
-		EmailsPerHour: 20,
+		MaxSendPerDay: 100,
+		SentToday:     0,
 		UserID:        null.IntFrom(2),
 		Signature:     "Best regards,\nUser 2 Sales",
 	}
@@ -32,7 +32,7 @@ func TestE2E_Emails_REST_API_And_Channel_Isolation(t *testing.T) {
 	}
 
 	// Verify CRUD field payload integrity
-	if emailUser2.Signature == "" || emailUser2.EmailsPerDay != 100 {
+	if emailUser2.Signature == "" || emailUser2.MaxSendPerDay != 100 {
 		t.Fatalf("unexpected email account model payload values: %+v", emailUser2)
 	}
 

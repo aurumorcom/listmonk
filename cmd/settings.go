@@ -20,9 +20,11 @@ import (
 	"github.com/knadh/koanf/providers/rawbytes"
 	"github.com/knadh/koanf/v2"
 	"github.com/knadh/listmonk/internal/auth"
+	"github.com/knadh/listmonk/internal/manager"
 	"github.com/knadh/listmonk/internal/messenger/email"
 	"github.com/knadh/listmonk/internal/messenger/waha"
 	"github.com/knadh/listmonk/internal/notifs"
+	"github.com/knadh/listmonk/internal/sequence"
 	"github.com/knadh/listmonk/models"
 	"github.com/labstack/echo/v4"
 )
@@ -143,19 +145,21 @@ func (a *App) UpdateSettings(c echo.Context) error {
 		// This is a common mistake when copy-pasting SMTP settings.
 		set.SMTP[i].Host = strings.TrimSpace(s.Host)
 
-		// If there's no password coming in from the frontend, copy the existing
-		// password by matching the UUID.
-		if s.Password == "" {
+		// If there's no password coming in from the frontend or it's masked, copy the existing
+		// password by matching UUID, Name, or Username.
+		if s.Password == "" || strings.Contains(s.Password, pwdMask) {
 			for _, c := range cur.SMTP {
-				if s.UUID == c.UUID {
+				if s.UUID == c.UUID || (s.Name != "" && s.Name == c.Name) || (s.Username != "" && s.Username == c.Username) {
 					set.SMTP[i].Password = c.Password
+					break
 				}
 			}
 		}
-		if s.IMAPPassword == "" {
+		if s.IMAPPassword == "" || strings.Contains(s.IMAPPassword, pwdMask) {
 			for _, c := range cur.SMTP {
-				if s.UUID == c.UUID {
+				if s.UUID == c.UUID || (s.Name != "" && s.Name == c.Name) || (s.Username != "" && s.Username == c.Username) {
 					set.SMTP[i].IMAPPassword = c.IMAPPassword
+					break
 				}
 			}
 		}
@@ -357,9 +361,31 @@ func (a *App) UpdateSettings(c echo.Context) error {
 		}
 	}
 
-	// Update the settings in the DB.
+	// Update the settings in the DB and synchronize email accounts.
 	if err := a.core.UpdateSettings(set); err != nil {
 		return err
+	}
+
+	// Dynamically refresh messengers with updated accounts.
+	a.messengers = append(append(initSMTPMessengers(a.core), initPostbackMessengers(ko)...), initWAHAMessengers(ko)...)
+	for _, m := range a.messengers {
+		if m.Name() == "email" {
+			if em, ok := m.(*email.Emailer); ok {
+				a.emailMsgr = em
+			}
+		}
+	}
+	if a.manager != nil {
+		for _, m := range a.messengers {
+			a.manager.AddMessenger(m)
+		}
+	}
+	if a.seqManager != nil {
+		msgrMap := make(map[string]manager.Messenger)
+		for _, m := range a.messengers {
+			msgrMap[m.Name()] = m
+		}
+		a.seqManager = sequence.NewManager(a.core, msgrMap, a.media, a.log)
 	}
 
 	// Sync WAHA webhooks for any enabled WAHA messengers.

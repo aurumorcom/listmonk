@@ -99,52 +99,62 @@
                 </b-field>
               </div>
               <div class="column is-4">
-                <b-field label="Target WPM" label-position="on-border" message="Base typing speed (default: 60 WPM)">
-                  <b-numberinput v-model="item.target_wpm" name="target_wpm" type="is-light" controls-position="compact" placeholder="60" min="10" max="200" />
+                <b-field label="Base Typing Speed (CPM)" label-position="on-border" message="Default: 240 CPM (approx 48 WPM)">
+                  <b-numberinput v-model="item.cpm" type="is-light" controls-position="compact" placeholder="240" min="50" max="1000" />
                 </b-field>
               </div>
               <div class="column is-4">
-                <b-field label="WPM Standard Deviation" label-position="on-border" message="Speed variance per session (default: 10)">
-                  <b-numberinput v-model="item.wpm_std" name="wpm_std" type="is-light" controls-position="compact" placeholder="10" min="0" max="50" step="0.5" />
+                <b-field label="Typing Error Rate" label-position="on-border" message="Simulated mistyping & backspacing frequency (0.00 - 0.20)">
+                  <b-input v-model.number="item.error_rate" type="number" step="0.01" min="0" max="0.2" placeholder="0.02" />
                 </b-field>
               </div>
             </div>
 
             <div class="columns">
-              <div class="column is-6">
-                <b-field label="Keyboard Layout" label-position="on-border" message="Physical layout for neighbor error generation">
-                  <b-select v-model="item.keyboard_layout" placeholder="qwerty" expanded>
-                    <option value="qwerty">QWERTY (Default)</option>
-                    <option value="azerty">AZERTY</option>
-                  </b-select>
+              <div class="column is-4">
+                <b-field label="Reading Delay Speed (WPM)" label-position="on-border" message="Simulates human message comprehension speed (Default: 200 WPM)">
+                  <b-numberinput v-model="item.reading_wpm" type="is-light" controls-position="compact" placeholder="200" min="50" max="1000" />
                 </b-field>
               </div>
-              <div class="column is-6">
-                <b-field label="Max Typing Pause Cap (Sec)" label-position="on-border" message="Ceiling limit to prevent campaign delay (default: 30s)">
-                  <b-numberinput v-model="item.max_typing_delay_sec" name="max_typing_delay_sec" type="is-light" controls-position="compact" placeholder="30" min="1" max="300" />
+              <div class="column is-4">
+                <b-field label="Min Reaction Delay" label-position="on-border" message="Minimum human reaction time (e.g. 1.2s)">
+                  <b-input v-model="item.min_reaction_delay" placeholder="1.2s" :maxlength="10" />
+                </b-field>
+              </div>
+              <div class="column is-4">
+                <b-field label="Max Reaction Delay" label-position="on-border" message="Maximum human reaction time (e.g. 3.5s)">
+                  <b-input v-model="item.max_reaction_delay" placeholder="3.5s" :maxlength="10" />
+                </b-field>
+              </div>
+            </div>
+
+            <div class="columns">
+              <div class="column is-4">
+                <b-field label="Simulate Human Micro-Pauses" label-position="on-border" message="Enables natural pauses at commas, sentence boundaries, and complex tokens">
+                  <b-switch v-model="item.simulate_micro_pauses" :native-value="true">
+                    {{ item.simulate_micro_pauses ? $t('globals.states.on') : $t('globals.states.off') }}
+                  </b-switch>
+                </b-field>
+              </div>
+              <div class="column is-4">
+                <b-field label="Burstiness / Fatigue Variation" label-position="on-border" message="Introduces human rhythm acceleration and micro-fatigue">
+                  <b-switch v-model="item.simulate_burstiness" :native-value="true">
+                    {{ item.simulate_burstiness ? $t('globals.states.on') : $t('globals.states.off') }}
+                  </b-switch>
                 </b-field>
               </div>
             </div>
 
             <hr />
 
-            <!-- Signature Section -->
+            <!-- Assigned User & Persona Attribution Section -->
             <div class="columns">
-              <div class="column is-12">
-                <b-field label="Signature" label-position="on-border" message="Default signature appended to WhatsApp messages sent from this session">
-                  <b-input v-model="item.signature" name="signature" type="textarea" rows="2" placeholder="Best regards,\nSupport Team" />
-                </b-field>
-              </div>
-            </div>
-
-            <!-- User Section (Below Signature) -->
-            <div class="columns">
-              <div class="column is-12">
-                <b-field label="User" label-position="on-border" message="Team member assigned to this WhatsApp account">
-                  <b-select v-model="item.user_id" expanded>
-                    <option :value="null">&mdash; None &mdash;</option>
-                    <option v-for="u in users" :value="u.id" :key="u.id">
-                      {{ u.name || u.username }} ({{ u.email || u.username }})
+              <div class="column is-6">
+                <b-field label="Assigned User" label-position="on-border" message="User who owns this channel for personal outreach sequences">
+                  <b-select v-model="item.user_id" placeholder="Select assigned user..." expanded>
+                    <option :value="null">-- Shared Team Channel (Unassigned) --</option>
+                    <option v-for="user in users" :key="user.id" :value="user.id">
+                      {{ user.name }} ({{ user.email }})
                     </option>
                   </b-select>
                 </b-field>
@@ -153,103 +163,156 @@
 
             <hr />
 
-            <div class="columns">
-              <div class="column has-text-right">
-                <a href="#" class="is-primary" @click.prevent="testConnection(n)">
-                  <b-icon icon="rocket-launch-outline" /> Test connection
-                </a>
+            <!-- Test Connection Section -->
+            <form>
+              <div class="columns">
+                <template v-if="testItemIndex === n">
+                  <div class="column is-5">
+                    <p class="is-size-7 has-text-grey mt-2">
+                      Send a test WhatsApp message to verify the WAHA connection.
+                    </p>
+                  </div>
+                  <div class="column is-4">
+                    <b-field label="Recipient Phone" label-position="on-border">
+                      <b-input type="text" required v-model="testPhone" :ref="'testPhoneTo'"
+                        placeholder="+14155552671" :custom-class="`test-phone-${n}`" :maxlength="50" />
+                    </b-field>
+                  </div>
+                </template>
+                <div class="column has-text-right">
+                  <b-button v-if="testItemIndex === n" class="is-primary" @click.prevent="() => doWAHATest(item)">
+                    Send Test WhatsApp
+                  </b-button>
+                  <a href="#" v-else class="is-primary" @click.prevent="showTestForm(n)">
+                    <b-icon icon="rocket-launch-outline" /> Test Connection
+                  </a>
+                </div>
               </div>
-            </div>
+              <div v-if="errMsg && testItemIndex === n">
+                <b-field class="mt-4" type="is-danger">
+                  <p class="help is-danger">{{ errMsg }}</p>
+                </b-field>
+              </div>
+            </form>
           </div>
         </div>
       </div>
+    </div>
 
-      <b-button @click="addMessenger" icon-left="plus" type="is-primary" data-cy="btn-add-waha">
-        {{ $t('globals.buttons.addNew') }}
+    <div class="buttons">
+      <b-button type="is-primary" icon-left="plus" @click="addMessenger" data-cy="btn-add-waha">
+        Add WhatsApp Account
       </b-button>
     </div>
   </div>
 </template>
 
 <script>
-export default {
-  name: 'WAHASettings',
+import Vue from 'vue';
+
+export default Vue.extend({
+  name: 'WhatsAppSettings',
+
   props: {
     form: {
       type: Object,
       required: true,
     },
   },
+
   data() {
     return {
       data: this.form,
       users: [],
+      testItemIndex: null,
+      testPhone: '',
+      errMsg: '',
     };
   },
+
   mounted() {
-    if (this.$api && typeof this.$api.queryUsers === 'function') {
-      this.$api.queryUsers().then((resp) => {
-        this.users = resp || [];
-      }).catch(() => {});
+    if (!this.data.waha) {
+      this.$set(this.data, 'waha', []);
     }
+    if (this.data.waha.length === 0) {
+      this.addMessenger();
+    }
+    this.fetchUsers();
   },
-  created() {
-    this.ensureDefault();
-  },
-  watch: {
-    form: {
-      handler() {
-        this.data = this.form;
-        this.ensureDefault();
-      },
-      deep: true,
-      immediate: true,
-    },
-  },
+
   methods: {
-    ensureDefault() {
-      if (!this.data.waha || !Array.isArray(this.data.waha) || this.data.waha.length === 0) {
-        this.$set(this.data, 'waha', []);
-        this.addMessenger();
+    async fetchUsers() {
+      try {
+        const res = await this.$api.getUsers();
+        if (res && res.data && res.data.results) {
+          this.users = res.data.results;
+        } else if (Array.isArray(res.data)) {
+          this.users = res.data;
+        }
+      } catch (err) {
+        // Ignored if permissions not present
       }
     },
+
     addMessenger() {
-      if (!this.data.waha) {
-        this.$set(this.data, 'waha', []);
-      }
       this.data.waha.push({
-        name: 'whatsapp',
         enabled: true,
-        user_id: null,
-        user: '',
-        root_url: 'http://waha:3000',
+        name: `whatsapp-${this.data.waha.length + 1}`,
+        root_url: 'http://localhost:3000',
         api_key: '',
         session: 'default',
         phone_attribute: 'phone',
-        signature: '',
         max_conns: 10,
         max_msg_retries: 2,
         timeout: '10s',
-        typing_mode: 'human',
-        target_wpm: 60,
-        wpm_std: 10,
-        keyboard_layout: 'qwerty',
-        max_typing_delay_sec: 30,
         messages_per_day: 0,
         messages_per_hour: 0,
+        typing_mode: 'human',
+        cpm: 240,
+        error_rate: 0.02,
+        reading_wpm: 200,
+        min_reaction_delay: '1.2s',
+        max_reaction_delay: '3.5s',
+        simulate_micro_pauses: true,
+        simulate_burstiness: true,
+        user_id: null,
       });
     },
+
     removeMessenger(i) {
       this.data.waha.splice(i, 1);
     },
-    testConnection(i) {
-      const item = this.data.waha[i];
-      if (!item || !item.root_url) {
-        this.$utils.toast('Please enter a valid WAHA Base URL first', 'is-warning');
+
+    showTestForm(n) {
+      this.testItemIndex = n;
+      this.errMsg = '';
+      this.$nextTick(() => {
+        const el = document.querySelector(`.test-phone-${n}`);
+        if (el) el.focus();
+      });
+    },
+
+    async doWAHATest(item) {
+      if (!this.testPhone) {
+        this.$utils.toast('Please enter a recipient phone number for the test message', 'is-danger');
         return;
       }
-      this.$utils.toast(`Testing connection to WAHA (${item.session || 'default'})...`, 'is-info');
+
+      this.errMsg = '';
+      try {
+        await this.$api.testWAHA({
+          ...item,
+          phone: this.testPhone,
+        });
+        this.$utils.toast('Test WhatsApp message sent successfully!');
+      } catch (err) {
+        if (err.response && err.response.data && err.response.data.message) {
+          this.errMsg = err.response.data.message;
+        } else {
+          this.errMsg = err.message || 'Error sending test WhatsApp message';
+        }
+      }
     },
   },
-};
+});
 </script>

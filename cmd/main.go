@@ -26,6 +26,7 @@ import (
 	"github.com/knadh/listmonk/internal/manager"
 	"github.com/knadh/listmonk/internal/media"
 	"github.com/knadh/listmonk/internal/messenger/email"
+	"github.com/knadh/listmonk/internal/sequence"
 	"github.com/knadh/listmonk/internal/subimporter"
 	"github.com/knadh/listmonk/models"
 	"github.com/knadh/paginator"
@@ -41,6 +42,7 @@ type App struct {
 	queries    *models.Queries
 	core       *core.Core
 	manager    *manager.Manager
+	seqManager *sequence.Manager
 	messengers []manager.Messenger
 	emailMsgr  manager.Messenger
 	importer   *subimporter.Importer
@@ -215,10 +217,13 @@ func main() {
 		core = initCore(fbOptinNotify, queries, db, i18n, ko)
 
 		// Initialize all messengers, SMTP, postback, and WAHA.
-		msgrs = append(append(initSMTPMessengers(), initPostbackMessengers(ko)...), initWAHAMessengers(ko)...)
+		msgrs = append(append(initSMTPMessengers(core), initPostbackMessengers(ko)...), initWAHAMessengers(ko)...)
 
 		// Campaign manager.
 		mgr = initCampaignManager(msgrs, queries, urlCfg, core, media, i18n, ko)
+
+		// Sequence manager.
+		seqMgr = initSequenceManager(msgrs, core, media, lo, ko)
 
 		// Bulk importer.
 		importer = initImporter(queries, db, core, i18n, ko)
@@ -266,6 +271,11 @@ func main() {
 	// messages) get processed at the specified interval.
 	go mgr.Run()
 
+	// Start sequence manager background loop
+	if !ko.Bool("passive") {
+		go seqMgr.Start(1 * time.Minute)
+	}
+
 	// =========================================================================
 	// Initialize the App{} with all the global shared components, controllers and fields.
 	app := &App{
@@ -276,6 +286,7 @@ func main() {
 		queries:    queries,
 		core:       core,
 		manager:    mgr,
+		seqManager: seqMgr,
 		messengers: msgrs,
 		emailMsgr:  emailMsgr,
 		importer:   importer,
@@ -328,6 +339,9 @@ func main() {
 
 		// Close the campaign manager.
 		mgr.Close()
+
+		// Stop sequence manager.
+		seqMgr.Stop()
 
 		// Close the DB pool.
 		db.Close()

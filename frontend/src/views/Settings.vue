@@ -43,7 +43,7 @@
           </b-tab-item><!-- media -->
 
           <b-tab-item :label="$t('settings.smtp.name')">
-            <smtp-settings :form="form" :key="key" />
+            <email-settings :form="form" :key="key" />
           </b-tab-item><!-- mail servers -->
 
           <b-tab-item :label="$t('settings.bounces.name')">
@@ -55,8 +55,8 @@
           </b-tab-item><!-- messengers -->
 
           <b-tab-item label="WhatsApp (WAHA)">
-            <waha-settings :form="form" :key="key" />
-          </b-tab-item><!-- waha -->
+            <whatsapp-settings :form="form" :key="key" />
+          </b-tab-item><!-- whatsapp -->
 
           <b-tab-item label="Webhooks">
             <webhook-settings :form="form" :key="key" />
@@ -79,12 +79,12 @@ import BounceSettings from './settings/bounces.vue';
 import GeneralSettings from './settings/general.vue';
 import MediaSettings from './settings/media.vue';
 import MessengerSettings from './settings/messengers.vue';
-import WahaSettings from './settings/waha.vue';
+import WhatsappSettings from './settings/whatsapp.vue';
 import WebhookSettings from './settings/webhooks.vue';
 import PerformanceSettings from './settings/performance.vue';
 import PrivacySettings from './settings/privacy.vue';
 import SecuritySettings from './settings/security.vue';
-import SmtpSettings from './settings/smtp.vue';
+import EmailSettings from './settings/emails.vue';
 
 export default Vue.extend({
   components: {
@@ -93,10 +93,10 @@ export default Vue.extend({
     PrivacySettings,
     SecuritySettings,
     MediaSettings,
-    SmtpSettings,
+    EmailSettings,
     BounceSettings,
     MessengerSettings,
-    WahaSettings,
+    WhatsappSettings,
     WebhookSettings,
     AppearanceSettings,
   },

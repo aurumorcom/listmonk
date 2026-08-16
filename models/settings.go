@@ -82,48 +82,7 @@ type Settings struct {
 	UploadS3BucketType         string   `json:"upload.s3.bucket_type"`
 	UploadS3Expiry             string   `json:"upload.s3.expiry"`
 
-	SMTP []struct {
-		Name          string              `json:"name"`
-		User          string              `json:"user"`
-		UserID        null.Int            `json:"user_id"`
-		Signature     string              `json:"signature"`
-		UUID          string              `json:"uuid"`
-		Enabled       bool                `json:"enabled"`
-		Host          string              `json:"host"`
-		HelloHostname string              `json:"hello_hostname"`
-		Port          int                 `json:"port"`
-		AuthProtocol  string              `json:"auth_protocol"`
-		Username      string              `json:"username"`
-		Password      string              `json:"password,omitempty"`
-		EmailHeaders  []map[string]string `json:"email_headers"`
-		MaxConns      int                 `json:"max_conns"`
-		MaxMsgRetries int                 `json:"max_msg_retries"`
-		MsgRetryDelay string              `json:"msg_retry_delay"`
-		IdleTimeout   string              `json:"idle_timeout"`
-		WaitTimeout   string              `json:"wait_timeout"`
-		TLSType       string              `json:"tls_type"`
-		TLSSkipVerify bool                `json:"tls_skip_verify"`
-		FromAddresses []string            `json:"from_addresses"`
-		EmailsPerDay  int                 `json:"emails_per_day"`
-		EmailsPerHour int                 `json:"emails_per_hour"`
-
-		// IMAP settings
-		IMAPEnabled       bool   `json:"imap_enabled"`
-		IMAPHost          string `json:"imap_host"`
-		IMAPPort          int    `json:"imap_port"`
-		IMAPAuthProtocol  string `json:"imap_auth_protocol"`
-		IMAPUsername      string `json:"imap_username"`
-		IMAPPassword      string `json:"imap_password,omitempty"`
-		IMAPTLSType       string `json:"imap_tls_type"`
-		IMAPTLSSkipVerify bool   `json:"imap_tls_skip_verify"`
-		IMAPFolder        string `json:"imap_folder"`
-		IMAPInterval      string `json:"imap_interval"`
-		IMAPMaxConns      int    `json:"imap_max_conns"`
-		IMAPIdleTimeout   string `json:"imap_idle_timeout"`
-		IMAPWaitTimeout   string `json:"imap_wait_timeout"`
-		IMAPMaxRetries    int    `json:"imap_max_retries"`
-		IMAPRetryDelay    string `json:"imap_retry_delay"`
-	} `json:"smtp"`
+	SMTP []SMTPSettings `json:"smtp"`
 
 	Messengers []struct {
 		UUID          string `json:"uuid"`
@@ -190,6 +149,49 @@ type Settings struct {
 	AdminCustomJS   string `json:"appearance.admin.custom_js"`
 	PublicCustomCSS string `json:"appearance.public.custom_css"`
 	PublicCustomJS  string `json:"appearance.public.custom_js"`
+}
+
+// SMTPSettings represents individual SMTP server and email account settings.
+type SMTPSettings struct {
+	Name          string              `json:"name"`
+	User          string              `json:"user"`
+	UserID        null.Int            `json:"user_id"`
+	Signature     string              `json:"signature"`
+	UUID          string              `json:"uuid"`
+	Enabled       bool                `json:"enabled"`
+	Host          string              `json:"host"`
+	HelloHostname string              `json:"hello_hostname"`
+	Port          int                 `json:"port"`
+	AuthProtocol  string              `json:"auth_protocol"`
+	Username      string              `json:"username"`
+	Password      string              `json:"password,omitempty"`
+	EmailHeaders  []map[string]string `json:"email_headers"`
+	MaxConns      int                 `json:"max_conns"`
+	MaxMsgRetries int                 `json:"max_msg_retries"`
+	MsgRetryDelay string              `json:"msg_retry_delay"`
+	IdleTimeout   string              `json:"idle_timeout"`
+	WaitTimeout   string              `json:"wait_timeout"`
+	TLSType       string              `json:"tls_type"`
+	TLSSkipVerify bool                `json:"tls_skip_verify"`
+	FromAddresses []string            `json:"from_addresses"`
+	MaxSendPerDay int                 `json:"max_send_per_day"`
+
+	// IMAP settings
+	IMAPEnabled       bool   `json:"imap_enabled"`
+	IMAPHost          string `json:"imap_host"`
+	IMAPPort          int    `json:"imap_port"`
+	IMAPAuthProtocol  string `json:"imap_auth_protocol"`
+	IMAPUsername      string `json:"imap_username"`
+	IMAPPassword      string `json:"imap_password,omitempty"`
+	IMAPTLSType       string `json:"imap_tls_type"`
+	IMAPTLSSkipVerify bool   `json:"imap_tls_skip_verify"`
+	IMAPFolder        string `json:"imap_folder"`
+	IMAPInterval      string `json:"imap_interval"`
+	IMAPMaxConns      int    `json:"imap_max_conns"`
+	IMAPIdleTimeout   string `json:"imap_idle_timeout"`
+	IMAPWaitTimeout   string `json:"imap_wait_timeout"`
+	IMAPMaxRetries    int    `json:"imap_max_retries"`
+	IMAPRetryDelay    string `json:"imap_retry_delay"`
 }
 
 // WAHAMessenger represents individual WAHA messenger configuration settings.
