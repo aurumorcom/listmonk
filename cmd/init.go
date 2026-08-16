@@ -48,6 +48,7 @@ import (
 	"github.com/knadh/listmonk/internal/messenger/postback"
 	"github.com/knadh/listmonk/internal/messenger/waha"
 	"github.com/knadh/listmonk/internal/notifs"
+	"github.com/knadh/listmonk/internal/sequence"
 	"github.com/knadh/listmonk/internal/subimporter"
 	"github.com/knadh/listmonk/models"
 	"github.com/knadh/stuffbin"
@@ -694,14 +695,15 @@ func initImporter(q *models.Queries, db *sqlx.DB, core *core.Core, i *i18n.I18n,
 		}, db.DB, i)
 }
 
-// initSMTPMessenger initializes the combined and individual SMTP messengers.
-func initSMTPMessengers() []manager.Messenger {
+// initSMTPMessengers initializes the combined and individual SMTP messengers from both
+// config and the database emails table.
+func initSMTPMessengers(co *core.Core) []manager.Messenger {
 	var (
 		servers = []email.Server{}
 		out     = []manager.Messenger{}
 	)
 
-	// Load the config for multiple SMTP servers.
+	// Load the legacy config for multiple SMTP servers.
 	for _, item := range ko.Slices("smtp") {
 		if !item.Bool("enabled") {
 			continue
@@ -727,6 +729,50 @@ func initSMTPMessengers() []manager.Messenger {
 		}
 	}
 
+	// Load email accounts dynamically from the emails table.
+	if co != nil {
+		emailAccounts, err := co.GetEmails()
+		if err == nil {
+			for _, em := range emailAccounts {
+				if len(em.SMTPConfig) == 0 {
+					continue
+				}
+				raw, err := json.Marshal(em.SMTPConfig)
+				if err != nil {
+					continue
+				}
+				var s email.Server
+				if err := json.Unmarshal(raw, &s); err != nil {
+					continue
+				}
+				if s.Name == "" {
+					s.Name = fmt.Sprintf("email-%d", em.ID)
+				}
+				// Ensure the sender email is in FromAddresses for pool routing
+				hasFrom := false
+				for _, f := range s.FromAddresses {
+					if strings.EqualFold(f, em.Email) {
+						hasFrom = true
+						break
+					}
+				}
+				if !hasFrom && em.Email != "" {
+					s.FromAddresses = append(s.FromAddresses, em.Email)
+				}
+
+				servers = append(servers, s)
+				lo.Printf("initialized email account messenger %d: %s (%s)", em.ID, em.Name, em.Email)
+
+				if s.Name != "" {
+					msgr, err := email.New(s.Name, s)
+					if err == nil {
+						out = append(out, msgr)
+					}
+				}
+			}
+		}
+	}
+
 	// Initialize the 'email' messenger with all SMTP servers.
 	msgr, err := email.New(email.MessengerName, servers...)
 	if err != nil {
@@ -737,6 +783,40 @@ func initSMTPMessengers() []manager.Messenger {
 	out = append([]manager.Messenger{msgr}, out...)
 
 	return out
+}
+
+// initSequenceManager initializes the sequence runner manager.
+func initSequenceManager(msgrs []manager.Messenger, co *core.Core, md media.Store, l *log.Logger, ko *koanf.Koanf) *sequence.Manager {
+	msgrMap := make(map[string]manager.Messenger)
+	for _, m := range msgrs {
+		msgrMap[m.Name()] = m
+	}
+	seqMgr := sequence.NewManager(co, msgrMap, md, l)
+
+	// Initialize Bifrost Client if configured
+	bifrostKey := ko.String("bifrost.api_key")
+	if bifrostKey == "" {
+		bifrostKey = os.Getenv("LISTMONK_BIFROST_API_KEY")
+	}
+	if bifrostKey != "" {
+		bifrostEndpoint := ko.String("bifrost.endpoint")
+		if bifrostEndpoint == "" {
+			bifrostEndpoint = os.Getenv("LISTMONK_BIFROST_ENDPOINT")
+		}
+		bifrostModel := ko.String("bifrost.model")
+		if bifrostModel == "" {
+			bifrostModel = os.Getenv("LISTMONK_BIFROST_MODEL")
+		}
+		bc := manager.NewBifrostClient(manager.BifrostConfig{
+			APIKey:   bifrostKey,
+			Endpoint: bifrostEndpoint,
+			Model:    bifrostModel,
+			Timeout:  5 * time.Second,
+		})
+		seqMgr.SetBifrostClient(bc)
+	}
+
+	return seqMgr
 }
 
 // initPostbackMessengers initializes and returns all the enabled

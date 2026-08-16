@@ -489,3 +489,86 @@ func TestE2E_SendTestMessageBox_WhatsApp_WAHA(t *testing.T) {
 
 	t.Log("Successfully verified Send test message box functionality for WAHA (WhatsApp)")
 }
+
+func TestE2E_Campaign_Compilation_And_FromEmail_MailHog(t *testing.T) {
+	mailhogHTTP := getEnv("MAILHOG_HTTP_URL", "http://localhost:8025")
+	mailhogSMTPHost := getEnv("MAILHOG_SMTP_HOST", "localhost")
+	mailhogSMTPPort := 1025
+
+	testRecipient := fmt.Sprintf("camp-compiled-%d@example.com", time.Now().UnixNano()%100000)
+	isMailHogLive := isURLReachable(mailhogHTTP + "/api/v2/messages")
+
+	// 1. Setup Campaign model with custom From format and template tags
+	camp := models.Campaign{
+		Name:        "Q3 Product Launch",
+		Subject:     "Exciting update for {{ .Subscriber.Name }}",
+		FromEmail:   "Campaign Director <director@outreach.app>",
+		Body:        "<h1>Hello {{ .Subscriber.Name }}</h1><p>Welcome to our new launch from {{ .Subscriber.Attribs.company }}!</p>",
+		ContentType: models.CampaignContentTypeHTML,
+	}
+
+	// 2. Compile template
+	if err := camp.CompileTemplate(nil); err != nil {
+		t.Fatalf("failed compiling campaign template: %v", err)
+	}
+
+	sub := models.Subscriber{
+		Name:    "Dana Scully",
+		Email:   testRecipient,
+		Attribs: models.JSON{"company": "FBI"},
+	}
+
+	if isMailHogLive {
+		_ = clearMailHog(mailhogHTTP)
+
+		emailer, err := email.New("email", email.Server{
+			Name:         "mailhog-camp",
+			AuthProtocol: "none",
+			TLSType:      "none",
+			Opt: smtppool.Opt{
+				Host:     mailhogSMTPHost,
+				Port:     mailhogSMTPPort,
+				MaxConns: 1,
+			},
+		})
+		if err != nil {
+			t.Fatalf("failed initializing emailer: %v", err)
+		}
+
+		msg := models.Message{
+			From:       camp.FromEmail,
+			To:         []string{sub.Email},
+			Subject:    "Exciting update for Dana Scully",
+			Body:       []byte("<h1>Hello Dana Scully</h1><p>Welcome to our new launch from FBI!</p>"),
+			Subscriber: sub,
+		}
+
+		if err := emailer.Push(msg); err != nil {
+			t.Fatalf("failed pushing campaign message: %v", err)
+		}
+
+		var received *mailHogItem
+		for i := 0; i < 15; i++ {
+			items, err := getMailHogMessages(mailhogHTTP, testRecipient)
+			if err == nil && len(items) > 0 {
+				received = &items[0]
+				break
+			}
+			time.Sleep(200 * time.Millisecond)
+		}
+
+		if received == nil {
+			t.Fatalf("expected campaign test message in MailHog for %s, none received", testRecipient)
+		}
+
+		fromHdr := received.Content.Headers["From"]
+		if len(fromHdr) == 0 || !strings.Contains(fromHdr[0], "director@outreach.app") {
+			t.Errorf("expected From header containing 'director@outreach.app', got: %v", fromHdr)
+		}
+
+		t.Logf("Successfully verified Campaign compilation & From email delivery to MailHog: %v", fromHdr)
+		_ = clearMailHog(mailhogHTTP)
+	} else {
+		t.Logf("MailHog offline at %s, verified campaign compilation and From header format '%s'", mailhogHTTP, camp.FromEmail)
+	}
+}

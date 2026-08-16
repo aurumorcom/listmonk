@@ -1,12 +1,13 @@
 package main
 
 import (
-	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/knadh/listmonk/internal/auth"
+	"github.com/knadh/listmonk/internal/manager"
+	"github.com/knadh/listmonk/internal/sequence"
 	"github.com/knadh/listmonk/internal/utils"
 	"github.com/knadh/listmonk/models"
 	"github.com/labstack/echo/v4"
@@ -285,20 +286,42 @@ func (a *App) TestSequence(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "Please enter a test email address or configure your email in User Profile.")
 	}
 
-	camp := models.Campaign{
-		Name:        fmt.Sprintf("Sequence %d - Step %d Test", id, req.StepNumber),
-		Subject:     req.Subject,
-		Body:        req.Body,
-		AltBody:     req.AltBody,
-		Messenger:   req.Messenger,
-		ContentType: req.ContentType,
-		TemplateID:  req.TemplateID,
-		Headers:     req.Headers,
-		FromEmail:   a.cfg.FromEmail,
+	step := models.SequenceStep{
+		SequenceID: id,
+		StepNumber: req.StepNumber,
+		Messenger:  req.Messenger,
+		Subject:    req.Subject,
+		Body:       req.Body,
+		TemplateID: req.TemplateID,
+		EmailType:  models.EmailTypeNewThread,
 	}
 	for _, mID := range req.MediaIDs {
 		if mID > 0 {
-			camp.MediaIDs = append(camp.MediaIDs, int64(mID))
+			step.MediaIDs = append(step.MediaIDs, int64(mID))
+		}
+	}
+
+	// Ensure sequence manager instance is available
+	if a.seqManager == nil {
+		msgrMap := make(map[string]manager.Messenger)
+		for _, m := range a.messengers {
+			msgrMap[m.Name()] = m
+		}
+		if a.emailMsgr != nil && msgrMap["email"] == nil {
+			msgrMap["email"] = a.emailMsgr
+		}
+		a.seqManager = sequence.NewManager(a.core, msgrMap, a.media, a.log)
+	}
+
+	// Resolve sequence for assigned pool lookup
+	var assignedEmailID null.Int
+	var assignedWahaSession null.String
+	if seq, err := a.core.GetSequence(id, ""); err == nil {
+		if len(seq.EmailIDs) > 0 {
+			assignedEmailID = null.IntFrom(int(seq.EmailIDs[0]))
+		}
+		if len(seq.WahaSessions) > 0 {
+			assignedWahaSession = null.StringFrom(seq.WahaSessions[0])
 		}
 	}
 
@@ -339,13 +362,29 @@ func (a *App) TestSequence(c echo.Context) error {
 			targetMessenger = "email"
 		}
 
-		testCamp := camp
-		testCamp.Messenger = targetMessenger
+		testStep := step
+		testStep.Messenger = targetMessenger
 
-		overrideEmail := user.Email.String
-		overridePhone := user.Phone.String
+		// Provide user context in subscriber attributes for persona resolution if not present
+		if sub.Attribs == nil {
+			sub.Attribs = models.JSON{}
+		}
+		if _, ok := sub.Attribs["user"]; !ok && user.Name != "" {
+			sub.Attribs["user"] = map[string]any{
+				"name":  user.Name,
+				"email": user.Email.String,
+			}
+		}
 
-		if err := a.sendTestMessage(sub, &testCamp, overrideEmail, overridePhone); err != nil {
+		seqContact := models.SequenceContact{
+			SequenceID:   id,
+			SubscriberID: sub.ID,
+			CurrentStep:  req.StepNumber,
+			EmailID:      assignedEmailID,
+			WahaSession:  assignedWahaSession,
+		}
+
+		if err := a.seqManager.PrepareAndDispatchStep(seqContact, sub, testStep, target); err != nil {
 			a.log.Printf("error sending test sequence message: %v", err)
 			return echo.NewHTTPError(http.StatusInternalServerError,
 				a.i18n.Ts("campaigns.errorSendTest", "error", err.Error()))
