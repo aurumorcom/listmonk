@@ -608,8 +608,8 @@ func AllocateSendersCapacityWeighted(subIDs []int, emails []models.Email) map[in
 	totalRemaining := 0
 	for _, m := range emails {
 		rem := 0
-		if m.EmailsPerDay > 0 {
-			rem = m.EmailsPerDay - m.EmailsToday
+		if m.MaxSendPerDay > 0 {
+			rem = m.MaxSendPerDay - m.SentToday
 		} else {
 			rem = 10000 // Unlimited fallback weight
 		}
