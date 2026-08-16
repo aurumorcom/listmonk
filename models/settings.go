@@ -200,6 +200,7 @@ type WAHASettings struct {
 	Enabled           bool    `json:"enabled"`
 	Name              string  `json:"name"`
 	Host              string  `json:"host"`
+	RootURL           string  `json:"root_url,omitempty"`
 	APIKey            string  `json:"api_key,omitempty"`
 	Session           string  `json:"session"`
 	PhoneAttribute    string  `json:"phone_attribute"`
