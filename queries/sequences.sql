@@ -139,7 +139,7 @@ WHERE id = ANY($2::INT[])
 ON CONFLICT (sequence_id, subscriber_id) DO NOTHING;
 
 -- name: get-due-sequence-subscribers
-SELECT sequence_id, subscriber_id, email_id, waha_session, status, current_step, next_send_at, last_read_at, last_clicked_at, last_message_id, last_thread_msg_id, created_at
+SELECT sequence_id, subscriber_id, email_id, from_address, waha_session, status, current_step, next_send_at, last_read_at, last_clicked_at, last_message_id, last_thread_msg_id, created_at
 FROM sequence_contacts
 WHERE status IN ('scheduled', 'in_progress') AND next_send_at <= NOW()
 LIMIT $1;
