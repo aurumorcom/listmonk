@@ -102,12 +102,12 @@ func TestResolveSignature(t *testing.T) {
 	}
 
 	// Test Case 3: WhatsApp Messenger Signature (Tier 2) overrides User Sig & Global Sig
-	waha3 := &models.WAHAMessenger{Signature: "<p>WhatsApp Sig</p>"}
+	waha3 := &models.WAHASettings{Signature: "<p>WhatsApp Sig</p>"}
 	sig3 := ResolveSignatureAdvanced(SignatureOpts{
-		Subscriber:    sub2,
-		WAHAMessenger: waha3,
-		User:          user2,
-		GlobalSig:     "<p>Global Sig</p>",
+		Subscriber:   sub2,
+		WAHASettings: waha3,
+		User:         user2,
+		GlobalSig:    "<p>Global Sig</p>",
 	})
 	if sig3 != "<p>WhatsApp Sig</p>" {
 		t.Errorf("expected Tier 2 WhatsApp Sig, got %q", sig3)
