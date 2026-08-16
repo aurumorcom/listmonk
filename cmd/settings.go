@@ -64,9 +64,18 @@ func (a *App) GetSettings(c echo.Context) error {
 		return err
 	}
 
-	// Empty out passwords.
+	// Empty out passwords and prepopulate empty duration defaults.
 	for i := range s.SMTP {
 		s.SMTP[i].Password = strings.Repeat(pwdMask, utf8.RuneCountInString(s.SMTP[i].Password))
+		if strings.TrimSpace(s.SMTP[i].IdleTimeout) == "" {
+			s.SMTP[i].IdleTimeout = "15s"
+		}
+		if strings.TrimSpace(s.SMTP[i].WaitTimeout) == "" {
+			s.SMTP[i].WaitTimeout = "5s"
+		}
+		if strings.TrimSpace(s.SMTP[i].MsgRetryDelay) == "" {
+			s.SMTP[i].MsgRetryDelay = "0s"
+		}
 	}
 	for i := range s.BounceBoxes {
 		s.BounceBoxes[i].Password = strings.Repeat(pwdMask, utf8.RuneCountInString(s.BounceBoxes[i].Password))

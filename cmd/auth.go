@@ -503,6 +503,7 @@ func (a *App) doLogin(c echo.Context) error {
 func (a *App) doFirstTimeSetup(c echo.Context) error {
 	var (
 		email     = strings.TrimSpace(c.FormValue("email"))
+		phone     = strings.TrimSpace(c.FormValue("phone"))
 		username  = strings.TrimSpace(c.FormValue("username"))
 		password  = strings.TrimSpace(c.FormValue("password"))
 		password2 = strings.TrimSpace(c.FormValue("password2"))
@@ -510,6 +511,16 @@ func (a *App) doFirstTimeSetup(c echo.Context) error {
 	if !utils.ValidateEmail(email) {
 		return echo.NewHTTPError(http.StatusBadRequest, a.i18n.Ts("globals.messages.invalidFields", "name", "email"))
 	}
+
+	var sanitizedPhone string
+	if phone != "" {
+		p, err := utils.SanitizePhone(phone)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, a.i18n.Ts("globals.messages.invalidFields", "name", "phone"))
+		}
+		sanitizedPhone = p
+	}
+
 	if !strHasLen(username, 3, stdInputMaxLen) {
 		return echo.NewHTTPError(http.StatusBadRequest, a.i18n.Ts("globals.messages.invalidFields", "name", "username"))
 	}
@@ -545,6 +556,7 @@ func (a *App) doFirstTimeSetup(c echo.Context) error {
 		Name:          username,
 		Password:      null.NewString(password, true),
 		Email:         null.NewString(email, true),
+		Phone:         null.NewString(sanitizedPhone, sanitizedPhone != ""),
 		UserRoleID:    auth.SuperAdminRoleID,
 		Status:        auth.UserStatusEnabled,
 	}
