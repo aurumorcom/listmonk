@@ -50,3 +50,18 @@ func (c Contact) Company() string {
 	}
 	return ""
 }
+
+// ToContactSummary converts a Contact into a ContactSummary.
+func (c Contact) ToContactSummary() ContactSummary {
+	pStr := ""
+	if c.Phone.Valid {
+		pStr = c.Phone.String
+	}
+	return ContactSummary{
+		ID:    c.ID,
+		UUID:  c.UUID,
+		Name:  c.Name,
+		Email: c.Email,
+		Phone: pStr,
+	}
+}

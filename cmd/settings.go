@@ -67,7 +67,6 @@ func (a *App) GetSettings(c echo.Context) error {
 	// Empty out passwords.
 	for i := range s.SMTP {
 		s.SMTP[i].Password = strings.Repeat(pwdMask, utf8.RuneCountInString(s.SMTP[i].Password))
-		s.SMTP[i].IMAPPassword = strings.Repeat(pwdMask, utf8.RuneCountInString(s.SMTP[i].IMAPPassword))
 	}
 	for i := range s.BounceBoxes {
 		s.BounceBoxes[i].Password = strings.Repeat(pwdMask, utf8.RuneCountInString(s.BounceBoxes[i].Password))
@@ -75,8 +74,8 @@ func (a *App) GetSettings(c echo.Context) error {
 	for i := range s.Messengers {
 		s.Messengers[i].Password = strings.Repeat(pwdMask, utf8.RuneCountInString(s.Messengers[i].Password))
 	}
-	for i := range s.WAHAMessengers {
-		s.WAHAMessengers[i].APIKey = strings.Repeat(pwdMask, utf8.RuneCountInString(s.WAHAMessengers[i].APIKey))
+	for i := range s.WAHASettings {
+		s.WAHASettings[i].APIKey = strings.Repeat(pwdMask, utf8.RuneCountInString(s.WAHASettings[i].APIKey))
 	}
 
 	s.UploadS3AwsSecretAccessKey = strings.Repeat(pwdMask, utf8.RuneCountInString(s.UploadS3AwsSecretAccessKey))
@@ -151,14 +150,6 @@ func (a *App) UpdateSettings(c echo.Context) error {
 			for _, c := range cur.SMTP {
 				if s.UUID == c.UUID || (s.Name != "" && s.Name == c.Name) || (s.Username != "" && s.Username == c.Username) {
 					set.SMTP[i].Password = c.Password
-					break
-				}
-			}
-		}
-		if s.IMAPPassword == "" || strings.Contains(s.IMAPPassword, pwdMask) {
-			for _, c := range cur.SMTP {
-				if s.UUID == c.UUID || (s.Name != "" && s.Name == c.Name) || (s.Username != "" && s.Username == c.Username) {
-					set.SMTP[i].IMAPPassword = c.IMAPPassword
 					break
 				}
 			}
@@ -244,15 +235,15 @@ func (a *App) UpdateSettings(c echo.Context) error {
 		names[name] = true
 	}
 
-	for i, m := range set.WAHAMessengers {
+	for i, m := range set.WAHASettings {
 		if m.UUID == "" {
-			set.WAHAMessengers[i].UUID = uuid.Must(uuid.NewV4()).String()
+			set.WAHASettings[i].UUID = uuid.Must(uuid.NewV4()).String()
 		}
 
 		if m.APIKey == "" {
-			for _, c := range cur.WAHAMessengers {
+			for _, c := range cur.WAHASettings {
 				if m.UUID == c.UUID {
-					set.WAHAMessengers[i].APIKey = c.APIKey
+					set.WAHASettings[i].APIKey = c.APIKey
 				}
 			}
 		}
@@ -275,7 +266,7 @@ func (a *App) UpdateSettings(c echo.Context) error {
 				a.i18n.Ts("settings.duplicateMessengerName", "name", name))
 		}
 
-		set.WAHAMessengers[i].Name = name
+		set.WAHASettings[i].Name = name
 		names[name] = true
 	}
 
@@ -393,12 +384,12 @@ func (a *App) UpdateSettings(c echo.Context) error {
 	if rootURL == "" && a.urlCfg != nil {
 		rootURL = a.urlCfg.RootURL
 	}
-	for _, wm := range set.WAHAMessengers {
+	for _, wm := range set.WAHASettings {
 		if wm.Enabled {
 			dur, _ := time.ParseDuration(wm.Timeout)
 			o := waha.Options{
 				Name:              wm.Name,
-				RootURL:           wm.RootURL,
+				RootURL:           wm.Host,
 				APIKey:            wm.APIKey,
 				Session:           wm.Session,
 				PhoneAttribute:    wm.PhoneAttribute,

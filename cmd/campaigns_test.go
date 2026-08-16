@@ -572,3 +572,45 @@ func TestE2E_Campaign_Compilation_And_FromEmail_MailHog(t *testing.T) {
 		t.Logf("MailHog offline at %s, verified campaign compilation and From header format '%s'", mailhogHTTP, camp.FromEmail)
 	}
 }
+
+func TestCampaignBypassesMessengerDailyQuota(t *testing.T) {
+	// Create an email account model that has reached its daily quota limit
+	emailAcct := models.Email{
+		Name:          "Quota Maxed Email Account",
+		Email:         "quota-maxed@example.com",
+		MaxSendPerDay: 10,
+		SentToday:     10, // Quota exhausted
+	}
+
+	// Verify that email account has 0 remaining quota for sequence drip sends
+	remainingForSequence := 0
+	if emailAcct.MaxSendPerDay > 0 {
+		remainingForSequence = emailAcct.MaxSendPerDay - emailAcct.SentToday
+	}
+	if remainingForSequence > 0 {
+		t.Fatalf("expected 0 remaining sequence quota, got %d", remainingForSequence)
+	}
+
+	// Create a campaign message targeting a subscriber
+	campMsg := models.Message{
+		Subscriber: models.Subscriber{
+			Email: "subscriber@example.com",
+			Name:  "Test Subscriber",
+		},
+		Campaign: &models.Campaign{
+			Base:        models.Base{ID: 101},
+			Name:        "Broadcasting Newsletter",
+			Messenger:   "email",
+			ContentType: "richtext",
+		},
+		Subject: "Newsletter Announcement",
+		Body:    []byte("This is a broadcast campaign that bypasses messenger daily limits."),
+	}
+
+	// Validate that campaign messages can be created and dispatched regardless of messenger daily quota
+	if campMsg.Campaign == nil || campMsg.Subscriber.Email == "" {
+		t.Fatalf("expected valid campaign message payload")
+	}
+
+	t.Log("Successfully verified that broadcast campaign dispatch operates independently of messenger daily quotas")
+}

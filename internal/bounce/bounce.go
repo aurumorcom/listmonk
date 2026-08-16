@@ -1,6 +1,7 @@
 package bounce
 
 import (
+	"context"
 	"errors"
 	"log"
 	"time"
@@ -59,6 +60,8 @@ type Manager struct {
 	queries      *Queries
 	opt          Opt
 	log          *log.Logger
+	ctx          context.Context
+	cancel       context.CancelFunc
 }
 
 // Queries contains the queries.
@@ -140,13 +143,28 @@ func (m *Manager) Run() {
 
 // runMailboxScanner runs a blocking loop that scans the mailbox at given intervals.
 func (m *Manager) runMailboxScanner() {
+	interval := m.opt.Mailbox.ScanInterval
+	if interval <= 0 {
+		interval = 15 * time.Minute
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
 	for {
 		m.log.Printf("scanning bounce mailbox %s", m.opt.Mailbox.Host)
 		if err := m.mailbox.Scan(1000, m.queue); err != nil {
 			m.log.Printf("error scanning bounce mailbox: %v", err)
 		}
 
-		time.Sleep(m.opt.Mailbox.ScanInterval)
+		if m.ctx != nil {
+			select {
+			case <-m.ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		} else {
+			<-ticker.C
+		}
 	}
 }
 

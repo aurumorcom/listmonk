@@ -327,11 +327,11 @@ func ExtractTemplateScope(sub models.Subscriber) map[string]any {
 
 // SignatureOpts defines parameters for 3-tier signature resolution.
 type SignatureOpts struct {
-	Subscriber    models.Subscriber
-	Email         *models.Email
-	WAHAMessenger *models.WAHAMessenger
-	User          *auth.User
-	GlobalSig     string
+	Subscriber   models.Subscriber
+	Email        *models.Email
+	WAHASettings *models.WAHASettings
+	User         *auth.User
+	GlobalSig    string
 }
 
 // ResolveSignatureAdvanced resolves the signature using the 3-tier hierarchy:
@@ -369,8 +369,8 @@ func ResolveSignatureAdvanced(opts SignatureOpts) string {
 	if opts.Email != nil && strings.TrimSpace(opts.Email.Signature) != "" {
 		return strings.TrimSpace(opts.Email.Signature)
 	}
-	if opts.WAHAMessenger != nil && strings.TrimSpace(opts.WAHAMessenger.Signature) != "" {
-		return strings.TrimSpace(opts.WAHAMessenger.Signature)
+	if opts.WAHASettings != nil && strings.TrimSpace(opts.WAHASettings.Signature) != "" {
+		return strings.TrimSpace(opts.WAHASettings.Signature)
 	}
 
 	// Tier 3: User Signature
