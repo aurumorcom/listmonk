@@ -145,6 +145,9 @@ export default Vue.extend({
         } else {
           form.smtp[i].email_headers = [];
         }
+
+        // Auto-enable IMAP if host is specified
+        form.smtp[i].imap_enabled = Boolean(form.smtp[i].imap_host && form.smtp[i].imap_host.trim());
       }
 
       // Bounces boxes.
