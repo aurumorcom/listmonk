@@ -384,12 +384,26 @@ func (a *App) UpdateSettings(c echo.Context) error {
 	if rootURL == "" && a.urlCfg != nil {
 		rootURL = a.urlCfg.RootURL
 	}
+	for i := range set.WAHASettings {
+		if set.WAHASettings[i].Host == "" && set.WAHASettings[i].RootURL != "" {
+			set.WAHASettings[i].Host = set.WAHASettings[i].RootURL
+		}
+		if set.WAHASettings[i].RootURL == "" && set.WAHASettings[i].Host != "" {
+			set.WAHASettings[i].RootURL = set.WAHASettings[i].Host
+		}
+	}
+
 	for _, wm := range set.WAHASettings {
 		if wm.Enabled {
+			wHost := wm.Host
+			if wHost == "" {
+				wHost = wm.RootURL
+			}
 			dur, _ := time.ParseDuration(wm.Timeout)
 			o := waha.Options{
 				Name:              wm.Name,
-				RootURL:           wm.Host,
+				Host:              wHost,
+				RootURL:           wHost,
 				APIKey:            wm.APIKey,
 				Session:           wm.Session,
 				PhoneAttribute:    wm.PhoneAttribute,
