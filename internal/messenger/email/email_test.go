@@ -1,7 +1,9 @@
 package email
 
 import (
+	"encoding/json"
 	"testing"
+	"time"
 )
 
 func TestEmailer_GetPool_RFC5322_DisplayAddress(t *testing.T) {
@@ -60,5 +62,76 @@ func TestEmailer_MalformedFromAddress(t *testing.T) {
 	matched := e.getPool("@@invalid-address@@")
 	if matched != nil {
 		t.Fatalf("expected nil pool for malformed address, got %+v", matched)
+	}
+}
+
+func TestServer_UnmarshalJSON_NestedOpt(t *testing.T) {
+	raw := []byte(`{
+		"name": "email-aquiveal",
+		"auth_protocol": "login",
+		"tls_type": "TLS",
+		"opt": {
+			"host": "smtp.gmail.com",
+			"port": 465,
+			"username": "aquiveal@gmail.com",
+			"password": "secretpassword",
+			"max_conns": 10,
+			"max_msg_retries": 2,
+			"idle_timeout": "15s"
+		}
+	}`)
+
+	var s Server
+	if err := json.Unmarshal(raw, &s); err != nil {
+		t.Fatalf("unexpected unmarshal error: %v", err)
+	}
+
+	if s.Name != "email-aquiveal" {
+		t.Errorf("expected Name 'email-aquiveal', got '%s'", s.Name)
+	}
+	if s.Host != "smtp.gmail.com" {
+		t.Errorf("expected Host 'smtp.gmail.com', got '%s'", s.Host)
+	}
+	if s.Port != 465 {
+		t.Errorf("expected Port 465, got %d", s.Port)
+	}
+	if s.Username != "aquiveal@gmail.com" {
+		t.Errorf("expected Username 'aquiveal@gmail.com', got '%s'", s.Username)
+	}
+	if s.Password != "secretpassword" {
+		t.Errorf("expected Password 'secretpassword', got '%s'", s.Password)
+	}
+	if s.MaxConns != 10 {
+		t.Errorf("expected MaxConns 10, got %d", s.MaxConns)
+	}
+	if s.IdleTimeout != 15*time.Second {
+		t.Errorf("expected IdleTimeout 15s, got %v", s.IdleTimeout)
+	}
+}
+
+func TestServer_UnmarshalJSON_MissingMaxConnsFallback(t *testing.T) {
+	raw := []byte(`{
+		"name": "email-no-conns",
+		"opt": {
+			"host": "smtp.gmail.com",
+			"port": 465
+		}
+	}`)
+
+	var s Server
+	if err := json.Unmarshal(raw, &s); err != nil {
+		t.Fatalf("unexpected unmarshal error: %v", err)
+	}
+
+	if s.MaxConns != 10 {
+		t.Errorf("expected MaxConns to default to 10, got %d", s.MaxConns)
+	}
+
+	msgr, err := New(s.Name, s)
+	if err != nil {
+		t.Fatalf("expected New() to succeed with defaulted MaxConns, got error: %v", err)
+	}
+	if msgr == nil {
+		t.Fatal("expected non-nil Emailer")
 	}
 }

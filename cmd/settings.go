@@ -386,7 +386,7 @@ func (a *App) UpdateSettings(c echo.Context) error {
 	}
 
 	// Dynamically refresh messengers with updated accounts.
-	a.messengers = append(append(initSMTPMessengers(a.core), initPostbackMessengers(ko)...), initWAHAMessengers(ko)...)
+	a.messengers = append(append(initSMTPMessengers(a.core), initPostbackMessengers(ko)...), initWAHAMessengers(a.core, ko)...)
 	for _, m := range a.messengers {
 		if m.Name() == "email" {
 			if em, ok := m.(*email.Emailer); ok {

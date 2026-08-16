@@ -2,12 +2,14 @@ package email
 
 import (
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"net/mail"
 	"net/smtp"
 	"net/textproto"
 	"strings"
+	"time"
 
 	"github.com/knadh/listmonk/internal/utils"
 	"github.com/knadh/listmonk/models"
@@ -43,6 +45,87 @@ type Server struct {
 	pool *smtppool.Pool
 }
 
+func parseDuration(v any) time.Duration {
+	switch val := v.(type) {
+	case string:
+		if val == "" {
+			return 0
+		}
+		d, err := time.ParseDuration(val)
+		if err == nil {
+			return d
+		}
+	case float64:
+		return time.Duration(val)
+	case int64:
+		return time.Duration(val)
+	case int:
+		return time.Duration(val)
+	}
+	return 0
+}
+
+// UnmarshalJSON implements custom JSON unmarshaling for Server to support both
+// flattened fields and nested "opt" sub-objects in smtp_config JSON payloads.
+func (s *Server) UnmarshalJSON(b []byte) error {
+	type serverAlias Server
+	var aux struct {
+		serverAlias
+		Opt *struct {
+			Host          string `json:"host"`
+			Port          int    `json:"port"`
+			Username      string `json:"username"`
+			Password      string `json:"password"`
+			HelloHostname string `json:"hello_hostname"`
+			TLSSkipVerify *bool  `json:"tls_skip_verify"`
+			MaxConns      int    `json:"max_conns"`
+			MaxMsgRetries int    `json:"max_msg_retries"`
+			MsgRetryDelay any    `json:"msg_retry_delay"`
+			IdleTimeout   any    `json:"idle_timeout"`
+			WaitTimeout   any    `json:"wait_timeout"`
+		} `json:"opt"`
+	}
+
+	if err := json.Unmarshal(b, &aux); err != nil {
+		return err
+	}
+
+	*s = Server(aux.serverAlias)
+
+	if aux.Opt != nil {
+		if aux.Opt.Host != "" {
+			s.Host = aux.Opt.Host
+		}
+		if aux.Opt.Port != 0 {
+			s.Port = aux.Opt.Port
+		}
+		if aux.Opt.Username != "" {
+			s.Username = aux.Opt.Username
+		}
+		if aux.Opt.Password != "" {
+			s.Password = aux.Opt.Password
+		}
+		if aux.Opt.HelloHostname != "" {
+			s.HelloHostname = aux.Opt.HelloHostname
+		}
+		if aux.Opt.TLSSkipVerify != nil {
+			s.TLSSkipVerify = *aux.Opt.TLSSkipVerify
+		}
+		if aux.Opt.MaxConns != 0 {
+			s.MaxConns = aux.Opt.MaxConns
+		}
+		if d := parseDuration(aux.Opt.IdleTimeout); d != 0 {
+			s.IdleTimeout = d
+		}
+	}
+
+	if s.MaxConns < 1 {
+		s.MaxConns = 10
+	}
+
+	return nil
+}
+
 // Emailer is the SMTP e-mail messenger.
 type Emailer struct {
 	name string
@@ -69,6 +152,9 @@ func New(name string, servers ...Server) (*Emailer, error) {
 
 	for _, srv := range servers {
 		s := srv
+		if s.MaxConns < 1 {
+			s.MaxConns = 10
+		}
 
 		var auth smtp.Auth
 		switch s.AuthProtocol {

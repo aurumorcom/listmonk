@@ -253,28 +253,48 @@ func (w *Waha) post(url string, body any) error {
 		return err
 	}
 
-	httpReq, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(b))
-	if err != nil {
-		return err
+	retries := w.o.Retries
+	if retries <= 0 {
+		retries = 3
 	}
 
-	httpReq.Header.Set("Content-Type", "application/json")
-	if w.o.APIKey != "" {
-		httpReq.Header.Set("X-Api-Key", w.o.APIKey)
-	}
+	var lastErr error
+	for attempt := 0; attempt <= retries; attempt++ {
+		if attempt > 0 {
+			time.Sleep(time.Duration(1<<(attempt-1)) * 500 * time.Millisecond)
+		}
 
-	resp, err := w.c.Do(httpReq)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
+		httpReq, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(b))
+		if err != nil {
+			return err
+		}
 
-	if resp.StatusCode >= 400 {
+		httpReq.Header.Set("Content-Type", "application/json")
+		if w.o.APIKey != "" {
+			httpReq.Header.Set("X-Api-Key", w.o.APIKey)
+		}
+
+		resp, err := w.c.Do(httpReq)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+
 		respBody, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("WAHA error (%d): %s", resp.StatusCode, string(respBody))
+		resp.Body.Close()
+
+		if resp.StatusCode >= 400 {
+			lastErr = fmt.Errorf("WAHA error (%d): %s", resp.StatusCode, string(respBody))
+			if resp.StatusCode == 502 || resp.StatusCode == 503 || resp.StatusCode == 504 || resp.StatusCode == 429 {
+				continue
+			}
+			return lastErr
+		}
+
+		return nil
 	}
 
-	return nil
+	return lastErr
 }
 
 func (w *Waha) put(url string, body any) error {
@@ -283,28 +303,48 @@ func (w *Waha) put(url string, body any) error {
 		return err
 	}
 
-	httpReq, err := http.NewRequest(http.MethodPut, url, bytes.NewBuffer(b))
-	if err != nil {
-		return err
+	retries := w.o.Retries
+	if retries <= 0 {
+		retries = 3
 	}
 
-	httpReq.Header.Set("Content-Type", "application/json")
-	if w.o.APIKey != "" {
-		httpReq.Header.Set("X-Api-Key", w.o.APIKey)
-	}
+	var lastErr error
+	for attempt := 0; attempt <= retries; attempt++ {
+		if attempt > 0 {
+			time.Sleep(time.Duration(1<<(attempt-1)) * 500 * time.Millisecond)
+		}
 
-	resp, err := w.c.Do(httpReq)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
+		httpReq, err := http.NewRequest(http.MethodPut, url, bytes.NewBuffer(b))
+		if err != nil {
+			return err
+		}
 
-	if resp.StatusCode >= 400 {
+		httpReq.Header.Set("Content-Type", "application/json")
+		if w.o.APIKey != "" {
+			httpReq.Header.Set("X-Api-Key", w.o.APIKey)
+		}
+
+		resp, err := w.c.Do(httpReq)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+
 		respBody, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("WAHA error (%d): %s", resp.StatusCode, string(respBody))
+		resp.Body.Close()
+
+		if resp.StatusCode >= 400 {
+			lastErr = fmt.Errorf("WAHA error (%d): %s", resp.StatusCode, string(respBody))
+			if resp.StatusCode == 502 || resp.StatusCode == 503 || resp.StatusCode == 504 || resp.StatusCode == 429 {
+				continue
+			}
+			return lastErr
+		}
+
+		return nil
 	}
 
-	return nil
+	return lastErr
 }
 
 type webhookItem struct {
