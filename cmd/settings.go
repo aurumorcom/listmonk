@@ -400,11 +400,15 @@ func (a *App) UpdateSettings(c echo.Context) error {
 		}
 	}
 	if a.seqManager != nil {
+		a.seqManager.Stop()
 		msgrMap := make(map[string]manager.Messenger)
 		for _, m := range a.messengers {
 			msgrMap[m.Name()] = m
 		}
 		a.seqManager = sequence.NewManager(a.core, msgrMap, a.media, a.log)
+		if a.manager != nil && a.manager.HasRunningCampaigns() {
+			go a.seqManager.Start(1 * time.Minute)
+		}
 	}
 
 	// Sync WAHA webhooks for any enabled WAHA messengers.
@@ -553,6 +557,42 @@ func (a *App) TestSMTPSettings(c echo.Context) error {
 	m.Subject = a.i18n.T("settings.smtp.testConnection")
 	m.Body = b.Bytes()
 	if err := msgr.Push(m); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+
+	return c.JSON(http.StatusOK, okResp{a.bufLog.Lines()})
+}
+
+// TestWAHASettings sends a test WhatsApp message using the provided WAHA server configuration.
+func (a *App) TestWAHASettings(c echo.Context) error {
+	var req struct {
+		waha.Options
+		Phone string `json:"phone"`
+	}
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, a.i18n.Ts("globals.messages.invalidReq"))
+	}
+	if strings.TrimSpace(req.Phone) == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, a.i18n.Ts("globals.messages.missingFields", "name", "phone"))
+	}
+
+	if req.Host == "" && req.RootURL != "" {
+		req.Host = req.RootURL
+	}
+	if req.RootURL == "" && req.Host != "" {
+		req.RootURL = req.Host
+	}
+
+	w, err := waha.New(req.Options)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, a.i18n.Ts("globals.messages.errorCreating", "name", "WAHA", "error", err.Error()))
+	}
+
+	msg := models.Message{
+		ToPhone: strings.TrimSpace(req.Phone),
+		Body:    []byte(a.i18n.T("settings.smtp.testConnection")),
+	}
+	if err := w.Push(msg); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 

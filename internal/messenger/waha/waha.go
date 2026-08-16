@@ -76,9 +76,6 @@ func New(o Options) (*Waha, error) {
 	if o.Host == "" && o.RootURL != "" {
 		o.Host = o.RootURL
 	}
-	if o.Session == "" {
-		o.Session = "default"
-	}
 	if o.PhoneAttribute == "" {
 		o.PhoneAttribute = "phone"
 	}
@@ -151,7 +148,7 @@ func (w *Waha) Push(m models.Message) error {
 		return fmt.Errorf("subscriber %s has invalid phone: %w", m.Subscriber.UUID, err)
 	}
 	session := w.o.Session
-	if m.MessengerSession != "" {
+	if m.MessengerSession != "" && m.MessengerSession != "default" {
 		session = m.MessengerSession
 	}
 
@@ -248,56 +245,14 @@ func (w *Waha) sendImage(chatID, session, caption string, att models.Attachment)
 }
 
 func (w *Waha) post(url string, body any) error {
-	b, err := json.Marshal(body)
-	if err != nil {
-		return err
-	}
-
-	retries := w.o.Retries
-	if retries <= 0 {
-		retries = 3
-	}
-
-	var lastErr error
-	for attempt := 0; attempt <= retries; attempt++ {
-		if attempt > 0 {
-			time.Sleep(time.Duration(1<<(attempt-1)) * 500 * time.Millisecond)
-		}
-
-		httpReq, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(b))
-		if err != nil {
-			return err
-		}
-
-		httpReq.Header.Set("Content-Type", "application/json")
-		if w.o.APIKey != "" {
-			httpReq.Header.Set("X-Api-Key", w.o.APIKey)
-		}
-
-		resp, err := w.c.Do(httpReq)
-		if err != nil {
-			lastErr = err
-			continue
-		}
-
-		respBody, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
-
-		if resp.StatusCode >= 400 {
-			lastErr = fmt.Errorf("WAHA error (%d): %s", resp.StatusCode, string(respBody))
-			if resp.StatusCode == 502 || resp.StatusCode == 503 || resp.StatusCode == 504 || resp.StatusCode == 429 {
-				continue
-			}
-			return lastErr
-		}
-
-		return nil
-	}
-
-	return lastErr
+	return w.doRequest(http.MethodPost, url, body)
 }
 
 func (w *Waha) put(url string, body any) error {
+	return w.doRequest(http.MethodPut, url, body)
+}
+
+func (w *Waha) doRequest(method, url string, body any) error {
 	b, err := json.Marshal(body)
 	if err != nil {
 		return err
@@ -314,7 +269,7 @@ func (w *Waha) put(url string, body any) error {
 			time.Sleep(time.Duration(1<<(attempt-1)) * 500 * time.Millisecond)
 		}
 
-		httpReq, err := http.NewRequest(http.MethodPut, url, bytes.NewBuffer(b))
+		httpReq, err := http.NewRequest(method, url, bytes.NewBuffer(b))
 		if err != nil {
 			return err
 		}

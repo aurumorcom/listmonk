@@ -799,8 +799,20 @@ func initSMTPMessengers(co *core.Core) []manager.Messenger {
 // initSequenceManager initializes the sequence runner manager.
 func initSequenceManager(msgrs []manager.Messenger, co *core.Core, md media.Store, l *log.Logger, ko *koanf.Koanf) *sequence.Manager {
 	msgrMap := make(map[string]manager.Messenger)
+	var firstWAHA manager.Messenger
 	for _, m := range msgrs {
 		msgrMap[m.Name()] = m
+		if firstWAHA == nil && (m.Name() == "whatsapp" || m.Name() == "waha" || strings.HasPrefix(m.Name(), "whatsapp-") || strings.HasPrefix(m.Name(), "waha-")) {
+			firstWAHA = m
+		}
+	}
+	if firstWAHA != nil {
+		if _, ok := msgrMap["whatsapp"]; !ok {
+			msgrMap["whatsapp"] = firstWAHA
+		}
+		if _, ok := msgrMap["waha"]; !ok {
+			msgrMap["waha"] = firstWAHA
+		}
 	}
 	seqMgr := sequence.NewManager(co, msgrMap, md, l)
 

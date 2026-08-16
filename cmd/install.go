@@ -345,7 +345,7 @@ func installSequence(coldListID, campTplID, archiveTplID, schedID int, q *models
 		schedID,
 		json.RawMessage(`{"days": ["mon","tue","wed","thu","fri"], "start_time": "09:00", "end_time": "17:00"}`),
 		pq.Int64Array{},
-		pq.StringArray{"default"},
+		pq.StringArray{},
 		false,
 		archiveTplID,
 		nil,

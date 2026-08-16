@@ -776,28 +776,6 @@ func (c *Core) EnrollSequenceContacts(sequenceID int, subscriberIDs []int, userC
 	return tx.Commit()
 }
 
-// ReassignSequenceContactSender updates the email account or WAHA session locked to a sequence contact.
-func (c *Core) ReassignSequenceContactSender(sequenceID, subID int, emailID null.Int, wahaSession null.String) error {
-	var mbVal any
-	if emailID.Valid {
-		mbVal = emailID.Int
-	}
-	var wsVal any
-	if wahaSession.Valid && wahaSession.String != "" {
-		wsVal = wahaSession.String
-	}
-
-	_, err := c.db.Exec(`UPDATE sequence_contacts
-		SET email_id = $3, waha_session = $4
-		WHERE sequence_id = $1 AND subscriber_id = $2`,
-		sequenceID, subID, mbVal, wsVal)
-	if err != nil {
-		c.log.Printf("error reassigning sequence contact sender: %v", err)
-		return echo.NewHTTPError(http.StatusInternalServerError, c.i18n.Ts("public.errorProcessingRequest"))
-	}
-	return nil
-}
-
 // GetDueSequenceContacts returns sequence contacts due for sending for active sequences.
 func (c *Core) GetDueSequenceContacts(limit int) ([]models.SequenceContact, error) {
 	var out []models.SequenceContact

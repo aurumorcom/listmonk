@@ -29,12 +29,12 @@ type Subscribers []Subscriber
 type Subscriber struct {
 	Base
 
-	UUID    string      `db:"uuid" json:"uuid"`
-	Email   string      `db:"email" json:"email" form:"email"`
-	Name    string      `db:"name" json:"name" form:"name"`
-	Phone   null.String `db:"phone" json:"phone" form:"phone"`
-	Attribs JSON        `db:"attribs" json:"attribs"`
-	Status  string      `db:"status" json:"status"`
+	UUID    string         `db:"uuid" json:"uuid"`
+	Email   string         `db:"email" json:"email" form:"email"`
+	Name    string         `db:"name" json:"name" form:"name"`
+	Phone   null.String    `db:"phone" json:"phone" form:"phone"`
+	Attribs JSON           `db:"attribs" json:"attribs"`
+	Status  string         `db:"status" json:"status"`
 	Lists   types.JSONText `db:"lists" json:"lists"`
 }
 
@@ -152,6 +152,7 @@ type SubscriberExport struct {
 // SubscriberExportProfile represents a subscriber's collated data in JSON for export.
 type SubscriberExportProfile struct {
 	Email         string          `db:"email" json:"-"`
+	Phone         string          `db:"phone" json:"phone,omitempty"`
 	Profile       json.RawMessage `db:"profile" json:"profile,omitempty"`
 	Subscriptions json.RawMessage `db:"subscriptions" json:"subscriptions,omitempty"`
 	CampaignViews json.RawMessage `db:"campaign_views" json:"campaign_views,omitempty"`

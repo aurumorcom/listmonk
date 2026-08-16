@@ -109,6 +109,7 @@ func initHTTPHandlers(e *echo.Echo, a *App) {
 		g.PUT("/api/settings", pm(a.UpdateSettings, "settings:manage"))
 		g.PUT("/api/settings/:key", pm(a.UpdateSettingsByKey, "settings:manage"))
 		g.POST("/api/settings/smtp/test", pm(a.TestSMTPSettings, "settings:manage"))
+		g.POST("/api/settings/waha/test", pm(a.TestWAHASettings, "settings:manage"))
 		g.GET("/api/emails", pm(a.GetEmails, "settings:get", "settings:manage"))
 		g.GET("/api/emails/:id", pm(hasID(a.GetEmail), "settings:get", "settings:manage"))
 		g.POST("/api/emails", pm(a.CreateEmail, "settings:manage"))
@@ -179,7 +180,6 @@ func initHTTPHandlers(e *echo.Echo, a *App) {
 		g.GET("/api/campaigns/analytics/:type", pm(a.GetCampaignViewAnalytics, "campaigns:get_analytics"))
 		g.GET("/api/campaigns/:id/preview", pm(hasID(a.PreviewCampaign), "campaigns:get_all", "campaigns:get"))
 		g.POST("/api/campaigns/:id/preview/archive", pm(hasID(a.PreviewCampaignArchive), "campaigns:get_all", "campaigns:get"))
-		g.POST("/api/campaigns/:id/preview", pm(hasID(a.PreviewCampaign), "campaigns:get_all", "campaigns:get"))
 		g.POST("/api/campaigns/:id/content", pm(hasID(a.CampaignContent), "campaigns:manage_all", "campaigns:manage"))
 		g.POST("/api/campaigns/:id/text", pm(hasID(a.PreviewCampaign), "campaigns:get"))
 		g.POST("/api/campaigns/:id/test", pm(hasID(a.TestCampaign), "campaigns:manage_all", "campaigns:manage"))
@@ -212,7 +212,6 @@ func initHTTPHandlers(e *echo.Echo, a *App) {
 		g.DELETE("/api/sequences/:id", pm(a.DeleteSequence, "sequences:manage_all", "sequences:manage", "campaigns:manage_all", "campaigns:manage"))
 		g.GET("/api/sequences/:id/steps", pm(a.GetSequenceSteps, "sequences:manage_all", "sequences:manage", "campaigns:manage_all", "campaigns:manage"))
 		g.POST("/api/sequences/:id/steps", pm(a.SaveSequenceSteps, "sequences:manage_all", "sequences:manage", "campaigns:manage_all", "campaigns:manage"))
-		g.PUT("/api/sequences/:id/contacts/:sub_id/reassign", pm(a.ReassignSequenceContactSender, "sequences:manage_all", "sequences:manage", "campaigns:manage_all", "campaigns:manage"))
 
 		g.GET("/api/schedules", pm(a.GetSchedules, "schedules:manage", "schedules:get", "campaigns:manage_all", "campaigns:manage"))
 		g.GET("/api/schedules/:id", pm(a.GetSchedule, "schedules:manage", "schedules:get", "campaigns:manage_all", "campaigns:manage"))

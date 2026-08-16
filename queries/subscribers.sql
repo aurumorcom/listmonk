@@ -119,12 +119,13 @@ SELECT id from sub;
 -- Upserts a subscriber where existing subscribers get their names and attributes overwritten.
 -- If $7 = true, update name/attribs. If $8 = true, update subscription status.
 WITH sub AS (
-    INSERT INTO subscribers as s (uuid, email, name, attribs, status)
-    VALUES($1, $2, $3, $4, 'enabled')
+    INSERT INTO subscribers as s (uuid, email, name, attribs, status, phone)
+    VALUES($1, $2, $3, $4, 'enabled', $9)
     ON CONFLICT (email)
     DO UPDATE SET
         name=(CASE WHEN $7 THEN $3 ELSE s.name END),
         attribs=(CASE WHEN $7 THEN $4 ELSE s.attribs END),
+        phone=(CASE WHEN $7 THEN $9 ELSE s.phone END),
         updated_at=NOW()
     RETURNING uuid, id, status
 ),
@@ -409,7 +410,7 @@ UPDATE subscriber_lists SET status='unsubscribed', updated_at=NOW()
 -- privacy
 -- name: export-subscriber-data
 WITH prof AS (
-    SELECT id, uuid, email, name, attribs, status, created_at, updated_at FROM subscribers WHERE
+    SELECT id, uuid, email, name, attribs, status, phone, created_at, updated_at FROM subscribers WHERE
     CASE WHEN $1 > 0 THEN id = $1 ELSE uuid = $2 END
 ),
 subs AS (
