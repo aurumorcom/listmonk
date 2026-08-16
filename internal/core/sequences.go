@@ -173,7 +173,15 @@ func (c *Core) syncSequenceLists(seqID int, listIDs []int, status string) error 
 				)
 			JOIN subscribers s ON s.id = subl.subscriber_id AND s.status = 'enabled'
 			WHERE sl.sequence_id = $1
-			ON CONFLICT (sequence_id, subscriber_id) DO NOTHING`, seqID)
+			ON CONFLICT (sequence_id, subscriber_id) DO UPDATE SET
+				status = CASE
+					WHEN sequence_contacts.status = 'opted_out' THEN 'scheduled'
+					ELSE sequence_contacts.status
+				END,
+				next_send_at = CASE
+					WHEN sequence_contacts.status = 'opted_out' THEN NOW()
+					ELSE sequence_contacts.next_send_at
+				END`, seqID)
 		if err != nil {
 			return err
 		}
@@ -272,6 +280,14 @@ func (c *Core) EnrollSubscribersByList(subIDs []int, listIDs []int, userContext 
 		JOIN sequences seq ON seq.id = sl.sequence_id AND seq.status = 'active'
 		WHERE s.id = ANY($1::INT[]) AND subl.list_id = ANY($2::INT[]) AND s.status = 'enabled'
 		ON CONFLICT (sequence_id, subscriber_id) DO UPDATE SET
+			status = CASE
+				WHEN sequence_contacts.status = 'opted_out' THEN 'scheduled'
+				ELSE sequence_contacts.status
+			END,
+			next_send_at = CASE
+				WHEN sequence_contacts.status = 'opted_out' THEN NOW()
+				ELSE sequence_contacts.next_send_at
+			END,
 			email_id = COALESCE(sequence_contacts.email_id, EXCLUDED.email_id),
 			waha_session = COALESCE(sequence_contacts.waha_session, EXCLUDED.waha_session)`,
 		pq.Array(subIDs), pq.Array(listIDs), mbVal, wsVal)
@@ -338,7 +354,15 @@ func (c *Core) UpdateSequenceStatus(id int, status string) (*models.Sequence, er
 				)
 			JOIN subscribers s ON s.id = subl.subscriber_id AND s.status = 'enabled'
 			WHERE sl.sequence_id = $1
-			ON CONFLICT (sequence_id, subscriber_id) DO NOTHING`, id)
+			ON CONFLICT (sequence_id, subscriber_id) DO UPDATE SET
+				status = CASE
+					WHEN sequence_contacts.status = 'opted_out' THEN 'scheduled'
+					ELSE sequence_contacts.status
+				END,
+				next_send_at = CASE
+					WHEN sequence_contacts.status = 'opted_out' THEN NOW()
+					ELSE sequence_contacts.next_send_at
+				END`, id)
 	}
 
 	res, err := c.GetSequence(id, "")

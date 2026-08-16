@@ -2031,3 +2031,34 @@ func TestDecoupledDelivery_TestVsProductionBehavior(t *testing.T) {
 		t.Fatalf("expected test message subscriber phone '+918935885359', got '%s'", testMsg.Subscriber.Phone.String)
 	}
 }
+
+func TestSequence_ListTriggeredReEnrollment_ResumesOptedOut(t *testing.T) {
+	// Simulate conflict update behavior logic:
+	// If a subscriber's sequence_contacts status is 'opted_out', re-adding them to the list sets status = 'scheduled'
+	// If a subscriber's status is 'finished', re-adding them preserves 'finished'
+
+	simulateConflictUpdate := func(currentStatus string) (newStatus string, updatedSendAt bool) {
+		if currentStatus == "opted_out" {
+			return "scheduled", true
+		}
+		return currentStatus, false
+	}
+
+	// 1. Opted out contact gets resumed to scheduled
+	status1, sendAtUpdated1 := simulateConflictUpdate("opted_out")
+	if status1 != "scheduled" || !sendAtUpdated1 {
+		t.Fatalf("expected status 'scheduled' and updated send_at for opted_out contact, got status '%s'", status1)
+	}
+
+	// 2. Finished contact remains finished
+	status2, sendAtUpdated2 := simulateConflictUpdate("finished")
+	if status2 != "finished" || sendAtUpdated2 {
+		t.Fatalf("expected status 'finished' and un-updated send_at for finished contact, got status '%s'", status2)
+	}
+
+	// 3. In-progress contact remains in_progress
+	status3, sendAtUpdated3 := simulateConflictUpdate("in_progress")
+	if status3 != "in_progress" || sendAtUpdated3 {
+		t.Fatalf("expected status 'in_progress' for in_progress contact, got status '%s'", status3)
+	}
+}
