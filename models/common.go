@@ -65,6 +65,14 @@ var regTplFuncs = []regTplFunc{
 	},
 }
 
+// SubstituteTplShorthand substitutes shorthand template functions (e.g. @TrackLink) into full Go template calls.
+func SubstituteTplShorthand(s string) string {
+	for _, r := range regTplFuncs {
+		s = r.regExp.ReplaceAllString(s, r.replace)
+	}
+	return s
+}
+
 // markdown is a global instance of Markdown parser and renderer.
 var markdown = goldmark.New(
 	goldmark.WithParserOptions(
