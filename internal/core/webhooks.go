@@ -28,6 +28,13 @@ var (
 	}
 )
 
+// SetWebhookHTTPClient sets a custom HTTP client for testing / VCR transport.
+func SetWebhookHTTPClient(client *http.Client) {
+	if client != nil {
+		webhookClient = client
+	}
+}
+
 // ComputeHMACSignature computes the HMAC SHA256 signature for a webhook payload.
 // Returns header format: t=<timestamp>,v1=<hex_signature>
 func ComputeHMACSignature(secret string, timestamp int64, payload []byte) string {
