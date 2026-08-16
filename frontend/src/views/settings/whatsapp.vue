@@ -22,8 +22,9 @@
           <div class="column" :class="{ disabled: !item.enabled }">
             <div class="columns">
               <div class="column is-6">
-                <b-field :label="$t('globals.fields.name')" label-position="on-border" message="Unique identifier for this WhatsApp messenger">
-                  <b-input v-model="item.name" name="name" placeholder="whatsapp" :maxlength="100" />
+                <b-field :label="$t('globals.fields.name')" label-position="on-border"
+                  message="Optional unique name for the WhatsApp server. Must have the prefix whatsapp-. Setting this allows selection for campaigns (e.g. whatsapp-primary).">
+                  <b-input v-model="item.name" name="name" placeholder="whatsapp-primary" :maxlength="100" />
                 </b-field>
               </div>
               <div class="column is-6">
@@ -182,7 +183,7 @@
               <div class="column is-6">
                 <b-field label="Assigned User" label-position="on-border" message="User who owns this channel for personal outreach sequences">
                   <b-select v-model="item.user_id" placeholder="Select assigned user..." expanded>
-                    <option :value="null">-- Shared Team Channel (Unassigned) --</option>
+                    <option :value="null">&mdash; {{ $t("globals.terms.none") }} &mdash;</option>
                     <option v-for="user in users" :key="user.id" :value="user.id">
                       {{ user.name ? `${user.name} (${user.email || user.username})` : (user.email || user.username) }}
                     </option>
