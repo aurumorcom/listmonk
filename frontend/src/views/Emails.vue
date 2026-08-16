@@ -19,7 +19,7 @@
         {{ props.row.email }}
       </b-table-column>
       <b-table-column v-slot="props" field="sent_today" label="Quota Used Today">
-        {{ props.row.sent_today }} / {{ props.row.emails_per_day || 'Unlimited' }}
+        {{ props.row.sent_today }} / {{ props.row.max_send_per_day || 'Unlimited' }}
       </b-table-column>
       <b-table-column v-slot="props" label="Actions">
         <b-button size="is-small" type="is-info" icon-left="pencil" class="mr-2" @click="openEditModal(props.row)" />
@@ -40,14 +40,9 @@
             <b-input v-model="form.email" type="email" required placeholder="rep1@outreach.com" />
           </b-field>
           <div class="columns">
-            <div class="column is-6">
-              <b-field label="Emails Per Day" label-position="on-border" message="0 = unlimited">
-                <b-numberinput v-model="form.emails_per_day" min="0" max="100000" />
-              </b-field>
-            </div>
-            <div class="column is-6">
-              <b-field label="Emails Per Hour" label-position="on-border" message="0 = unlimited">
-                <b-numberinput v-model="form.emails_per_hour" min="0" max="10000" />
+            <div class="column is-12">
+              <b-field label="Daily Sending Quota" label-position="on-border" message="0 = unlimited">
+                <b-numberinput v-model="form.max_send_per_day" min="0" max="100000" />
               </b-field>
             </div>
           </div>
@@ -77,8 +72,7 @@ export default {
         id: null,
         name: '',
         email: '',
-        emails_per_day: 0,
-        emails_per_hour: 0,
+        max_send_per_day: 0,
         signature: '',
       },
     };
@@ -100,8 +94,7 @@ export default {
         id: null,
         name: '',
         email: '',
-        emails_per_day: 0,
-        emails_per_hour: 0,
+        max_send_per_day: 0,
         signature: '',
       };
       this.showModal = true;
@@ -112,8 +105,7 @@ export default {
         id: row.id,
         name: row.name,
         email: row.email,
-        emails_per_day: row.emails_per_day || 0,
-        emails_per_hour: row.emails_per_hour || 0,
+        max_send_per_day: row.max_send_per_day || 0,
         signature: row.signature || '',
       };
       this.showModal = true;
