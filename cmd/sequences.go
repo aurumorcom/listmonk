@@ -348,18 +348,14 @@ func (a *App) TestSequence(c echo.Context) error {
 			}
 		}
 
-		if strings.Contains(target, "@") {
-			if targetMessenger == "" || targetMessenger == "whatsapp" || targetMessenger == "waha" || strings.HasPrefix(targetMessenger, "whatsapp-") || strings.HasPrefix(targetMessenger, "waha-") {
+		if targetMessenger == "" {
+			if strings.Contains(target, "@") {
+				targetMessenger = "email"
+			} else if _, err := utils.SanitizePhone(target); err == nil {
+				targetMessenger = "whatsapp"
+			} else {
 				targetMessenger = "email"
 			}
-		} else if _, err := utils.SanitizePhone(target); err == nil {
-			if targetMessenger == "" || targetMessenger == "email" || strings.HasPrefix(targetMessenger, "email-") {
-				targetMessenger = "whatsapp"
-			}
-		}
-
-		if targetMessenger == "" {
-			targetMessenger = "email"
 		}
 
 		testStep := step
