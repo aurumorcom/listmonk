@@ -1,40 +1,40 @@
--- name: get-webhook-endpoints
+-- name: get-webhooks
 SELECT id, name, url, secret, events, enabled, created_at, updated_at
-FROM webhook_endpoints
+FROM webhooks
 ORDER BY id DESC;
 
--- name: get-webhook-endpoint-by-id
+-- name: get-webhook-by-id
 SELECT id, name, url, secret, events, enabled, created_at, updated_at
-FROM webhook_endpoints
+FROM webhooks
 WHERE id = $1;
 
--- name: get-active-endpoints-for-event
+-- name: get-active-webhooks-for-event
 SELECT id, name, url, secret, events, enabled, created_at, updated_at
-FROM webhook_endpoints
+FROM webhooks
 WHERE enabled = true AND $1 = ANY(events);
 
--- name: insert-webhook-endpoint
-INSERT INTO webhook_endpoints (name, url, secret, events, enabled)
+-- name: insert-webhook
+INSERT INTO webhooks (name, url, secret, events, enabled)
 VALUES ($1, $2, $3, $4, $5)
 RETURNING id, name, url, secret, events, enabled, created_at, updated_at;
 
--- name: update-webhook-endpoint
-UPDATE webhook_endpoints
+-- name: update-webhook
+UPDATE webhooks
 SET name = $1, url = $2, secret = $3, events = $4, enabled = $5, updated_at = NOW()
 WHERE id = $6
 RETURNING id, name, url, secret, events, enabled, created_at, updated_at;
 
--- name: delete-webhook-endpoint
-DELETE FROM webhook_endpoints
+-- name: delete-webhook
+DELETE FROM webhooks
 WHERE id = $1;
 
 -- name: enqueue-webhook-log
-INSERT INTO webhook_logs (endpoint_id, event_type, payload, status, next_retry_at)
+INSERT INTO webhook_logs (webhook_id, event_type, payload, status, next_retry_at)
 VALUES ($1, $2, $3, 'pending', NOW())
-RETURNING id, endpoint_id, event_type, payload, status, attempts, max_attempts, next_retry_at, response_code, response_body, created_at, updated_at;
+RETURNING id, webhook_id, event_type, payload, status, attempts, max_attempts, next_retry_at, response_code, response_body, created_at, updated_at;
 
 -- name: pop-pending-webhook-logs
-SELECT id, endpoint_id, event_type, payload, status, attempts, max_attempts, next_retry_at, response_code, response_body, created_at, updated_at
+SELECT id, webhook_id, event_type, payload, status, attempts, max_attempts, next_retry_at, response_code, response_body, created_at, updated_at
 FROM webhook_logs
 WHERE status = 'pending' AND next_retry_at <= NOW()
 ORDER BY id ASC
@@ -47,7 +47,7 @@ SET status = $1, attempts = $2, next_retry_at = $3, response_code = $4, response
 WHERE id = $6;
 
 -- name: get-webhook-logs
-SELECT id, endpoint_id, event_type, status, attempts, max_attempts, next_retry_at, response_code, response_body, created_at, updated_at
+SELECT id, webhook_id, event_type, status, attempts, max_attempts, next_retry_at, response_code, response_body, created_at, updated_at
 FROM webhook_logs
 ORDER BY id DESC
 LIMIT $1 OFFSET $2;
