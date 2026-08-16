@@ -20,9 +20,8 @@ func V6_3_0(db *sqlx.DB, fs stuffbin.FileSystem, ko *koanf.Koanf, lo *log.Logger
 			email           TEXT NOT NULL UNIQUE,
 			smtp_config     JSONB NOT NULL DEFAULT '{}',
 			imap_config     JSONB NOT NULL DEFAULT '{}',
-			emails_per_day  INTEGER NOT NULL DEFAULT 0,
-			emails_per_hour INTEGER NOT NULL DEFAULT 0,
-			emails_today    INTEGER NOT NULL DEFAULT 0,
+			max_send_per_day INTEGER NOT NULL DEFAULT 0,
+			sent_today      INTEGER NOT NULL DEFAULT 0,
 			user_id         INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
 			signature       TEXT NOT NULL DEFAULT '',
 			created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -32,8 +31,8 @@ func V6_3_0(db *sqlx.DB, fs stuffbin.FileSystem, ko *koanf.Koanf, lo *log.Logger
 		ALTER TABLE emails
 			ADD COLUMN IF NOT EXISTS user_id INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
 			ADD COLUMN IF NOT EXISTS signature TEXT NOT NULL DEFAULT '',
-			ADD COLUMN IF NOT EXISTS emails_per_day INTEGER NOT NULL DEFAULT 0,
-			ADD COLUMN IF NOT EXISTS emails_per_hour INTEGER NOT NULL DEFAULT 0;
+			ADD COLUMN IF NOT EXISTS max_send_per_day INTEGER NOT NULL DEFAULT 0,
+			ADD COLUMN IF NOT EXISTS sent_today INTEGER NOT NULL DEFAULT 0;
 		CREATE INDEX IF NOT EXISTS idx_emails_user_id ON emails(user_id);
 	`); err != nil {
 		return err
