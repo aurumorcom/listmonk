@@ -20,6 +20,7 @@ import (
 	"github.com/knadh/listmonk/internal/messenger/email"
 	"github.com/knadh/listmonk/internal/messenger/waha"
 	"github.com/knadh/listmonk/internal/sequence"
+	"github.com/knadh/listmonk/internal/testutil"
 	"github.com/knadh/listmonk/models"
 	"github.com/knadh/smtppool/v2"
 	"github.com/labstack/echo/v4"
@@ -225,7 +226,13 @@ type wahaSessionTarget struct {
 }
 
 func discoverWahaSessions(wahaURL, apiKey string) (sender wahaSessionTarget, receiver wahaSessionTarget, isLive bool) {
-	client := &http.Client{Timeout: 3 * time.Second}
+	return discoverWahaSessionsWithClient(wahaURL, apiKey, nil)
+}
+
+func discoverWahaSessionsWithClient(wahaURL, apiKey string, client *http.Client) (sender wahaSessionTarget, receiver wahaSessionTarget, isLive bool) {
+	if client == nil {
+		client = &http.Client{Timeout: 3 * time.Second}
+	}
 	req, err := http.NewRequest(http.MethodGet, strings.TrimRight(wahaURL, "/")+"/api/sessions?all=true", nil)
 	if err != nil {
 		return sender, receiver, false
@@ -283,15 +290,18 @@ func discoverWahaSessions(wahaURL, apiKey string) (sender wahaSessionTarget, rec
 	} else if len(working) == 1 {
 		return working[0], working[0], true
 	}
-	return wahaSessionTarget{Name: "mock_sender", Phone: "1000000001", JID: "1000000001@c.us"},
-		wahaSessionTarget{Name: "mock_receiver", Phone: "1000000002", JID: "1000000002@c.us"}, false
+	return wahaSessionTarget{Name: "mock_sender", Phone: "+14155552671", JID: "14155552671@c.us"},
+		wahaSessionTarget{Name: "mock_receiver", Phone: "+14155552672", JID: "14155552672@c.us"}, false
 }
 
 func TestE2E_Campaign_WhatsApp_WAHA(t *testing.T) {
-	wahaURL := getEnv("WAHA_ROOT_URL", "http://localhost:3000")
-	apiKey := getEnv("WAHA_API_KEY", "key_JR59f24sOxG1O2OhhLFXIsLVID4ajvLD")
+	testutil.LoadDotEnv()
+	wahaURL := getEnv("WAHA_HOST", "http://localhost:3000")
+	apiKey := getEnv("WAHA_API_KEY", "")
 
-	senderSess, receiverSess, isLive := discoverWahaSessions(wahaURL, apiKey)
+	rec, vcrClient := testutil.NewVCRRecorder(t, "campaigns/whatsapp_campaign_dispatch")
+
+	senderSess, receiverSess, isLive := discoverWahaSessionsWithClient(wahaURL, apiKey, vcrClient)
 	t.Logf("Dynamically discovered WAHA sessions: Sender = %s (%s), Receiver = %s (%s) [Live: %v]",
 		senderSess.Name, senderSess.Phone, receiverSess.Name, receiverSess.Phone, isLive)
 
@@ -306,6 +316,10 @@ func TestE2E_Campaign_WhatsApp_WAHA(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("failed to initialize WAHA messenger: %v", err)
+	}
+
+	if rec != nil {
+		wmsgr.SetHTTPClient(vcrClient)
 	}
 
 	msgID := fmt.Sprintf("3EB0CAMP%d", time.Now().UnixNano()%10000000)
@@ -449,13 +463,16 @@ func TestE2E_SendTestMessageBox_Email_MailHog(t *testing.T) {
 }
 
 func TestE2E_SendTestMessageBox_WhatsApp_WAHA(t *testing.T) {
-	wahaURL := getEnv("WAHA_ROOT_URL", "http://localhost:3000")
-	apiKey := getEnv("WAHA_API_KEY", "key_JR59f24sOxG1O2OhhLFXIsLVID4ajvLD")
+	testutil.LoadDotEnv()
+	wahaURL := getEnv("WAHA_HOST", "http://localhost:3000")
+	apiKey := getEnv("WAHA_API_KEY", "")
 
-	senderSess, receiverSess, isWAHALive := discoverWahaSessions(wahaURL, apiKey)
+	rec, vcrClient := testutil.NewVCRRecorder(t, "campaigns/whatsapp_test_message")
+
+	senderSess, receiverSess, isWAHALive := discoverWahaSessionsWithClient(wahaURL, apiKey, vcrClient)
 	testPhoneRecipient := receiverSess.Phone
-	if testPhoneRecipient == "" {
-		testPhoneRecipient = "918935885359"
+	if testPhoneRecipient == "" || testPhoneRecipient == "1000000002" {
+		testPhoneRecipient = "+14155552671"
 	}
 
 	wmsgr, err := waha.New(waha.Options{
@@ -468,6 +485,10 @@ func TestE2E_SendTestMessageBox_WhatsApp_WAHA(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("failed to initialize WAHA messenger: %v", err)
+	}
+
+	if rec != nil {
+		wmsgr.SetHTTPClient(vcrClient)
 	}
 
 	testWhatsAppMsg := models.Message{

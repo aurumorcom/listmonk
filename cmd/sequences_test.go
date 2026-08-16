@@ -20,6 +20,7 @@ import (
 	"github.com/knadh/listmonk/internal/messenger/email"
 	"github.com/knadh/listmonk/internal/messenger/waha"
 	"github.com/knadh/listmonk/internal/sequence"
+	"github.com/knadh/listmonk/internal/testutil"
 	"github.com/knadh/listmonk/internal/utils"
 	"github.com/knadh/listmonk/models"
 	"github.com/knadh/smtppool/v2"
@@ -1291,10 +1292,16 @@ func TestE2E_Sequence_Email_MailHog_Lifecycle(t *testing.T) {
 }
 
 func TestE2E_Sequence_WAHA_WhatsApp_Lifecycle(t *testing.T) {
-	wahaURL := getEnv("WAHA_ROOT_URL", "http://localhost:3000")
-	apiKey := getEnv("WAHA_API_KEY", "key_JR59f24sOxG1O2OhhLFXIsLVID4ajvLD")
+	testutil.LoadDotEnv()
+	wahaURL := getEnv("WAHA_HOST", "http://localhost:3000")
+	apiKey := getEnv("WAHA_API_KEY", "")
 
-	senderSess, receiverSess, isLive := discoverWahaSessions(wahaURL, apiKey)
+	rec, vcrClient := testutil.NewVCRRecorder(t, "sequences/whatsapp_sequence_lifecycle")
+	if rec == nil {
+		_ = vcrClient
+	}
+
+	senderSess, receiverSess, isLive := discoverWahaSessionsWithClient(wahaURL, apiKey, vcrClient)
 	t.Logf("Dynamically discovered WAHA sessions for Sequence Test: Sender = %s (%s), Receiver = %s (%s) [Live: %v]",
 		senderSess.Name, senderSess.Phone, receiverSess.Name, receiverSess.Phone, isLive)
 
@@ -1469,16 +1476,22 @@ func TestE2E_Sequence_WAHA_WhatsApp_Lifecycle(t *testing.T) {
 }
 
 func TestE2E_Sequence_Mixed_Messenger_Lifecycle(t *testing.T) {
+	testutil.LoadDotEnv()
 	mailhogHTTP := getEnv("MAILHOG_HTTP_URL", "http://localhost:8025")
 	mailhogSMTPHost := getEnv("MAILHOG_SMTP_HOST", "localhost")
 	mailhogSMTPPort := 1025
-	wahaURL := getEnv("WAHA_ROOT_URL", "http://localhost:3000")
-	apiKey := getEnv("WAHA_API_KEY", "key_JR59f24sOxG1O2OhhLFXIsLVID4ajvLD")
+	wahaURL := getEnv("WAHA_HOST", "http://localhost:3000")
+	apiKey := getEnv("WAHA_API_KEY", "")
+
+	rec, vcrClient := testutil.NewVCRRecorder(t, "sequences/mixed_messenger_sequence")
+	if rec == nil {
+		_ = vcrClient
+	}
 
 	isMailHogLive := isURLReachable(mailhogHTTP + "/api/v2/messages")
 	isWAHALive := isURLReachable(wahaURL + "/api/sessions?all=true")
 
-	senderSess, receiverSess, _ := discoverWahaSessions(wahaURL, apiKey)
+	senderSess, receiverSess, _ := discoverWahaSessionsWithClient(wahaURL, apiKey, vcrClient)
 
 	seqID := int(time.Now().UnixNano() % 100000)
 	subID := 3003
@@ -1754,9 +1767,15 @@ func TestE2E_UI_User_Assigned_Sender_CrossChannel_Continuity(t *testing.T) {
 }
 
 func TestE2E_Sequence_TestMessage_MailHog_And_WAHA_Routing(t *testing.T) {
+	testutil.LoadDotEnv()
 	mailhogHTTP := getEnv("MAILHOG_HTTP_URL", "http://localhost:8025")
-	wahaURL := getEnv("WAHA_ROOT_URL", "http://localhost:3000")
+	wahaURL := getEnv("WAHA_HOST", "http://localhost:3000")
 	apiKey := getEnv("WAHA_API_KEY", "")
+
+	rec, vcrClient := testutil.NewVCRRecorder(t, "sequences/waha_routing_test_msg")
+	if rec == nil {
+		_ = vcrClient
+	}
 
 	// 1. Verify Email Test Message Dispatch (targeting MailHog)
 	testEmailReq := sequenceTestReq{
@@ -1780,7 +1799,7 @@ func TestE2E_Sequence_TestMessage_MailHog_And_WAHA_Routing(t *testing.T) {
 	}
 
 	// 2. Verify WhatsApp Test Message Dispatch (targeting WAHA)
-	senderSess, receiverSess, isWAHALive := discoverWahaSessions(wahaURL, apiKey)
+	senderSess, receiverSess, isWAHALive := discoverWahaSessionsWithClient(wahaURL, apiKey, vcrClient)
 	testWhatsAppReq := sequenceTestReq{
 		ID:               1,
 		StepNumber:       2,

@@ -16,6 +16,7 @@ import (
 
 	"github.com/knadh/listmonk/internal/messenger/waha"
 	"github.com/knadh/listmonk/internal/sequence"
+	"github.com/knadh/listmonk/internal/testutil"
 	"github.com/knadh/listmonk/models"
 	"github.com/labstack/echo/v4"
 )
@@ -28,7 +29,7 @@ func getEnv(key, fallback string) string {
 }
 
 func isURLReachable(url string) bool {
-	apiKey := getEnv("WAHA_API_KEY", "key_JR59f24sOxG1O2OhhLFXIsLVID4ajvLD")
+	apiKey := getEnv("WAHA_API_KEY", "")
 	return isURLReachableWithKey(url, apiKey)
 }
 
@@ -73,29 +74,26 @@ func waitForWahaSessionWorking(wahaURL, apiKey, session string) {
 
 // 1. Webhook Setup Feature Test
 func TestIntegration_WAHA_WebhookSetup(t *testing.T) {
-	wahaURL := getEnv("WAHA_ROOT_URL", "http://localhost:3000")
-	apiKey := getEnv("WAHA_API_KEY", "key_JR59f24sOxG1O2OhhLFXIsLVID4ajvLD")
+	testutil.LoadDotEnv()
+	wahaURL := getEnv("WAHA_HOST", "http://localhost:3000")
+	apiKey := getEnv("WAHA_API_KEY", "dummy_waha_key")
 
-	senderSess, _, isLive := discoverWahaSessions(wahaURL, apiKey)
-	targetURL := wahaURL
+	rec, vcrClient := testutil.NewVCRRecorder(t, "waha/webhook_sync")
 
-	if !isLive {
-		mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{"status":"ok"}`))
-		}))
-		defer mockServer.Close()
-		targetURL = mockServer.URL
-	}
+	senderSess, _, _ := discoverWahaSessionsWithClient(wahaURL, apiKey, vcrClient)
 
 	wmsgr, err := waha.New(waha.Options{
 		Name:    "waha-primary",
-		RootURL: targetURL,
+		RootURL: wahaURL,
 		APIKey:  apiKey,
 		Session: senderSess.Name,
 	})
 	if err != nil {
 		t.Fatalf("Failed initializing WAHA messenger: %v", err)
+	}
+
+	if rec != nil {
+		wmsgr.SetHTTPClient(vcrClient)
 	}
 
 	err = wmsgr.SyncWebhook("http://backend:9000/api/webhooks/waha")
@@ -107,36 +105,26 @@ func TestIntegration_WAHA_WebhookSetup(t *testing.T) {
 
 // 2. Read Message & Clean Up Feature Test
 func TestIntegration_WAHA_ReadMessage(t *testing.T) {
-	wahaURL := getEnv("WAHA_ROOT_URL", "http://localhost:3000")
-	apiKey := getEnv("WAHA_API_KEY", "key_JR59f24sOxG1O2OhhLFXIsLVID4ajvLD")
+	testutil.LoadDotEnv()
+	wahaURL := getEnv("WAHA_HOST", "http://localhost:3000")
+	apiKey := getEnv("WAHA_API_KEY", "dummy_waha_key")
 
-	senderSess, receiverSess, isLive := discoverWahaSessions(wahaURL, apiKey)
-	targetURL := wahaURL
+	rec, vcrClient := testutil.NewVCRRecorder(t, "waha/read_message")
 
-	if !isLive {
-		mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			switch r.URL.Path {
-			case "/api/sendText":
-				w.WriteHeader(http.StatusOK)
-				_, _ = w.Write([]byte(`{"id":"3EB0READMOCK123"}`))
-			default:
-				w.WriteHeader(http.StatusOK)
-				_, _ = w.Write([]byte(`{}`))
-			}
-		}))
-		defer mockServer.Close()
-		targetURL = mockServer.URL
-	}
+	senderSess, receiverSess, _ := discoverWahaSessionsWithClient(wahaURL, apiKey, vcrClient)
 
 	// Dispatch single message
 	client := &http.Client{Timeout: 10 * time.Second}
+	if rec != nil {
+		client = vcrClient
+	}
 	sendPayload := map[string]string{
 		"session": senderSess.Name,
 		"chatId":  receiverSess.JID,
 		"text":    "WAHA Read Message Feature Test",
 	}
 	pBytes, _ := json.Marshal(sendPayload)
-	req, _ := http.NewRequest(http.MethodPost, targetURL+"/api/sendText", bytes.NewBuffer(pBytes))
+	req, _ := http.NewRequest(http.MethodPost, wahaURL+"/api/sendText", bytes.NewBuffer(pBytes))
 	req.Header.Set("Content-Type", "application/json")
 	if apiKey != "" {
 		req.Header.Set("X-Api-Key", apiKey)
@@ -207,10 +195,16 @@ func TestIntegration_WAHA_LinkClick(t *testing.T) {
 
 // 4. Replied Feature Test
 func TestIntegration_WAHA_Replied(t *testing.T) {
-	wahaURL := getEnv("WAHA_ROOT_URL", "http://localhost:3000")
-	apiKey := getEnv("WAHA_API_KEY", "key_JR59f24sOxG1O2OhhLFXIsLVID4ajvLD")
+	testutil.LoadDotEnv()
+	wahaURL := getEnv("WAHA_HOST", "http://localhost:3000")
+	apiKey := getEnv("WAHA_API_KEY", "dummy_waha_key")
 
-	senderSess, receiverSess, _ := discoverWahaSessions(wahaURL, apiKey)
+	rec, vcrClient := testutil.NewVCRRecorder(t, "waha/session_status")
+
+	senderSess, receiverSess, _ := discoverWahaSessionsWithClient(wahaURL, apiKey, vcrClient)
+	if rec != nil {
+		_ = rec.Stop()
+	}
 
 	// Simulate incoming reply webhook
 	replyPayload := map[string]any{
