@@ -517,7 +517,7 @@ CREATE TABLE schedules (
     created_at           TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at           TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-CREATE UNIQUE INDEX schedules_is_default_idx ON schedules (is_default) WHERE is_default = true;
+CREATE UNIQUE INDEX idx_schedules_default ON schedules (is_default) WHERE is_default = true;
 
 -- sequences
 DROP TABLE IF EXISTS sequences CASCADE;
@@ -547,7 +547,7 @@ CREATE TABLE sequence_lists (
     list_name   VARCHAR(255) NOT NULL,
     PRIMARY KEY (sequence_id, list_id)
 );
-CREATE INDEX idx_sequence_lists_list_id ON sequence_lists(list_id);
+CREATE INDEX idx_seq_lists_list_id ON sequence_lists(list_id);
 
 -- sequence_steps
 DROP TABLE IF EXISTS sequence_steps CASCADE;
@@ -564,7 +564,7 @@ CREATE TABLE sequence_steps (
     template_id   INTEGER NULL REFERENCES templates(id) ON DELETE SET NULL,
     created_at    TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-CREATE INDEX idx_sequence_steps_sequence_id ON sequence_steps(sequence_id);
+CREATE INDEX idx_seq_steps_seq_id ON sequence_steps(sequence_id);
 
 -- sequence_step_media
 DROP TABLE IF EXISTS sequence_step_media CASCADE;
@@ -593,12 +593,12 @@ CREATE TABLE sequence_contacts (
     created_at         TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     PRIMARY KEY (sequence_id, subscriber_id)
 );
-CREATE INDEX idx_sequence_contacts_next_send ON sequence_contacts(status, next_send_at);
-CREATE INDEX idx_sequence_contacts_sender ON sequence_contacts(sequence_id, email_id, waha_session);
+CREATE INDEX idx_seq_contacts_next_send ON sequence_contacts(status, next_send_at);
+CREATE INDEX idx_seq_contacts_sender ON sequence_contacts(sequence_id, email_id, waha_session);
 
--- webhook_endpoints
-DROP TABLE IF EXISTS webhook_endpoints CASCADE;
-CREATE TABLE webhook_endpoints (
+-- webhooks
+DROP TABLE IF EXISTS webhooks CASCADE;
+CREATE TABLE webhooks (
     id          SERIAL PRIMARY KEY,
     name        TEXT NOT NULL,
     url         TEXT NOT NULL,
@@ -613,7 +613,7 @@ CREATE TABLE webhook_endpoints (
 DROP TABLE IF EXISTS webhook_logs CASCADE;
 CREATE TABLE webhook_logs (
     id            BIGSERIAL PRIMARY KEY,
-    endpoint_id   INT REFERENCES webhook_endpoints(id) ON DELETE CASCADE,
+    webhook_id    INT REFERENCES webhooks(id) ON DELETE CASCADE,
     event_type    TEXT NOT NULL,
     payload       JSONB NOT NULL,
     status        TEXT NOT NULL DEFAULT 'pending',
