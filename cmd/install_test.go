@@ -177,13 +177,13 @@ func TestInstall_DefaultScheduleAndSequenceBinding(t *testing.T) {
 	// Verify that Test sequence correctly binds the created schedule ID
 	schedID := 42
 	seqName := "Test sequence"
-	seqStatus := models.SequenceStatusActive
+	seqStatus := models.SequenceStatusPaused
 
 	if seqName != "Test sequence" {
 		t.Fatalf("expected sequence name to be 'Test sequence', got '%s'", seqName)
 	}
-	if seqStatus != "active" {
-		t.Fatalf("expected sequence status to be active, got %s", seqStatus)
+	if seqStatus != "paused" {
+		t.Fatalf("expected sequence status to be paused, got %s", seqStatus)
 	}
 	if schedID <= 0 {
 		t.Fatalf("expected valid schedule ID > 0, got %d", schedID)
