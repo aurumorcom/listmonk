@@ -3,6 +3,7 @@
 package models
 
 import (
+	"encoding/json"
 	"testing"
 
 	null "gopkg.in/volatiletech/null.v6"
@@ -177,5 +178,37 @@ func TestSettingsStructsMapping(t *testing.T) {
 
 	if waSettings.WAHA.Host != "http://localhost:3000" || waSettings.WAHA.Signature != "<p>WAHA Sig</p>" {
 		t.Errorf("unexpected WhatsappSettings mapping: %+v", waSettings)
+	}
+}
+
+func TestSettings_UserID_JSON_Unmarshal(t *testing.T) {
+	jsonBlob := []byte(`{
+		"smtp": [
+			{
+				"name": "email-1",
+				"host": "smtp.example.com",
+				"user_id": 42
+			}
+		],
+		"waha": [
+			{
+				"name": "whatsapp-1",
+				"host": "http://waha:3000",
+				"user_id": 42
+			}
+		]
+	}`)
+
+	var settings Settings
+	if err := json.Unmarshal(jsonBlob, &settings); err != nil {
+		t.Fatalf("failed to unmarshal settings: %v", err)
+	}
+
+	if len(settings.SMTP) != 1 || !settings.SMTP[0].UserID.Valid || settings.SMTP[0].UserID.Int != 42 {
+		t.Errorf("expected SMTP UserID 42, got: %+v", settings.SMTP)
+	}
+
+	if len(settings.WAHASettings) != 1 || !settings.WAHASettings[0].UserID.Valid || settings.WAHASettings[0].UserID.Int != 42 {
+		t.Errorf("expected WAHASettings UserID 42, got: %+v", settings.WAHASettings)
 	}
 }
