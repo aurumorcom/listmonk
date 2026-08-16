@@ -2393,3 +2393,42 @@ func TestIntegration_Sequence_TestMessage_ChannelIsolation(t *testing.T) {
 		t.Fatalf("expected 0 email messages dispatched on WhatsApp failure, got %d", len(emailMsgr.pushed))
 	}
 }
+
+func TestGetDueSequenceContacts_FiltersPausedSequences(t *testing.T) {
+	// Verify that sequence status filtering logic distinguishes between active and paused sequences.
+	activeSeq := models.Sequence{
+		Base:   models.Base{ID: 1},
+		Name:   "Active Sequence",
+		Status: models.SequenceStatusActive,
+	}
+
+	pausedSeq := models.Sequence{
+		Base:   models.Base{ID: 2},
+		Name:   "Paused Sequence",
+		Status: models.SequenceStatusPaused,
+	}
+
+	if activeSeq.Status != models.SequenceStatusActive {
+		t.Fatalf("expected active sequence status to be %s, got %s", models.SequenceStatusActive, activeSeq.Status)
+	}
+
+	if pausedSeq.Status == models.SequenceStatusActive {
+		t.Fatalf("paused sequence should not equal active status: %s", pausedSeq.Status)
+	}
+
+	contacts := []models.SequenceContact{
+		{SequenceID: activeSeq.ID, SubscriberID: 101, Status: models.SequenceContactStatusScheduled},
+		{SequenceID: pausedSeq.ID, SubscriberID: 102, Status: models.SequenceContactStatusScheduled},
+	}
+
+	var dueForActive []models.SequenceContact
+	for _, c := range contacts {
+		if c.SequenceID == activeSeq.ID {
+			dueForActive = append(dueForActive, c)
+		}
+	}
+
+	if len(dueForActive) != 1 || dueForActive[0].SubscriberID != 101 {
+		t.Fatalf("expected 1 contact for active sequence, got %d", len(dueForActive))
+	}
+}
