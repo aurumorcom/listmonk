@@ -42,6 +42,16 @@ func (r *ReplyListener) ProcessReply(fromEmail string) error {
 	return r.ProcessReplyWithBody(fromEmail, false, "")
 }
 
+// ProcessReplyWithContext processes replies while respecting caller context cancellation.
+func (r *ReplyListener) ProcessReplyWithContext(ctx context.Context, fromIdentifier string, isPhone bool, messageBody string) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+		return r.ProcessReplyWithBody(fromIdentifier, isPhone, messageBody)
+	}
+}
+
 // ProcessReplyWithBody processes incoming replies across Email and WhatsApp using Layer 1 Regex and Layer 2 Bifrost AI.
 func (r *ReplyListener) ProcessReplyWithBody(fromIdentifier string, isPhone bool, messageBody string) error {
 	if fromIdentifier == "" || r.core == nil {
