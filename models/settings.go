@@ -191,6 +191,7 @@ type SMTPSettings struct {
 	TLSSkipVerify bool                `json:"tls_skip_verify"`
 	FromAddresses []string            `json:"from_addresses"`
 	MaxSendPerDay int                 `json:"max_send_per_day"`
+	SentToday     map[string]int      `json:"sent_today,omitempty"`
 	Signature     string              `json:"signature"`
 }
 
