@@ -709,6 +709,17 @@ func initSMTPMessengers(co *core.Core) []manager.Messenger {
 			continue
 		}
 
+		// Ensure duration fields have defaults if empty
+		if item.String("idle_timeout") == "" {
+			item.Set("idle_timeout", "15s")
+		}
+		if item.String("wait_timeout") == "" {
+			item.Set("wait_timeout", "5s")
+		}
+		if item.String("msg_retry_delay") == "" {
+			item.Set("msg_retry_delay", "0s")
+		}
+
 		// Read the SMTP config.
 		var s email.Server
 		if err := item.UnmarshalWithConf("", &s, koanf.UnmarshalConf{Tag: "json"}); err != nil {
