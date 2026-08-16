@@ -341,7 +341,7 @@ func installSequence(coldListID, campTplID, archiveTplID, schedID int, q *models
 		uuid.Must(uuid.NewV4()).String(),
 		"Test sequence",
 		"Sample multi-step outreach sequence with delivery window schedule and link tracking",
-		models.SequenceStatusActive,
+		models.SequenceStatusPaused,
 		schedID,
 		json.RawMessage(`{"days": ["mon","tue","wed","thu","fri"], "start_time": "09:00", "end_time": "17:00"}`),
 		pq.Int64Array{},
