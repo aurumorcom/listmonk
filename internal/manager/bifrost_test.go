@@ -27,13 +27,14 @@ func getEnv(key, fallback string) string {
 }
 
 func TestIntegration_Bifrost_LiveAI_Completion(t *testing.T) {
+	testutil.LoadDotEnv()
 	endpoint := getEnv("BIFROST_ENDPOINT", "https://litellm.aurumor.com")
-	apiKey := getEnv("BIFROST_API_KEY", "sk-LJ0gQPPGu5NLMQYMEpCMgw")
+	apiKey := getEnv("BIFROST_API_KEY", "dummy_key_for_vcr_replay")
 
 	cfg := BifrostConfig{
 		APIKey:   apiKey,
 		Endpoint: endpoint,
-		Model:    "gpt-4o-mini",
+		Model:    getEnv("BIFROST_MODEL", "gemini-3.5-flash-lite"),
 		Timeout:  15 * time.Second,
 	}
 
@@ -367,6 +368,36 @@ func TestBifrostWorkerPoolStressTest(t *testing.T) {
 	}
 
 	t.Logf("Completed %d concurrent JIT AI prompt generations in %v", totalExpected, duration)
+}
+
+func TestIntegration_Bifrost_LiveAI_ReplyClassification(t *testing.T) {
+	testutil.LoadDotEnv()
+	endpoint := getEnv("BIFROST_ENDPOINT", "https://litellm.aurumor.com")
+	apiKey := getEnv("BIFROST_API_KEY", "dummy_key_for_vcr_replay")
+
+	cfg := BifrostConfig{
+		APIKey:   apiKey,
+		Endpoint: endpoint,
+		Model:    getEnv("BIFROST_MODEL", "gemini-3.5-flash-lite"),
+		Timeout:  15 * time.Second,
+	}
+
+	client := NewBifrostClient(cfg)
+
+	rec, vcrClient := testutil.NewVCRRecorder(t, "bifrost/reply_classification")
+	if rec != nil {
+		client.SetHTTPClient(vcrClient)
+	}
+
+	ctx, cancel := client.TimeoutContext()
+	defer cancel()
+
+	res, err := client.ClassifyReplyIntent(ctx, "I would love to learn more and see a demo!", time.Now().Format(time.RFC3339))
+	if err != nil {
+		t.Fatalf("unexpected error classifying reply intent via Bifrost Live AI: %v", err)
+	}
+
+	t.Logf("Live AI Reply Intent Classification: Intent=%s, Reason=%s", res.Intent, res.Reason)
 }
 
 func TestBifrostClassifyReplyIntentAndExtractOOODate(t *testing.T) {
