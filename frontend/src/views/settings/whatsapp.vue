@@ -29,7 +29,7 @@
               </div>
               <div class="column is-6">
                 <b-field label="Host" label-position="on-border" message="HTTP endpoint of the WAHA container">
-                  <b-input v-model="item.root_url" name="root_url" placeholder="http://waha:3000" :maxlength="200" expanded type="url" />
+                  <b-input v-model="item.host" name="host" placeholder="http://waha:3000" :maxlength="200" expanded type="url" />
                 </b-field>
               </div>
             </div>
@@ -263,7 +263,7 @@ export default Vue.extend({
       this.data.waha.push({
         enabled: true,
         name: `whatsapp-${this.data.waha.length + 1}`,
-        root_url: 'http://localhost:3000',
+        host: 'http://localhost:3000',
         api_key: '',
         session: 'default',
         phone_attribute: 'phone',

@@ -285,7 +285,7 @@ export default Vue.extend({
               enabled: true,
               user_id: null,
               user: '',
-              root_url: 'http://waha:3000',
+              host: 'http://waha:3000',
               api_key: '',
               session: 'default',
               phone_attribute: 'phone',
