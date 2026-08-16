@@ -2509,3 +2509,58 @@ func TestE2E_Sequence_TestMessage_ActiveUserRouting_And_ShorthandTemplateRenderi
 
 	t.Log("Successfully verified sequence test message active user routing & shorthand template rendering")
 }
+
+func TestE2E_Sequence_ProductionMessage_Routing_And_ContactRendering(t *testing.T) {
+	// Setup production contact
+	contactSub := models.Subscriber{
+		Base:  models.Base{ID: 202},
+		Name:  "Jane Doe",
+		Email: "jane.doe@contact-domain.test",
+		Phone: null.StringFrom("+14155550199"),
+		Attribs: models.JSON{
+			"first_name": "Jane",
+			"company":    "Acme Corp",
+		},
+	}
+
+	step := models.SequenceStep{
+		StepNumber: 1,
+		Messenger:  "email",
+		Subject:    "Welcome {{ .Subscriber.FirstName }}",
+		Body:       "<p>Hi {{ .Subscriber.FirstName }}!</p><p>Welcome to {{ .Subscriber.Attribs.company }}.</p>",
+	}
+
+	mockMsgr := &mockCmdMessenger{name: "email"}
+	seqMgr := sequence.NewManager(nil, map[string]manager.Messenger{"email": mockMsgr}, nil, nil)
+
+	seqContact := models.SequenceContact{
+		SequenceID:   5,
+		SubscriberID: contactSub.ID,
+		CurrentStep:  step.StepNumber,
+	}
+
+	// Production dispatch (overrideRecipient = "")
+	err := seqMgr.PrepareAndDispatchStep(seqContact, contactSub, step, "")
+	if err != nil {
+		t.Fatalf("failed to dispatch production sequence step: %v", err)
+	}
+
+	if len(mockMsgr.pushed) != 1 {
+		t.Fatalf("expected 1 production message pushed, got %d", len(mockMsgr.pushed))
+	}
+
+	pushedMsg := mockMsgr.pushed[0]
+
+	// Verify production message delivery targets contact email
+	if len(pushedMsg.To) != 1 || pushedMsg.To[0] != "jane.doe@contact-domain.test" {
+		t.Fatalf("expected production message target 'jane.doe@contact-domain.test', got %v", pushedMsg.To)
+	}
+
+	// Verify production contact rendered content
+	body := string(pushedMsg.Body)
+	if !strings.Contains(body, "Hi Jane!") || !strings.Contains(body, "Acme Corp") {
+		t.Fatalf("expected body to contain rendered contact data, got %s", body)
+	}
+
+	t.Log("Successfully verified production sequence message routes to contact with rendered contact data")
+}
