@@ -2,6 +2,7 @@ package core
 
 import (
 	"bytes"
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -18,8 +19,11 @@ import (
 )
 
 var (
-	webhookWorkerOnce sync.Once
-	webhookClient     = &http.Client{
+	webhookWorkerOnce   sync.Once
+	webhookWorkerCtx    context.Context
+	webhookWorkerCancel context.CancelFunc
+	webhookWorkerWG     sync.WaitGroup
+	webhookClient       = &http.Client{
 		Timeout: 10 * time.Second,
 	}
 )
@@ -40,18 +44,34 @@ func (c *Core) StartWebhookWorkers(workerCount int) {
 		workerCount = 5
 	}
 	webhookWorkerOnce.Do(func() {
+		webhookWorkerCtx, webhookWorkerCancel = context.WithCancel(context.Background())
 		for i := 0; i < workerCount; i++ {
-			go c.runWebhookWorker()
+			webhookWorkerWG.Add(1)
+			go c.runWebhookWorker(webhookWorkerCtx)
 		}
 	})
 }
 
-func (c *Core) runWebhookWorker() {
+// StopWebhookWorkers stops all running webhook worker goroutines and waits for them to exit cleanly.
+func (c *Core) StopWebhookWorkers() {
+	if webhookWorkerCancel != nil {
+		webhookWorkerCancel()
+		webhookWorkerWG.Wait()
+	}
+}
+
+func (c *Core) runWebhookWorker(ctx context.Context) {
+	defer webhookWorkerWG.Done()
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		c.processPendingWebhookLogs()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			c.processPendingWebhookLogs()
+		}
 	}
 }
 
@@ -69,7 +89,7 @@ func (c *Core) processPendingWebhookLogs() {
 
 func (c *Core) deliverWebhookLog(l models.WebhookLog) {
 	var ep models.Webhook
-	if err := c.q.GetWebhookByID.Get(&ep, l.EndpointID); err != nil || !ep.Enabled {
+	if err := c.q.GetWebhookByID.Get(&ep, l.WebhookID); err != nil || !ep.Enabled {
 		// Endpoint deleted or disabled
 		_, _ = c.q.UpdateWebhookLogStatus.Exec("failed", l.Attempts+1, time.Now(), 0, "Endpoint disabled or deleted", l.ID)
 		return
@@ -122,10 +142,10 @@ func (c *Core) handleWebhookFailure(l models.WebhookLog, code int, respBody stri
 	_, _ = c.q.UpdateWebhookLogStatus.Exec("pending", attempts, nextRetry, code, respBody, l.ID)
 }
 
-// DispatchWebhookEvent finds all active webhook endpoints subscribed to eventType, creates full state transfer JSON payload, and enqueues delivery logs.
+// DispatchWebhookEvent finds all active webhooks subscribed to eventType, creates full state transfer JSON payload, and enqueues delivery logs.
 func (c *Core) DispatchWebhookEvent(eventType string, data any) error {
 	var endpoints []models.Webhook
-	if err := c.q.GetActiveEndpointsForEvent.Select(&endpoints, eventType); err != nil {
+	if err := c.q.GetActiveWebhooksForEvent.Select(&endpoints, eventType); err != nil {
 		return err
 	}
 	if len(endpoints) == 0 {
@@ -153,27 +173,27 @@ func (c *Core) DispatchWebhookEvent(eventType string, data any) error {
 	return nil
 }
 
-// GetWebhooks fetches all webhook endpoints.
+// GetWebhooks fetches all webhooks.
 func (c *Core) GetWebhooks() ([]models.Webhook, error) {
 	var out []models.Webhook
 	if err := c.q.GetWebhooks.Select(&out); err != nil {
-		c.log.Printf("error fetching webhook endpoints: %v", err)
+		c.log.Printf("error fetching webhooks: %v", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError,
-			c.i18n.Ts("globals.messages.errorFetching", "name", "webhook_endpoints", "error", pqErrMsg(err)))
+			c.i18n.Ts("globals.messages.errorFetching", "name", "webhooks", "error", pqErrMsg(err)))
 	}
 	return out, nil
 }
 
-// GetWebhook fetches a single webhook endpoint by ID.
+// GetWebhook fetches a single webhook by ID.
 func (c *Core) GetWebhook(id int) (models.Webhook, error) {
 	var ep models.Webhook
 	if err := c.q.GetWebhookByID.Get(&ep, id); err != nil {
-		return models.Webhook{}, echo.NewHTTPError(http.StatusNotFound, "Webhook endpoint not found")
+		return models.Webhook{}, echo.NewHTTPError(http.StatusNotFound, "Webhook not found")
 	}
 	return ep, nil
 }
 
-// CreateWebhook creates a new webhook endpoint.
+// CreateWebhook creates a new webhook.
 func (c *Core) CreateWebhook(ep models.Webhook) (models.Webhook, error) {
 	if ep.Secret == "" {
 		sec, _ := uuid.NewV4()
@@ -182,32 +202,32 @@ func (c *Core) CreateWebhook(ep models.Webhook) (models.Webhook, error) {
 
 	var out models.Webhook
 	if err := c.q.InsertWebhook.Get(&out, ep.Name, ep.URL, ep.Secret, ep.Events, ep.Enabled); err != nil {
-		c.log.Printf("error creating webhook endpoint: %v", err)
+		c.log.Printf("error creating webhook: %v", err)
 		return models.Webhook{}, echo.NewHTTPError(http.StatusInternalServerError,
-			c.i18n.Ts("globals.messages.errorCreating", "name", "webhook_endpoint", "error", pqErrMsg(err)))
+			c.i18n.Ts("globals.messages.errorCreating", "name", "webhook", "error", pqErrMsg(err)))
 	}
 
 	return out, nil
 }
 
-// UpdateWebhook updates an existing webhook endpoint.
+// UpdateWebhook updates an existing webhook.
 func (c *Core) UpdateWebhook(id int, ep models.Webhook) (models.Webhook, error) {
 	var out models.Webhook
 	if err := c.q.UpdateWebhook.Get(&out, ep.Name, ep.URL, ep.Secret, ep.Events, ep.Enabled, id); err != nil {
-		c.log.Printf("error updating webhook endpoint: %v", err)
+		c.log.Printf("error updating webhook: %v", err)
 		return models.Webhook{}, echo.NewHTTPError(http.StatusInternalServerError,
-			c.i18n.Ts("globals.messages.errorUpdating", "name", "webhook_endpoint", "error", pqErrMsg(err)))
+			c.i18n.Ts("globals.messages.errorUpdating", "name", "webhook", "error", pqErrMsg(err)))
 	}
 
 	return out, nil
 }
 
-// DeleteWebhook deletes a webhook endpoint by ID.
+// DeleteWebhook deletes a webhook by ID.
 func (c *Core) DeleteWebhook(id int) error {
 	if _, err := c.q.DeleteWebhook.Exec(id); err != nil {
-		c.log.Printf("error deleting webhook endpoint: %v", err)
+		c.log.Printf("error deleting webhook: %v", err)
 		return echo.NewHTTPError(http.StatusInternalServerError,
-			c.i18n.Ts("globals.messages.errorDeleting", "name", "webhook_endpoint", "error", pqErrMsg(err)))
+			c.i18n.Ts("globals.messages.errorDeleting", "name", "webhook", "error", pqErrMsg(err)))
 	}
 	return nil
 }
