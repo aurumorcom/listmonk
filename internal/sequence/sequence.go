@@ -18,6 +18,7 @@ import (
 	"github.com/gofrs/uuid/v5"
 	"github.com/knadh/listmonk/internal/auth"
 	"github.com/knadh/listmonk/internal/core"
+	"github.com/knadh/listmonk/internal/i18n"
 	"github.com/knadh/listmonk/internal/manager"
 	"github.com/knadh/listmonk/internal/media"
 	"github.com/knadh/listmonk/internal/utils"
@@ -59,13 +60,18 @@ func (m *Manager) TemplateFuncs() htmltpl.FuncMap {
 // TemplateFuncsWithContext returns template functions configured with sequence and subscriber tracking context.
 func (m *Manager) TemplateFuncsWithContext(seqUUID, subUUID string) htmltpl.FuncMap {
 	var rootURL string
-	if m.core != nil {
+	var i18nInst *i18n.I18n
+	if m != nil && m.core != nil {
+		i18nInst = m.core.I18n()
 		if st, err := m.core.GetSettings(); err == nil {
 			rootURL = strings.TrimRight(st.AppRootURL, "/")
 		}
 	}
 
 	f := htmltpl.FuncMap{
+		"L": func() *i18n.I18n {
+			return i18nInst
+		},
 		"TrackLink": func(url string, args ...any) string {
 			if strings.TrimSpace(url) == "" {
 				return ""
@@ -484,7 +490,8 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceContact, contact mod
 								TemplateBody: parentTpl.Body,
 								Body:         finalContent,
 							}
-							if err := camp.CompileTemplate(htmltpl.FuncMap{}); err == nil {
+							funcs := m.TemplateFuncsWithContext(seqUUID, contact.UUID)
+							if err := camp.CompileTemplate(funcs); err == nil {
 								var buf bytes.Buffer
 								if err := camp.Tpl.ExecuteTemplate(&buf, models.BaseTpl, scope); err == nil {
 									msg.Body = buf.Bytes()

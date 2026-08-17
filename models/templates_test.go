@@ -71,3 +71,50 @@ func TestCompileSubject_SingleJob(t *testing.T) {
 		t.Fatalf("CompileSubject failed: %v", err)
 	}
 }
+
+func TestCompile_ErrorBranches(t *testing.T) {
+	fMap := template.FuncMap{}
+
+	// Invalid Prompt syntax
+	if _, err := CompilePrompt("Hello {{ .User", fMap); err == nil {
+		t.Fatalf("expected error compiling invalid prompt template")
+	}
+
+	// Invalid HTML syntax
+	if _, err := CompileHTML("<h1>Hello {{ .User</h1>", fMap); err == nil {
+		t.Fatalf("expected error compiling invalid HTML template")
+	}
+
+	// Invalid Subject syntax
+	if _, err := CompileSubject("Subject {{ .Subject", fMap); err == nil {
+		t.Fatalf("expected error compiling invalid subject template")
+	}
+
+	// Prompt Template Compile error
+	badPrompt := Template{
+		Type: TemplateTypePrompt,
+		Body: "Hello {{ .User",
+	}
+	if err := badPrompt.Compile(fMap); err == nil {
+		t.Fatalf("expected error compiling bad prompt template")
+	}
+
+	// Standard Template Compile error in HTML
+	badHTML := Template{
+		Type: TemplateTypeCampaign,
+		Body: "Hello {{ .User",
+	}
+	if err := badHTML.Compile(fMap); err == nil {
+		t.Fatalf("expected error compiling bad HTML template")
+	}
+
+	// Standard Template Compile error in Subject
+	badSubject := Template{
+		Type:    TemplateTypeCampaign,
+		Subject: "Hello {{ .User | nonExistentFunc }}",
+		Body:    "<h1>Hello</h1>",
+	}
+	if err := badSubject.Compile(fMap); err == nil {
+		t.Fatalf("expected error compiling template with bad subject")
+	}
+}
