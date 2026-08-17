@@ -568,8 +568,11 @@ func (a *App) LinkRedirect(c echo.Context) error {
 		return c.Redirect(http.StatusTemporaryRedirect, url)
 	}
 
+	// Extract requested subscriber UUID for sequence processing
+	reqSubUUID := c.Param("subUUID")
+
 	// If individual tracking is disabled, do not record the subscriber ID.
-	subUUID := c.Param("subUUID")
+	subUUID := reqSubUUID
 	if !a.cfg.Privacy.IndividualTracking {
 		subUUID = ""
 	}
@@ -612,7 +615,7 @@ func (a *App) LinkRedirect(c echo.Context) error {
 
 	// Record sequence click strictly for valid sequence subscribers (excluding honeypot / security prefetchers)
 	if clientMeta.BotType != core.BotTypeHoneypot && clientMeta.BotType != core.BotTypeSecurityScanner {
-		if sub, err := a.core.GetSubscriber(0, subUUID, ""); err == nil {
+		if sub, err := a.core.GetSubscriber(0, reqSubUUID, ""); err == nil {
 			if seq, err := a.core.GetSequence(0, campUUID); err == nil {
 				_ = a.core.RecordSequenceClick(seq.ID, sub.ID)
 			}
@@ -633,8 +636,11 @@ func (a *App) RegisterCampaignView(c echo.Context) error {
 		return c.Blob(http.StatusOK, "image/png", pixelPNG)
 	}
 
+	// Extract requested subscriber UUID for sequence processing
+	reqSubUUID := c.Param("subUUID")
+
 	// If individual tracking is disabled, do not record the subscriber ID.
-	subUUID := c.Param("subUUID")
+	subUUID := reqSubUUID
 	if !a.cfg.Privacy.IndividualTracking {
 		subUUID = ""
 	}
@@ -662,13 +668,13 @@ func (a *App) RegisterCampaignView(c echo.Context) error {
 
 	// Exclude dummy hits from template previews.
 	campUUID := c.Param("campUUID")
-	if campUUID != dummyUUID && subUUID != dummyUUID {
+	if campUUID != dummyUUID && reqSubUUID != dummyUUID {
 		if err := a.core.RegisterCampaignView(campUUID, subUUID, clientMeta); err != nil {
 			a.log.Printf("error registering campaign view: %s", err)
 		}
 		// Record sequence read strictly for genuine human activity (bot activity is isolated)
 		if !clientMeta.IsBot {
-			if sub, err := a.core.GetSubscriber(0, subUUID, ""); err == nil {
+			if sub, err := a.core.GetSubscriber(0, reqSubUUID, ""); err == nil {
 				if seq, err := a.core.GetSequence(0, campUUID); err == nil {
 					_ = a.core.RecordSequenceRead(seq.ID, sub.ID)
 				}
