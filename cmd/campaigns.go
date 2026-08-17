@@ -597,7 +597,7 @@ func (a *App) TestCampaign(c echo.Context) error {
 	// Override certain values from the DB with incoming values.
 	camp.Name = req.Name
 	camp.Subject = req.Subject
-	camp.FromEmail = req.FromEmail
+	camp.FromEmail = FormatTestMessageSender(&user, req.FromEmail)
 	camp.Body = req.Body
 	camp.AltBody = req.AltBody
 	camp.Messenger = req.Messenger
@@ -906,4 +906,19 @@ func canEditCampaign(status string) bool {
 	return status == models.CampaignStatusDraft ||
 		status == models.CampaignStatusPaused ||
 		status == models.CampaignStatusScheduled
+}
+
+// FormatTestMessageSender formats a sender address for test messages using Active User Name and fromEmail.
+func FormatTestMessageSender(user *auth.User, fromEmail string) string {
+	fromEmail = strings.TrimSpace(fromEmail)
+	if fromEmail == "" {
+		return ""
+	}
+	if strings.Contains(fromEmail, "<") && strings.Contains(fromEmail, ">") {
+		return fromEmail
+	}
+	if user != nil && strings.TrimSpace(user.Name) != "" {
+		return fmt.Sprintf("%s <%s>", strings.TrimSpace(user.Name), fromEmail)
+	}
+	return fromEmail
 }
