@@ -418,7 +418,7 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceContact, contact mod
 		}
 	}
 
-	if step.TemplateID.Valid && step.TemplateID.Int > 0 {
+	if step.TemplateID.Valid && step.TemplateID.Int > 0 && m.core != nil {
 		tpl, err := m.core.GetTemplate(step.TemplateID.Int, false)
 		if err == nil && tpl.Type == models.TemplateTypePrompt {
 			sysPromptStr := tpl.Body
@@ -510,23 +510,48 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceContact, contact mod
 				}
 			}
 		} else if err == nil && tpl.Body != "" {
-			// Standard campaign/tx template assigned to step
-			camp := models.Campaign{
-				UUID:         uuid.Must(uuid.NewV4()).String(),
-				Subject:      msg.Subject,
-				TemplateBody: tpl.Body,
-				Body:         step.Body,
-			}
-			funcs := m.TemplateFuncsWithContext(seqUUID, contact.UUID)
-			if err := camp.CompileTemplate(funcs); err == nil {
-				var buf bytes.Buffer
-				if err := camp.Tpl.ExecuteTemplate(&buf, models.BaseTpl, scope); err == nil {
-					msg.Body = buf.Bytes()
-				} else if m.log != nil {
-					m.log.Printf("sequence step %d HTML template execution error for subscriber %d: %v", step.ID, contact.ID, err)
+			isWhatsApp := step.Messenger == "whatsapp" || step.Messenger == "waha" || msgr.Name() == "whatsapp" || msgr.Name() == "waha" || strings.HasPrefix(msgr.Name(), "whatsapp-") || strings.HasPrefix(msgr.Name(), "waha-")
+			if isWhatsApp {
+				// WhatsApp steps bypass HTML email layout templates. Render step body directly and sanitize HTML/CSS.
+				funcs := txttpl.FuncMap(m.TemplateFuncsWithContext(seqUUID, contact.UUID))
+				bodyStr := models.SubstituteTplShorthand(step.Body)
+				subjStr := models.SubstituteTplShorthand(msg.Subject)
+
+				if ut, err := txttpl.New("body").Funcs(funcs).Parse(bodyStr); err == nil {
+					var ub bytes.Buffer
+					if err := ut.Execute(&ub, scope); err == nil {
+						msg.Body = []byte(manager.StripHTML(ub.String()))
+					} else {
+						msg.Body = []byte(manager.StripHTML(step.Body))
+					}
+				} else {
+					msg.Body = []byte(manager.StripHTML(step.Body))
 				}
-			} else if m.log != nil {
-				m.log.Printf("sequence step %d HTML template compilation error for subscriber %d: %v", step.ID, contact.ID, err)
+				if st, err := txttpl.New("subj").Funcs(funcs).Parse(subjStr); err == nil {
+					var sb bytes.Buffer
+					if err := st.Execute(&sb, scope); err == nil {
+						msg.Subject = sb.String()
+					}
+				}
+			} else {
+				// Standard campaign/tx template assigned to email step
+				camp := models.Campaign{
+					UUID:         uuid.Must(uuid.NewV4()).String(),
+					Subject:      msg.Subject,
+					TemplateBody: tpl.Body,
+					Body:         step.Body,
+				}
+				funcs := m.TemplateFuncsWithContext(seqUUID, contact.UUID)
+				if err := camp.CompileTemplate(funcs); err == nil {
+					var buf bytes.Buffer
+					if err := camp.Tpl.ExecuteTemplate(&buf, models.BaseTpl, scope); err == nil {
+						msg.Body = buf.Bytes()
+					} else if m.log != nil {
+						m.log.Printf("sequence step %d HTML template execution error for subscriber %d: %v", step.ID, contact.ID, err)
+					}
+				} else if m.log != nil {
+					m.log.Printf("sequence step %d HTML template compilation error for subscriber %d: %v", step.ID, contact.ID, err)
+				}
 			}
 		}
 	} else {
@@ -538,7 +563,11 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceContact, contact mod
 		if ut, err := txttpl.New("body").Funcs(funcs).Parse(bodyStr); err == nil {
 			var ub bytes.Buffer
 			if err := ut.Execute(&ub, scope); err == nil {
-				msg.Body = ub.Bytes()
+				rendered := ub.String()
+				if step.Messenger == "whatsapp" || step.Messenger == "waha" || msgr.Name() == "whatsapp" || msgr.Name() == "waha" || strings.HasPrefix(msgr.Name(), "whatsapp-") || strings.HasPrefix(msgr.Name(), "waha-") {
+					rendered = manager.StripHTML(rendered)
+				}
+				msg.Body = []byte(rendered)
 			} else if m.log != nil {
 				m.log.Printf("sequence step %d text template execution error for subscriber %d: %v", step.ID, contact.ID, err)
 			}

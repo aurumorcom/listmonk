@@ -2681,3 +2681,57 @@ func TestE2E_Sequence_BaseTemplate_L_Function_Integration(t *testing.T) {
 		t.Errorf("expected link URL in rendered body, got %s", pushedBody)
 	}
 }
+
+func TestE2E_Sequence_WhatsApp_HTMLTemplate_BypassAndSanitization(t *testing.T) {
+	msgr := &mockCmdMessenger{name: "whatsapp"}
+	seqMgr := sequence.NewManager(nil, map[string]manager.Messenger{"whatsapp": msgr}, nil, nil)
+
+	sub := models.Subscriber{
+		Base:  models.Base{ID: 202},
+		UUID:  "sub-e2e-wa-888",
+		Name:  "Aryan",
+		Email: "aryan.singh@aurumor.com",
+		Phone: null.StringFrom("+919472380340"),
+	}
+
+	seqContact := models.SequenceContact{
+		SequenceID:   1,
+		SubscriberID: 202,
+		CurrentStep:  1,
+	}
+
+	// Step has HTML Default campaign template assigned (TemplateID = 1)
+	step := models.SequenceStep{
+		ID:         1,
+		TemplateID: null.IntFrom(1),
+		Messenger:  "whatsapp",
+		Subject:    "Step 1",
+		Body:       "🛸 *Incoming Transmission from HQ...* Hey {{ .Subscriber.Name }}! We have a top-secret mission prepared for {{ .Subscriber.Email }}. &nbsp;&nbsp; View in browser",
+	}
+
+	err := seqMgr.PrepareAndDispatchStep(seqContact, sub, step, "")
+	if err != nil {
+		t.Fatalf("unexpected error dispatching whatsapp step: %v", err)
+	}
+
+	if len(msgr.pushed) != 1 {
+		t.Fatalf("expected 1 message pushed to whatsapp, got %d", len(msgr.pushed))
+	}
+
+	pushedBody := string(msgr.pushed[0].Body)
+
+	// Assert zero raw CSS (e.g. body { background-color: #F0F1F3... })
+	if strings.Contains(pushedBody, "background-color") || strings.Contains(pushedBody, "Helvetica Neue") || strings.Contains(pushedBody, "<style>") {
+		t.Fatalf("detected raw CSS/HTML email layout leakage in WhatsApp message: %s", pushedBody)
+	}
+
+	// Assert zero HTML entities (&nbsp;)
+	if strings.Contains(pushedBody, "&nbsp;") {
+		t.Fatalf("detected unescaped HTML entity &nbsp; in WhatsApp message: %s", pushedBody)
+	}
+
+	// Assert clean rendered content
+	if !strings.Contains(pushedBody, "Hey Aryan! We have a top-secret mission prepared for aryan.singh@aurumor.com") {
+		t.Fatalf("expected clean rendered text, got: %s", pushedBody)
+	}
+}
