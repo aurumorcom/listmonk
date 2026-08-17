@@ -26,6 +26,38 @@ func getEnv(key, fallback string) string {
 	return fallback
 }
 
+func TestGetBifrostClient_SingletonThreadSafety(t *testing.T) {
+	cfg := BifrostConfig{
+		APIKey:   "test_key",
+		Endpoint: "http://localhost:8080",
+		Model:    "test_model",
+	}
+
+	const goroutines = 50
+	var wg sync.WaitGroup
+	instances := make([]*BifrostClient, goroutines)
+
+	wg.Add(goroutines)
+	for i := 0; i < goroutines; i++ {
+		go func(idx int) {
+			defer wg.Done()
+			instances[idx] = GetBifrostClient(cfg)
+		}(i)
+	}
+	wg.Wait()
+
+	firstInst := instances[0]
+	if firstInst == nil {
+		t.Fatalf("expected non-nil BifrostClient instance")
+	}
+
+	for i := 1; i < goroutines; i++ {
+		if instances[i] != firstInst {
+			t.Fatalf("expected all instances to point to same singleton pointer, instance[%d] differs", i)
+		}
+	}
+}
+
 func TestIntegration_Bifrost_LiveAI_Completion(t *testing.T) {
 	testutil.LoadDotEnv()
 	endpoint := getEnv("BIFROST_ENDPOINT", "https://litellm.aurumor.com")

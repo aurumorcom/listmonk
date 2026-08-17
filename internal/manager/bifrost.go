@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/knadh/listmonk/internal/auth"
@@ -22,6 +23,19 @@ type BifrostConfig struct {
 	Endpoint string
 	Model    string
 	Timeout  time.Duration
+}
+
+var (
+	bifrostInstance *BifrostClient
+	bifrostOnce     sync.Once
+)
+
+// GetBifrostClient returns the thread-safe singleton Bifrost AI client.
+func GetBifrostClient(cfg BifrostConfig) *BifrostClient {
+	bifrostOnce.Do(func() {
+		bifrostInstance = NewBifrostClient(cfg)
+	})
+	return bifrostInstance
 }
 
 // BifrostClient is a client for performing JIT AI prompt completions via Bifrost.
