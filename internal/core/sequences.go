@@ -820,26 +820,66 @@ func (c *Core) UpdateSequenceContactStatus(sequenceID, subID int, status string,
 
 // RecordSequenceRead records an open/read event for a sequence subscriber.
 func (c *Core) RecordSequenceRead(sequenceID, subID int) error {
+	if c == nil || c.db == nil {
+		return nil
+	}
 	_, err := c.db.Exec(`UPDATE sequence_contacts SET last_read_at = NOW(), next_send_at = NOW() WHERE sequence_id = $1 AND subscriber_id = $2`, sequenceID, subID)
 	return err
 }
 
-// RecordSequenceReadByPhone marks sequence contacts as read matching a phone number.
-func (c *Core) RecordSequenceReadByPhone(phone string) error {
+// RecordSequenceReadByPhone marks sequence contacts as read matching a phone number or WhatsApp LID.
+func (c *Core) RecordSequenceReadByPhone(phone string, lids ...string) error {
 	if c == nil || c.db == nil {
 		return nil
 	}
+	lid := ""
+	if len(lids) > 0 {
+		lid = lids[0]
+	}
 	cleaned := regexp.MustCompile(`[^\d]`).ReplaceAllString(phone, "")
-	if cleaned == "" {
+	if cleaned == "" && lid == "" {
 		return nil
 	}
 	_, err := c.db.Exec(`UPDATE sequence_contacts
 		SET last_read_at = NOW(), next_send_at = NOW()
 		WHERE subscriber_id IN (
 			SELECT id FROM subscribers
-			WHERE REGEXP_REPLACE(phone, '[^\d]', '', 'g') = $1
-			   OR REGEXP_REPLACE(attribs->>'phone', '[^\d]', '', 'g') = $1
-		) AND status IN ('scheduled', 'in_progress')`, cleaned)
+			WHERE (CASE WHEN $1 != '' THEN REGEXP_REPLACE(phone, '[^\d]', '', 'g') = $1 OR REGEXP_REPLACE(attribs->>'phone', '[^\d]', '', 'g') = $1 ELSE FALSE END)
+			   OR (CASE WHEN $2 != '' THEN attribs->>'whatsapp_lid' = $2 OR attribs->>'lid' = $2 ELSE FALSE END)
+		) AND status IN ('scheduled', 'in_progress')`, cleaned, lid)
+	return err
+}
+
+// RecordSequenceReadByMessageID marks sequence contacts as read matching a last_message_id or stanzaID.
+func (c *Core) RecordSequenceReadByMessageID(msgID string, extra ...string) error {
+	if c == nil || c.db == nil || msgID == "" {
+		return nil
+	}
+	stanzaID := ""
+	lid := ""
+	if len(extra) > 0 {
+		stanzaID = extra[0]
+	}
+	if len(extra) > 1 {
+		lid = extra[1]
+	}
+
+	var subID int
+	err := c.db.QueryRow(`UPDATE sequence_contacts
+		SET last_read_at = NOW(), next_send_at = NOW()
+		WHERE (
+			last_message_id = $1
+			OR last_thread_msg_id = $1
+			OR ($2 != '' AND (last_message_id = $2 OR last_thread_msg_id = $2 OR last_message_id LIKE '%' || $2))
+		) AND status IN ('scheduled', 'in_progress')
+		RETURNING subscriber_id`, msgID, stanzaID).Scan(&subID)
+
+	if err == nil && subID > 0 && lid != "" {
+		_ = c.LinkSubscriberLID(subID, lid)
+	}
+	if err == sql.ErrNoRows {
+		return nil
+	}
 	return err
 }
 
@@ -852,22 +892,26 @@ func (c *Core) RecordSequenceClick(sequenceID, subID int) error {
 	return err
 }
 
-// RecordSequenceClickByPhone marks sequence contacts as clicked matching a phone number.
-func (c *Core) RecordSequenceClickByPhone(phone string) error {
+// RecordSequenceClickByPhone marks sequence contacts as clicked matching a phone number or WhatsApp LID.
+func (c *Core) RecordSequenceClickByPhone(phone string, lids ...string) error {
 	if c == nil || c.db == nil {
 		return nil
 	}
+	lid := ""
+	if len(lids) > 0 {
+		lid = lids[0]
+	}
 	cleaned := regexp.MustCompile(`[^\d]`).ReplaceAllString(phone, "")
-	if cleaned == "" {
+	if cleaned == "" && lid == "" {
 		return nil
 	}
 	_, err := c.db.Exec(`UPDATE sequence_contacts
 		SET last_clicked_at = NOW(), next_send_at = NOW()
 		WHERE subscriber_id IN (
 			SELECT id FROM subscribers
-			WHERE REGEXP_REPLACE(phone, '[^\d]', '', 'g') = $1
-			   OR REGEXP_REPLACE(attribs->>'phone', '[^\d]', '', 'g') = $1
-		) AND status IN ('scheduled', 'in_progress')`, cleaned)
+			WHERE (CASE WHEN $1 != '' THEN REGEXP_REPLACE(phone, '[^\d]', '', 'g') = $1 OR REGEXP_REPLACE(attribs->>'phone', '[^\d]', '', 'g') = $1 ELSE FALSE END)
+			   OR (CASE WHEN $2 != '' THEN attribs->>'whatsapp_lid' = $2 OR attribs->>'lid' = $2 ELSE FALSE END)
+		) AND status IN ('scheduled', 'in_progress')`, cleaned, lid)
 	return err
 }
 
@@ -880,47 +924,65 @@ func (c *Core) RecordSequenceReply(email string) error {
 	return err
 }
 
-// RecordSequenceReplyByPhone marks subscriber sequence status as 'replied' by phone number.
-func (c *Core) RecordSequenceReplyByPhone(phone string) error {
-	cleaned := regexp.MustCompile(`[^\d]`).ReplaceAllString(phone, "")
-	if cleaned == "" {
+// RecordSequenceReplyByPhone marks subscriber sequence status as 'replied' by phone number or WhatsApp LID.
+func (c *Core) RecordSequenceReplyByPhone(identifier string, lids ...string) error {
+	if c == nil || c.db == nil {
+		return nil
+	}
+	lid := ""
+	if len(lids) > 0 {
+		lid = lids[0]
+	}
+	if strings.Contains(identifier, "@lid") && lid == "" {
+		lid = identifier
+	}
+	cleaned := regexp.MustCompile(`[^\d]`).ReplaceAllString(identifier, "")
+	if cleaned == "" && lid == "" {
 		return nil
 	}
 	_, err := c.db.Exec(`UPDATE sequence_contacts
 		SET status = 'replied'
 		WHERE subscriber_id IN (
 			SELECT id FROM subscribers
-			WHERE REGEXP_REPLACE(phone, '[^\d]', '', 'g') = $1
-			   OR REGEXP_REPLACE(attribs->>'phone', '[^\d]', '', 'g') = $1
-		) AND status IN ('scheduled', 'in_progress')`, cleaned)
+			WHERE (CASE WHEN $1 != '' THEN REGEXP_REPLACE(phone, '[^\d]', '', 'g') = $1 OR REGEXP_REPLACE(attribs->>'phone', '[^\d]', '', 'g') = $1 ELSE FALSE END)
+			   OR (CASE WHEN $2 != '' THEN attribs->>'whatsapp_lid' = $2 OR attribs->>'lid' = $2 ELSE FALSE END)
+		) AND status IN ('scheduled', 'in_progress')`, cleaned, lid)
 	return err
 }
 
 // CancelSequenceContactForOptOut cancels active sequence contacts and unsubscribes the subscriber upon explicit opt-out.
-func (c *Core) CancelSequenceContactForOptOut(identifier string, isPhone bool) error {
+func (c *Core) CancelSequenceContactForOptOut(identifier string, isPhone bool, lids ...string) error {
 	if identifier == "" {
 		return nil
 	}
 
-	if isPhone {
+	lid := ""
+	if len(lids) > 0 {
+		lid = lids[0]
+	}
+	if strings.Contains(identifier, "@lid") && lid == "" {
+		lid = identifier
+	}
+
+	if isPhone || lid != "" {
 		cleaned := regexp.MustCompile(`[^\d]`).ReplaceAllString(identifier, "")
-		if cleaned == "" {
+		if cleaned == "" && lid == "" {
 			return nil
 		}
 		_, err := c.db.Exec(`UPDATE sequence_contacts
 			SET status = 'cancelled'
 			WHERE subscriber_id IN (
 				SELECT id FROM subscribers
-				WHERE REGEXP_REPLACE(phone, '[^\d]', '', 'g') = $1
-				   OR REGEXP_REPLACE(attribs->>'phone', '[^\d]', '', 'g') = $1
-			) AND status IN ('scheduled', 'in_progress')`, cleaned)
+				WHERE (CASE WHEN $1 != '' THEN REGEXP_REPLACE(phone, '[^\d]', '', 'g') = $1 OR REGEXP_REPLACE(attribs->>'phone', '[^\d]', '', 'g') = $1 ELSE FALSE END)
+				   OR (CASE WHEN $2 != '' THEN attribs->>'whatsapp_lid' = $2 OR attribs->>'lid' = $2 ELSE FALSE END)
+			) AND status IN ('scheduled', 'in_progress')`, cleaned, lid)
 		if err != nil {
 			return err
 		}
 		// Also mark subscriber status as unsubscribed
 		_, err = c.db.Exec(`UPDATE subscribers SET status = 'unsubscribed'
-			WHERE REGEXP_REPLACE(phone, '[^\d]', '', 'g') = $1
-			   OR REGEXP_REPLACE(attribs->>'phone', '[^\d]', '', 'g') = $1`, cleaned)
+			WHERE (CASE WHEN $1 != '' THEN REGEXP_REPLACE(phone, '[^\d]', '', 'g') = $1 OR REGEXP_REPLACE(attribs->>'phone', '[^\d]', '', 'g') = $1 ELSE FALSE END)
+			   OR (CASE WHEN $2 != '' THEN attribs->>'whatsapp_lid' = $2 OR attribs->>'lid' = $2 ELSE FALSE END)`, cleaned, lid)
 		return err
 	}
 
@@ -936,23 +998,31 @@ func (c *Core) CancelSequenceContactForOptOut(identifier string, isPhone bool) e
 }
 
 // DeferSequenceContactOOO defers active sequence contacts to a future return date for Out-Of-Office replies.
-func (c *Core) DeferSequenceContactOOO(identifier string, isPhone bool, returnDate time.Time) error {
+func (c *Core) DeferSequenceContactOOO(identifier string, isPhone bool, returnDate time.Time, lids ...string) error {
 	if identifier == "" {
 		return nil
 	}
 
-	if isPhone {
+	lid := ""
+	if len(lids) > 0 {
+		lid = lids[0]
+	}
+	if strings.Contains(identifier, "@lid") && lid == "" {
+		lid = identifier
+	}
+
+	if isPhone || lid != "" {
 		cleaned := regexp.MustCompile(`[^\d]`).ReplaceAllString(identifier, "")
-		if cleaned == "" {
+		if cleaned == "" && lid == "" {
 			return nil
 		}
 		_, err := c.db.Exec(`UPDATE sequence_contacts
-			SET next_send_at = $2, status = 'in_progress'
+			SET next_send_at = $3, status = 'in_progress'
 			WHERE subscriber_id IN (
 				SELECT id FROM subscribers
-				WHERE REGEXP_REPLACE(phone, '[^\d]', '', 'g') = $1
-				   OR REGEXP_REPLACE(attribs->>'phone', '[^\d]', '', 'g') = $1
-			) AND status IN ('scheduled', 'in_progress')`, cleaned, returnDate)
+				WHERE (CASE WHEN $1 != '' THEN REGEXP_REPLACE(phone, '[^\d]', '', 'g') = $1 OR REGEXP_REPLACE(attribs->>'phone', '[^\d]', '', 'g') = $1 ELSE FALSE END)
+				   OR (CASE WHEN $2 != '' THEN attribs->>'whatsapp_lid' = $2 OR attribs->>'lid' = $2 ELSE FALSE END)
+			) AND status IN ('scheduled', 'in_progress')`, cleaned, lid, returnDate)
 		return err
 	}
 
