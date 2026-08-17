@@ -317,11 +317,36 @@ func ExtractTemplateScope(sub models.Subscriber) map[string]any {
 		}
 	}
 
+	phoneStr := ""
+	if sub.Phone.Valid {
+		phoneStr = sub.Phone.String
+	}
+
+	subMap := map[string]any{
+		"ID":         sub.ID,
+		"UUID":       sub.UUID,
+		"Email":      sub.Email,
+		"email":      sub.Email,
+		"Name":       sub.Name,
+		"name":       sub.Name,
+		"Phone":      phoneStr,
+		"phone":      phoneStr,
+		"FirstName":  sub.FirstName(),
+		"first_name": sub.FirstName(),
+		"LastName":   sub.LastName(),
+		"last_name":  sub.LastName(),
+		"Attribs":    sub.Attribs,
+		"attribs":    sub.Attribs,
+		"Status":     sub.Status,
+	}
+
 	scope := map[string]any{
 		"Subscriber": sub,
 		"Contact":    sub,
-		"subscriber": sub,
-		"contact":    sub,
+		"subscriber": subMap,
+		"contact":    subMap,
+		"Sub":        subMap,
+		"sub":        subMap,
 		"Context":    ctxObj,
 		"context":    ctxObj,
 		"User":       userObj,
