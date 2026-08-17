@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/knadh/listmonk/internal/i18n"
@@ -18,6 +19,22 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/lib/pq"
 )
+
+var (
+	coreInstance *Core
+	coreOnce     sync.Once
+)
+
+// GetCore returns the thread-safe singleton Core instance.
+func GetCore(o *Opt, h *Hooks) *Core {
+	coreOnce.Do(func() {
+		coreInstance = New(o, h)
+	})
+	if coreInstance != nil {
+		return coreInstance
+	}
+	return New(o, h)
+}
 
 const (
 	SortAsc  = "asc"
