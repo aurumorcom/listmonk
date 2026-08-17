@@ -301,6 +301,16 @@ export default Vue.extend({
               max_send_per_day: 0,
             },
           ];
+        } else {
+          d.waha = d.waha.map((w) => {
+            const item = { ...w };
+            if (item.target_wpm === undefined || item.target_wpm === null) item.target_wpm = 60;
+            if (item.wpm_std === undefined || item.wpm_std === null) item.wpm_std = 10;
+            if (!item.keyboard_layout) item.keyboard_layout = 'qwerty';
+            if (item.max_typing_delay_sec === undefined || item.max_typing_delay_sec === null) item.max_typing_delay_sec = 30;
+            if (!item.typing_mode) item.typing_mode = 'human';
+            return item;
+          });
         }
 
         // Ensure webhooks exists and has default item if empty

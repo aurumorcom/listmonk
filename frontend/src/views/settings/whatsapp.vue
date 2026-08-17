@@ -83,7 +83,7 @@
 
             <hr />
 
-            <!-- Human Typing Settings (Simple inline section without box container or headline) -->
+            <!-- Human Typing Settings -->
             <div class="columns">
               <div class="column is-4">
                 <b-field label="Simulation Mode" label-position="on-border" message="Default: Full Human Markov Simulation">
@@ -95,48 +95,29 @@
                 </b-field>
               </div>
               <div class="column is-4">
-                <b-field label="Base Typing Speed (CPM)" label-position="on-border" message="Default: 240 CPM (approx 48 WPM)">
-                  <b-numberinput v-model="item.cpm" type="is-light" controls-position="compact" placeholder="240" min="50" max="1000" />
+                <b-field label="Target WPM" label-position="on-border" message="Average Words Per Minute (e.g. 60)">
+                  <b-numberinput v-model="item.target_wpm" type="is-light" controls-position="compact" placeholder="60" min="10" max="200" />
                 </b-field>
               </div>
               <div class="column is-4">
-                <b-field label="Typing Error Rate" label-position="on-border" message="Simulated mistyping & backspacing frequency (0.00 - 0.20)">
-                  <b-input v-model.number="item.error_rate" type="number" step="0.01" min="0" max="0.2" placeholder="0.02" />
-                </b-field>
-              </div>
-            </div>
-
-            <div class="columns">
-              <div class="column is-4">
-                <b-field label="Reading Delay Speed (WPM)" label-position="on-border" message="Simulates human message comprehension speed (Default: 200 WPM)">
-                  <b-numberinput v-model="item.reading_wpm" type="is-light" controls-position="compact" placeholder="200" min="50" max="1000" />
-                </b-field>
-              </div>
-              <div class="column is-4">
-                <b-field label="Min Reaction Delay" label-position="on-border" message="Minimum human reaction time (e.g. 1.2s)">
-                  <b-input v-model="item.min_reaction_delay" placeholder="1.2s" :maxlength="10" />
-                </b-field>
-              </div>
-              <div class="column is-4">
-                <b-field label="Max Reaction Delay" label-position="on-border" message="Maximum human reaction time (e.g. 3.5s)">
-                  <b-input v-model="item.max_reaction_delay" placeholder="3.5s" :maxlength="10" />
+                <b-field label="WPM Std Dev" label-position="on-border" message="Standard deviation for typing speed variation (e.g. 10)">
+                  <b-numberinput v-model="item.wpm_std" type="is-light" controls-position="compact" placeholder="10" min="0" max="50" step="0.5" />
                 </b-field>
               </div>
             </div>
 
             <div class="columns">
               <div class="column is-4">
-                <b-field label="Simulate Human Micro-Pauses" label-position="on-border" message="Enables natural pauses at commas, sentence boundaries, and complex tokens">
-                  <b-switch v-model="item.simulate_micro_pauses" :native-value="true">
-                    {{ item.simulate_micro_pauses ? $t('globals.states.on') : $t('globals.states.off') }}
-                  </b-switch>
+                <b-field label="Keyboard Layout" label-position="on-border" message="Simulated keyboard layout for typos">
+                  <b-select v-model="item.keyboard_layout" placeholder="qwerty" expanded>
+                    <option value="qwerty">QWERTY</option>
+                    <option value="azerty">AZERTY</option>
+                  </b-select>
                 </b-field>
               </div>
               <div class="column is-4">
-                <b-field label="Burstiness / Fatigue Variation" label-position="on-border" message="Introduces human rhythm acceleration and micro-fatigue">
-                  <b-switch v-model="item.simulate_burstiness" :native-value="true">
-                    {{ item.simulate_burstiness ? $t('globals.states.on') : $t('globals.states.off') }}
-                  </b-switch>
+                <b-field label="Max Typing Delay (Sec)" label-position="on-border" message="Maximum seconds to simulate typing (e.g. 30)">
+                  <b-numberinput v-model="item.max_typing_delay_sec" type="is-light" controls-position="compact" placeholder="30" min="5" max="300" />
                 </b-field>
               </div>
             </div>
@@ -238,32 +219,10 @@ export default Vue.extend({
     if (this.data.waha.length === 0) {
       this.addMessenger();
     }
-    this.prepopulateDefaults();
     this.fetchUsers();
   },
 
-  watch: {
-    form: {
-      handler() {
-        this.prepopulateDefaults();
-      },
-      deep: true,
-      immediate: true,
-    },
-  },
-
   methods: {
-    prepopulateDefaults() {
-      if (!this.data || !Array.isArray(this.data.waha)) return;
-      this.data.waha.forEach((item) => {
-        if (item.cpm === undefined || item.cpm === null || item.cpm === '') this.$set(item, 'cpm', 240);
-        if (item.error_rate === undefined || item.error_rate === null || item.error_rate === '') this.$set(item, 'error_rate', 0.02);
-        if (item.reading_wpm === undefined || item.reading_wpm === null || item.reading_wpm === '') this.$set(item, 'reading_wpm', 200);
-        if (!item.min_reaction_delay) this.$set(item, 'min_reaction_delay', '1.2s');
-        if (!item.max_reaction_delay) this.$set(item, 'max_reaction_delay', '3.5s');
-      });
-    },
-
     async fetchUsers() {
       try {
         const res = await this.$api.getUsers();
@@ -292,13 +251,10 @@ export default Vue.extend({
         timeout: '10s',
         max_send_per_day: 0,
         typing_mode: 'human',
-        cpm: 240,
-        error_rate: 0.02,
-        reading_wpm: 200,
-        min_reaction_delay: '1.2s',
-        max_reaction_delay: '3.5s',
-        simulate_micro_pauses: true,
-        simulate_burstiness: true,
+        target_wpm: 60,
+        wpm_std: 10,
+        keyboard_layout: 'qwerty',
+        max_typing_delay_sec: 30,
         user_id: null,
         signature: '',
       });
