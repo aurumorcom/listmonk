@@ -12,6 +12,7 @@ import (
 	"github.com/gofrs/uuid/v5"
 	"github.com/knadh/listmonk/internal/auth"
 	"github.com/knadh/listmonk/internal/core"
+	"github.com/knadh/listmonk/internal/i18n"
 	"github.com/knadh/listmonk/internal/manager"
 	"github.com/knadh/listmonk/internal/testutil"
 	"github.com/knadh/listmonk/models"
@@ -860,5 +861,52 @@ func TestResolveTargetRecipient_LiveVsTest(t *testing.T) {
 	_, phoneTest := ResolveTargetRecipient(contact, "+15559998888", true)
 	if phoneTest != "+15559998888" {
 		t.Errorf("unexpected test mode whatsapp recipient resolution: phone=%s", phoneTest)
+	}
+}
+
+func TestSequence_TemplateFuncsWithContext_And_L_Helper(t *testing.T) {
+	mgr := NewManager(nil, nil, nil, nil)
+	funcs := mgr.TemplateFuncsWithContext("seq-uuid-111", "sub-uuid-222")
+
+	// 1. Verify "L" helper is present in FuncMap and callable without panic
+	lFunc, ok := funcs["L"].(func() *i18n.I18n)
+	if !ok {
+		t.Fatalf("expected 'L' function in TemplateFuncsWithContext")
+	}
+	// Callable without panic (returns nil when core is nil)
+	_ = lFunc()
+
+	// 2. Verify Sprig functions (e.g. upper, lower, default) present
+	if _, ok := funcs["upper"]; !ok {
+		t.Errorf("expected Sprig 'upper' function in TemplateFuncsWithContext")
+	}
+	if _, ok := funcs["default"]; !ok {
+		t.Errorf("expected Sprig 'default' function in TemplateFuncsWithContext")
+	}
+
+	// 3. Test compilation and execution of base layout using "L" helper and tracking functions
+	tplBody := `<html><body>{{ if L }}{{ L.T "welcome" }}{{ else }}Welcome{{ end }} - {{ TrackLink "https://aurumor.com" }} - {{ TrackView }}</body></html>`
+	camp := models.Campaign{
+		UUID:         "camp-uuid-999",
+		Subject:      "Test Subject {{ .Subscriber.Name }}",
+		TemplateBody: tplBody,
+		Body:         "Hello {{ .Subscriber.Name }}",
+	}
+
+	if err := camp.CompileTemplate(funcs); err != nil {
+		t.Fatalf("unexpected error compiling campaign template with sequence funcs: %v", err)
+	}
+
+	var buf bytes.Buffer
+	scope := map[string]any{
+		"Subscriber": models.Subscriber{Name: "Bob"},
+	}
+	if err := camp.Tpl.ExecuteTemplate(&buf, models.BaseTpl, scope); err != nil {
+		t.Fatalf("unexpected error executing campaign template: %v", err)
+	}
+
+	res := buf.String()
+	if !strings.Contains(res, "Welcome") || !strings.Contains(res, "/link/") {
+		t.Fatalf("rendered output missing expected content, got: %s", res)
 	}
 }
