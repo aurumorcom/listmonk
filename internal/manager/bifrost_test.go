@@ -26,7 +26,7 @@ func getEnv(key, fallback string) string {
 	return fallback
 }
 
-func TestGetBifrostClient_SingletonThreadSafety(t *testing.T) {
+func TestGetBifrostClientThreadSafety(t *testing.T) {
 	cfg := BifrostConfig{
 		APIKey:   "test_key",
 		Endpoint: "http://localhost:8080",
