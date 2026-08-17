@@ -296,38 +296,40 @@ func ExtractTemplateScope(sub models.Subscriber) map[string]any {
 		userObj = map[string]any{}
 	}
 
-	// Normalize subscriber attributes with shorthand case aliases
-	if sub.Attribs == nil {
-		sub.Attribs = models.JSON{}
-	}
-	if _, ok := sub.Attribs["first_name"]; !ok {
-		sub.Attribs["first_name"] = sub.FirstName()
-	}
-	if _, ok := sub.Attribs["last_name"]; !ok {
-		sub.Attribs["last_name"] = sub.LastName()
-	}
-	if _, ok := sub.Attribs["name"]; !ok {
-		sub.Attribs["name"] = sub.Name
-	}
-	if _, ok := sub.Attribs["email"]; !ok {
-		sub.Attribs["email"] = sub.Email
-	}
-	if sub.Phone.Valid {
-		if _, ok := sub.Attribs["phone"]; !ok {
-			sub.Attribs["phone"] = sub.Phone.String
+	// Normalize subscriber attributes with shorthand case aliases into a thread-safe map copy
+	cleanAttribs := make(models.JSON)
+	if sub.Attribs != nil {
+		for k, v := range sub.Attribs {
+			cleanAttribs[k] = v
 		}
 	}
+	if _, ok := cleanAttribs["first_name"]; !ok {
+		cleanAttribs["first_name"] = sub.FirstName()
+	}
+	if _, ok := cleanAttribs["last_name"]; !ok {
+		cleanAttribs["last_name"] = sub.LastName()
+	}
+	if _, ok := cleanAttribs["name"]; !ok {
+		cleanAttribs["name"] = sub.Name
+	}
+	if _, ok := cleanAttribs["email"]; !ok {
+		cleanAttribs["email"] = sub.Email
+	}
+	if sub.Phone.Valid {
+		if _, ok := cleanAttribs["phone"]; !ok {
+			cleanAttribs["phone"] = sub.Phone.String
+		}
+	}
+	sub.Attribs = cleanAttribs
 
 	campaignObj := map[string]any{
 		"Subject": "",
 		"Name":    "",
 		"UUID":    "",
 	}
-	if sub.Attribs != nil {
-		if rawCamp, ok := sub.Attribs["campaign"].(map[string]any); ok {
-			for k, v := range rawCamp {
-				campaignObj[k] = v
-			}
+	if rawCamp, ok := cleanAttribs["campaign"].(map[string]any); ok {
+		for k, v := range rawCamp {
+			campaignObj[k] = v
 		}
 	}
 
