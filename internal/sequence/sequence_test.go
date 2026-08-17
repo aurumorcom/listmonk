@@ -910,3 +910,47 @@ func TestSequence_TemplateFuncsWithContext_And_L_Helper(t *testing.T) {
 		t.Fatalf("rendered output missing expected content, got: %s", res)
 	}
 }
+
+func TestSequence_PrepareAndDispatchStep_WhatsApp_HTMLTemplateSanitization(t *testing.T) {
+	msgr := &mockSeqMessenger{name: "whatsapp"}
+	mgr := NewManager(nil, map[string]manager.Messenger{"whatsapp": msgr}, nil, nil)
+
+	sub := models.Subscriber{
+		Base:  models.Base{ID: 201},
+		UUID:  "sub-wa-999",
+		Name:  "Aryan",
+		Email: "aryan@example.com",
+		Phone: null.StringFrom("+15559876543"),
+	}
+
+	seqContact := models.SequenceContact{
+		SequenceID:   1,
+		SubscriberID: 201,
+		CurrentStep:  1,
+	}
+
+	step := models.SequenceStep{
+		ID:         1,
+		TemplateID: null.IntFrom(1), // Default HTML campaign template assigned!
+		Messenger:  "whatsapp",
+		Subject:    "WhatsApp Notice",
+		Body:       "<p>Hey {{ .Subscriber.Name }}! Welcome to HQ.</p><style>body { color: #f00; }</style>",
+	}
+
+	err := mgr.PrepareAndDispatchStep(seqContact, sub, step, "")
+	if err != nil {
+		t.Fatalf("unexpected error dispatching whatsapp step: %v", err)
+	}
+
+	if len(msgr.pushed) != 1 {
+		t.Fatalf("expected 1 message pushed to whatsapp, got %d", len(msgr.pushed))
+	}
+
+	body := string(msgr.pushed[0].Body)
+	if strings.Contains(body, "background-color") || strings.Contains(body, "<style>") || strings.Contains(body, "<p>") {
+		t.Fatalf("expected clean plain text without CSS/HTML tags, got: %s", body)
+	}
+	if !strings.Contains(body, "Hey Aryan! Welcome to HQ.") {
+		t.Fatalf("expected rendered text 'Hey Aryan! Welcome to HQ.', got: %s", body)
+	}
+}
