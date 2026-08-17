@@ -38,6 +38,12 @@ func TestReplyListener_RegexLayer1_IntentRouting(t *testing.T) {
 	if !reOOO.MatchString(oooMsg) {
 		t.Errorf("expected OOO regex to match %q", oooMsg)
 	}
+
+	// Test @lid identifier routing without core
+	listener := NewReplyListener(nil, nil)
+	if err := listener.ProcessReplyWithQuotedID("210556493537459@lid", true, "STOP", "AC6DD75E5513F74D982B46860BA9E85D"); err != nil {
+		t.Errorf("expected nil error for nil core, got %v", err)
+	}
 }
 
 func TestResilience_IMAP_ConnectionDropAndAutoReconnect(t *testing.T) {

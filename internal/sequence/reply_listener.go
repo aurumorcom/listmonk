@@ -52,13 +52,18 @@ func (r *ReplyListener) ProcessReplyWithContext(ctx context.Context, fromIdentif
 	}
 }
 
-// ProcessReplyWithBody processes incoming replies across Email and WhatsApp using Layer 1 Regex and Layer 2 Bifrost AI.
-func (r *ReplyListener) ProcessReplyWithBody(fromIdentifier string, isPhone bool, messageBody string) error {
+// ProcessReplyWithQuotedID processes incoming replies across Email and WhatsApp including quoted message IDs.
+func (r *ReplyListener) ProcessReplyWithQuotedID(fromIdentifier string, isPhone bool, messageBody string, quotedMsgID string) error {
 	if fromIdentifier == "" || r.core == nil {
 		return nil
 	}
 
 	trimmedBody := strings.TrimSpace(messageBody)
+
+	// If a quoted message ID is present, also trigger read matching by message ID
+	if quotedMsgID != "" {
+		_ = r.core.RecordSequenceReadByMessageID(quotedMsgID)
+	}
 
 	// --- Layer 1: Fast-Path Regex Filter ---
 	if trimmedBody != "" {
@@ -75,7 +80,7 @@ func (r *ReplyListener) ProcessReplyWithBody(fromIdentifier string, isPhone bool
 			if r.log != nil {
 				r.log.Printf("fast-path interested regex match from %s; marking sequence as replied", fromIdentifier)
 			}
-			if isPhone {
+			if isPhone || strings.Contains(fromIdentifier, "@lid") {
 				return r.core.RecordSequenceReplyByPhone(fromIdentifier)
 			}
 			return r.core.RecordSequenceReply(fromIdentifier)
@@ -137,7 +142,7 @@ func (r *ReplyListener) ProcessReplyWithBody(fromIdentifier string, isPhone bool
 				if r.log != nil {
 					r.log.Printf("Bifrost AI classified %s from %s; marking sequence as replied", intentResult.Intent, fromIdentifier)
 				}
-				if isPhone {
+				if isPhone || strings.Contains(fromIdentifier, "@lid") {
 					return r.core.RecordSequenceReplyByPhone(fromIdentifier)
 				}
 				return r.core.RecordSequenceReply(fromIdentifier)
@@ -146,8 +151,13 @@ func (r *ReplyListener) ProcessReplyWithBody(fromIdentifier string, isPhone bool
 	}
 
 	// Fallback Default: Mark sequence as replied
-	if isPhone {
+	if isPhone || strings.Contains(fromIdentifier, "@lid") {
 		return r.core.RecordSequenceReplyByPhone(fromIdentifier)
 	}
 	return r.core.RecordSequenceReply(fromIdentifier)
+}
+
+// ProcessReplyWithBody processes incoming replies across Email and WhatsApp using Layer 1 Regex and Layer 2 Bifrost AI.
+func (r *ReplyListener) ProcessReplyWithBody(fromIdentifier string, isPhone bool, messageBody string) error {
+	return r.ProcessReplyWithQuotedID(fromIdentifier, isPhone, messageBody, "")
 }
