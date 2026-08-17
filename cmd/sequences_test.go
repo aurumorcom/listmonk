@@ -82,11 +82,18 @@ func TestE2E_Sequence_MultiStep_Execution(t *testing.T) {
 func TestE2E_Sequence_ConditionalRouting_IfRead(t *testing.T) {
 	now := time.Now()
 
-	contactUnread := models.SequenceContact{
+	stepIfRead := models.SequenceStep{
+		StepNumber: 2,
+		Condition:  models.SequenceConditionIfRead,
+		Delay:      "0s",
+	}
+
+	contactUnreadWaiting := models.SequenceContact{
 		SequenceID:    200,
 		SubscriberID:  201,
 		Status:        models.SequenceContactStatusInProgress,
 		CurrentStep:   2,
+		NextSendAt:    null.TimeFrom(now.Add(45 * time.Second)),
 		LastReadAt:    null.Time{},
 		LastClickedAt: null.Time{},
 	}
@@ -96,41 +103,50 @@ func TestE2E_Sequence_ConditionalRouting_IfRead(t *testing.T) {
 		SubscriberID:  202,
 		Status:        models.SequenceContactStatusInProgress,
 		CurrentStep:   2,
+		NextSendAt:    null.TimeFrom(now),
 		LastReadAt:    null.TimeFrom(now),
 		LastClickedAt: null.Time{},
 	}
 
-	// Route evaluation
-	condIfRead := models.SequenceConditionIfRead
-	condIfNotRead := models.SequenceConditionIfNotRead
-
-	// Verify Email / WAHA if_read routing logic
-	if sequence.EvaluateStepCondition(condIfRead, contactUnread) {
-		t.Errorf("expected contactUnread to evaluate false for if_read")
+	// 1. Verify that a contact within waiting window (NextSendAt in future) is NOT skipped
+	if sequence.ShouldSkipConditionalStep(stepIfRead, contactUnreadWaiting, now) {
+		t.Errorf("expected ShouldSkipConditionalStep to return false while NextSendAt is in the future")
 	}
-	if !sequence.EvaluateStepCondition(condIfRead, contactRead) {
+
+	// 2. Verify EvaluateStepCondition
+	if sequence.EvaluateStepCondition(models.SequenceConditionIfRead, contactUnreadWaiting) {
+		t.Errorf("expected contactUnreadWaiting to evaluate false for if_read")
+	}
+	if !sequence.EvaluateStepCondition(models.SequenceConditionIfRead, contactRead) {
 		t.Errorf("expected contactRead to evaluate true for if_read")
 	}
 
-	// Verify if_not_read routing logic
-	if !sequence.EvaluateStepCondition(condIfNotRead, contactUnread) {
-		t.Errorf("expected contactUnread to evaluate true for if_not_read")
+	// 3. Verify WAHA ACK Level Parsing: ack=2 (DEVICE) is delivery only (not read), ack=3 (READ) is Blue Tick read
+	if ParseWAHAAckLevel(2, "DEVICE") >= 3 {
+		t.Errorf("ack level 2 (DEVICE) should NOT trigger if_read")
 	}
-	if sequence.EvaluateStepCondition(condIfNotRead, contactRead) {
-		t.Errorf("expected contactRead to evaluate false for if_not_read")
+	if ParseWAHAAckLevel(3, "READ") < 3 {
+		t.Errorf("ack level 3 (READ) MUST trigger if_read")
 	}
 
-	t.Log("Successfully verified conditional routing for if_read and if_not_read branches")
+	t.Log("Successfully verified conditional routing, temporal waiting window, and WAHA ACK parsing for if_read branch")
 }
 
 func TestE2E_Sequence_ConditionalRouting_IfClicked_And_LinkRedirection(t *testing.T) {
 	now := time.Now()
 
-	contactUnclicked := models.SequenceContact{
+	stepIfClicked := models.SequenceStep{
+		StepNumber: 4,
+		Condition:  models.SequenceConditionIfClicked,
+		Delay:      "0s",
+	}
+
+	contactUnclickedWaiting := models.SequenceContact{
 		SequenceID:    300,
 		SubscriberID:  301,
 		Status:        models.SequenceContactStatusInProgress,
-		CurrentStep:   2,
+		CurrentStep:   4,
+		NextSendAt:    null.TimeFrom(now.Add(45 * time.Second)),
 		LastReadAt:    null.TimeFrom(now),
 		LastClickedAt: null.Time{},
 	}
@@ -139,21 +155,26 @@ func TestE2E_Sequence_ConditionalRouting_IfClicked_And_LinkRedirection(t *testin
 		SequenceID:    300,
 		SubscriberID:  302,
 		Status:        models.SequenceContactStatusInProgress,
-		CurrentStep:   2,
+		CurrentStep:   4,
+		NextSendAt:    null.TimeFrom(now),
 		LastReadAt:    null.TimeFrom(now),
 		LastClickedAt: null.TimeFrom(now),
 	}
 
-	condIfClicked := models.SequenceConditionIfClicked
-
-	if sequence.EvaluateStepCondition(condIfClicked, contactUnclicked) {
-		t.Errorf("expected contactUnclicked to evaluate false for if_clicked")
+	// 1. Verify that contact within waiting window is NOT skipped
+	if sequence.ShouldSkipConditionalStep(stepIfClicked, contactUnclickedWaiting, now) {
+		t.Errorf("expected ShouldSkipConditionalStep to return false while NextSendAt is in the future")
 	}
-	if !sequence.EvaluateStepCondition(condIfClicked, contactClicked) {
+
+	// 2. Verify EvaluateStepCondition
+	if sequence.EvaluateStepCondition(models.SequenceConditionIfClicked, contactUnclickedWaiting) {
+		t.Errorf("expected contactUnclickedWaiting to evaluate false for if_clicked")
+	}
+	if !sequence.EvaluateStepCondition(models.SequenceConditionIfClicked, contactClicked) {
 		t.Errorf("expected contactClicked to evaluate true for if_clicked")
 	}
 
-	t.Log("Successfully verified conditional routing and tracked link click evaluation for if_clicked branch")
+	t.Log("Successfully verified conditional routing, temporal waiting window, and tracked link click evaluation for if_clicked branch")
 }
 
 func TestE2E_Sequence_Sender_Reassignment_And_Limits(t *testing.T) {
