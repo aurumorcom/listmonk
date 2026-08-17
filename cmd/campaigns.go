@@ -525,44 +525,7 @@ func (a *App) GetRunningCampaignStats(c echo.Context) error {
 	return c.JSON(http.StatusOK, okResp{out})
 }
 
-// TestCampaign handles the sending of a campaign message to
-// arbitrary subscribers for testing.
-func (a *App) TestCampaign(c echo.Context) error {
-	// Get the campaign ID.
-	id := getID(c)
-
-	// Check if the user has access to the campaign.
-	if err := a.checkCampaignPerm(auth.PermTypeManage, id, c); err != nil {
-		return err
-	}
-
-	// Get and validate fields.
-	var req campReq
-	if err := c.Bind(&req); err != nil {
-		return err
-	}
-
-	// Validate.
-	if c, err := a.validateCampaignFields(req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
-	} else {
-		req = c
-	}
-
-	user := auth.GetUser(c)
-
-	// Resolve subscriber context for template compilation (preferring explicit production contact)
-	var sampleSub models.Subscriber
-	if req.SubscriberID > 0 {
-		if sub, err := a.core.GetSubscriber(req.SubscriberID, "", ""); err == nil && sub.ID > 0 {
-			sampleSub = sub
-		}
-	}
-	if sampleSub.ID == 0 {
-		sampleSub = a.resolveTestPreviewSubscriber(req.SubscriberID, user)
-	}
-
-	// Prepare targets based on messenger type and active user profile
+func resolveTestRecipients(req campReq, user auth.User) ([]string, error) {
 	isWhatsApp := req.Messenger == "whatsapp" || req.Messenger == "waha" || strings.HasPrefix(req.Messenger, "whatsapp-") || strings.HasPrefix(req.Messenger, "waha-")
 
 	var targets []string
@@ -582,35 +545,77 @@ func (a *App) TestCampaign(c echo.Context) error {
 
 	if len(targets) == 0 {
 		if isWhatsApp {
-			return echo.NewHTTPError(http.StatusBadRequest, "Please enter a test phone number or configure your phone in User Profile.")
+			return nil, errors.New("Please enter a test phone number or configure your phone in User Profile.")
 		}
-		return echo.NewHTTPError(http.StatusBadRequest, "Please enter a test email address or configure your email in User Profile.")
+		return nil, errors.New("Please enter a test email address or configure your email in User Profile.")
+	}
+	return targets, nil
+}
+
+func buildTestCampaignOverride(camp *models.Campaign, req campReq, user *auth.User) *models.Campaign {
+	c := *camp
+	c.Name = req.Name
+	c.Subject = req.Subject
+	c.FromEmail = FormatTestMessageSender(user, req.FromEmail)
+	c.Body = req.Body
+	c.AltBody = req.AltBody
+	c.Messenger = req.Messenger
+	c.ContentType = req.ContentType
+	c.Headers = req.Headers
+	c.TemplateID = req.TemplateID
+	for _, id := range req.MediaIDs {
+		if id > 0 {
+			c.MediaIDs = append(c.MediaIDs, int64(id))
+		}
+	}
+	return &c
+}
+
+// TestCampaign handles the sending of a campaign message to
+// arbitrary subscribers for testing.
+func (a *App) TestCampaign(c echo.Context) error {
+	id := getID(c)
+
+	if err := a.checkCampaignPerm(auth.PermTypeManage, id, c); err != nil {
+		return err
 	}
 
-	// Get the campaign from the DB for previewing.
+	var req campReq
+	if err := c.Bind(&req); err != nil {
+		return err
+	}
+
+	if validatedReq, err := a.validateCampaignFields(req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	} else {
+		req = validatedReq
+	}
+
+	user := auth.GetUser(c)
+
+	var sampleSub models.Subscriber
+	if req.SubscriberID > 0 {
+		if sub, err := a.core.GetSubscriber(req.SubscriberID, "", ""); err == nil && sub.ID > 0 {
+			sampleSub = sub
+		}
+	}
+	if sampleSub.ID == 0 {
+		sampleSub = a.resolveTestPreviewSubscriber(req.SubscriberID, user)
+	}
+
+	targets, err := resolveTestRecipients(req, user)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+
 	tplID, _ := strconv.Atoi(c.FormValue("template_id"))
-	camp, err := a.core.GetCampaignForPreview(id, tplID)
+	baseCamp, err := a.core.GetCampaignForPreview(id, tplID)
 	if err != nil {
 		return err
 	}
 
-	// Override certain values from the DB with incoming values.
-	camp.Name = req.Name
-	camp.Subject = req.Subject
-	camp.FromEmail = req.FromEmail
-	camp.Body = req.Body
-	camp.AltBody = req.AltBody
-	camp.Messenger = req.Messenger
-	camp.ContentType = req.ContentType
-	camp.Headers = req.Headers
-	camp.TemplateID = req.TemplateID
-	for _, id := range req.MediaIDs {
-		if id > 0 {
-			camp.MediaIDs = append(camp.MediaIDs, int64(id))
-		}
-	}
+	camp := buildTestCampaignOverride(&baseCamp, req, &user)
 
-	// Send the test messages to each target recipient.
 	for _, target := range targets {
 		sub := sampleSub
 		target = strings.TrimSpace(target)
@@ -626,7 +631,7 @@ func (a *App) TestCampaign(c echo.Context) error {
 			}
 		}
 
-		testCamp := camp
+		testCamp := *camp
 		testCamp.Messenger = targetMessenger
 
 		var overrideEmail, overridePhone string
@@ -906,4 +911,19 @@ func canEditCampaign(status string) bool {
 	return status == models.CampaignStatusDraft ||
 		status == models.CampaignStatusPaused ||
 		status == models.CampaignStatusScheduled
+}
+
+// FormatTestMessageSender formats a sender address for test messages using Active User Name and fromEmail.
+func FormatTestMessageSender(user *auth.User, fromEmail string) string {
+	fromEmail = strings.TrimSpace(fromEmail)
+	if fromEmail == "" {
+		return ""
+	}
+	if strings.Contains(fromEmail, "<") && strings.Contains(fromEmail, ">") {
+		return fromEmail
+	}
+	if user != nil && strings.TrimSpace(user.Name) != "" {
+		return fmt.Sprintf("%s <%s>", strings.TrimSpace(user.Name), fromEmail)
+	}
+	return fromEmail
 }

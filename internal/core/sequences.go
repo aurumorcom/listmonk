@@ -205,6 +205,24 @@ func (c *Core) syncSequenceLists(seqID int, listIDs []int, status string) error 
 	return err
 }
 
+// EnrollListContactsInActiveSequences enrolls active contacts from targeted lists into active sequences.
+func EnrollListContactsInActiveSequences(c *Core, subIDs []int, listIDs []int, userContext map[string]any) error {
+	if userContext == nil {
+		return c.EnrollSubscribersByList(subIDs, listIDs)
+	}
+	return c.EnrollSubscribersByList(subIDs, listIDs, userContext)
+}
+
+// DisenrollListContactsFromSequences marks contacts as opted_out when removed from active sequence lists.
+func DisenrollListContactsFromSequences(c *Core, subIDs []int, listIDs []int) error {
+	return c.OptOutSubscribersByList(subIDs, listIDs)
+}
+
+// LockSequenceChannelSender locks assigned email account or WAHA session for sequence contacts.
+func LockSequenceChannelSender(c *Core, sequenceID int, subscriberIDs []int, userContext map[string]any) error {
+	return c.EnrollSequenceContacts(sequenceID, subscriberIDs, userContext)
+}
+
 // EnrollSubscribersByList enrolls active subscribers for given list IDs into all active sequences targeting those lists.
 func (c *Core) EnrollSubscribersByList(subIDs []int, listIDs []int, userContext ...map[string]any) error {
 	if len(subIDs) == 0 || len(listIDs) == 0 {

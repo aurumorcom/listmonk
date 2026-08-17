@@ -44,3 +44,30 @@ func TestTemplate_Compile_StandardType(t *testing.T) {
 		t.Fatalf("expected SubjectTpl to be compiled")
 	}
 }
+
+func TestCompilePrompt_SingleJob(t *testing.T) {
+	body := "Prompt text for {{ .User }}"
+	fMap := template.FuncMap{}
+	res, err := CompilePrompt(body, fMap)
+	if err != nil || res == nil {
+		t.Fatalf("CompilePrompt failed: %v", err)
+	}
+}
+
+func TestCompileHTML_SingleJob(t *testing.T) {
+	body := "<h1>Hello {{ .User }}</h1>"
+	fMap := template.FuncMap{}
+	res, err := CompileHTML(body, fMap)
+	if err != nil || res == nil {
+		t.Fatalf("CompileHTML failed: %v", err)
+	}
+}
+
+func TestCompileSubject_SingleJob(t *testing.T) {
+	subject := "Subject {{ .Subject }}"
+	fMap := template.FuncMap{}
+	res, err := CompileSubject(subject, fMap)
+	if err != nil || res == nil {
+		t.Fatalf("CompileSubject failed: %v", err)
+	}
+}

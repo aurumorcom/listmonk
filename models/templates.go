@@ -38,31 +38,54 @@ type Template struct {
 	Attachments []Attachment       `json:"-"`
 }
 
-// Compile compiles a template body and subject (only for tx templates) and
-// caches the template references to be executed later.
+// CompilePrompt compiles a text prompt template.
+func CompilePrompt(body string, funcs template.FuncMap) (*txttpl.Template, error) {
+	tpl, err := txttpl.New(BaseTpl).Funcs(txttpl.FuncMap(funcs)).Parse(body)
+	if err != nil {
+		return nil, fmt.Errorf("error compiling prompt template: %v", err)
+	}
+	return tpl, nil
+}
+
+// CompileHTML compiles an HTML body template.
+func CompileHTML(body string, funcs template.FuncMap) (*template.Template, error) {
+	tpl, err := template.New(BaseTpl).Funcs(funcs).Parse(body)
+	if err != nil {
+		return nil, fmt.Errorf("error compiling template: %v", err)
+	}
+	return tpl, nil
+}
+
+// CompileSubject compiles a subject line expression.
+func CompileSubject(subject string, funcs template.FuncMap) (*txttpl.Template, error) {
+	subjTpl, err := txttpl.New(BaseTpl).Funcs(txttpl.FuncMap(funcs)).Parse(subject)
+	if err != nil {
+		return nil, fmt.Errorf("error compiling subject: %v", err)
+	}
+	return subjTpl, nil
+}
+
+// Compile compiles a template body and subject and caches the template references.
 func (t *Template) Compile(f template.FuncMap) error {
 	if t.Type == TemplateTypePrompt {
-		tpl, err := txttpl.New(BaseTpl).Funcs(txttpl.FuncMap(f)).Parse(t.Body)
+		tpl, err := CompilePrompt(t.Body, f)
 		if err != nil {
-			return fmt.Errorf("error compiling prompt template: %v", err)
+			return err
 		}
 		t.SubjectTpl = tpl
 		return nil
 	}
 
-	tpl, err := template.New(BaseTpl).Funcs(f).Parse(t.Body)
+	tpl, err := CompileHTML(t.Body, f)
 	if err != nil {
-		return fmt.Errorf("error compiling template: %v", err)
+		return err
 	}
 	t.Tpl = tpl
 
-	// If the subject line has a template string, compile it.
 	if hasTplExpr(t.Subject) {
-		subj := t.Subject
-
-		subjTpl, err := txttpl.New(BaseTpl).Funcs(txttpl.FuncMap(f)).Parse(subj)
+		subjTpl, err := CompileSubject(t.Subject, f)
 		if err != nil {
-			return fmt.Errorf("error compiling subject: %v", err)
+			return err
 		}
 		t.SubjectTpl = subjTpl
 	}

@@ -1,16 +1,37 @@
 package sequence
 
 import (
+	"bytes"
+	"encoding/json"
 	htmltpl "html/template"
 	"strings"
 	"testing"
+	txttpl "text/template"
 	"time"
 
+	"github.com/gofrs/uuid/v5"
 	"github.com/knadh/listmonk/internal/core"
 	"github.com/knadh/listmonk/internal/manager"
+	"github.com/knadh/listmonk/internal/testutil"
 	"github.com/knadh/listmonk/models"
 	null "gopkg.in/volatiletech/null.v6"
 )
+
+func TestGetSequenceManager(t *testing.T) {
+	m1 := GetSequenceManager(nil, nil, nil, nil)
+	if m1 == nil {
+		t.Fatalf("expected non-nil SequenceManager instance")
+	}
+
+	m2 := GetSequenceManager(nil, nil, nil, nil)
+	if m2 == nil {
+		t.Fatalf("expected non-nil SequenceManager instance on second call")
+	}
+
+	if m1 != m2 {
+		t.Fatalf("expected GetSequenceManager to return identical singleton pointer")
+	}
+}
 
 func TestEvaluateStepCondition(t *testing.T) {
 	now := time.Now()
@@ -615,4 +636,104 @@ func TestSequence_TrackLink_And_TrackView(t *testing.T) {
 	if !strings.Contains(pixelHTML, "/campaign/seq-uuid-456/sub-uuid-789/px.png") {
 		t.Errorf("expected TrackView to output pixel tracking image tag, got '%s'", pixelHTML)
 	}
+}
+
+func TestE2E_Sequence_PromptTemplate_LiveLiteLLM(t *testing.T) {
+	testutil.LoadDotEnv()
+	endpoint := "https://litellm.aurumor.com"
+	apiKey := "sk-LJ0gQPPGu5NLMQYMEpCMgw"
+
+	rec, vcrClient := testutil.NewVCRRecorder(t, "sequences/bifrost_litellm_prompt_template")
+	if rec != nil {
+		defer rec.Stop()
+	}
+
+	bc := manager.NewBifrostClient(manager.BifrostConfig{
+		APIKey:   apiKey,
+		Endpoint: endpoint,
+		Model:    "gpt-4o-mini",
+		Timeout:  15 * time.Second,
+	})
+	bc.SetHTTPClient(vcrClient)
+
+	sub := models.Subscriber{
+		UUID:    "sub-uuid-llm-101",
+		Name:    "Alice Prospect",
+		Email:   "alice.prospect@acme.org",
+		Attribs: models.JSON{"first_name": "Alice"},
+	}
+
+	scope := manager.ExtractTemplateScope(sub)
+
+	ctx, cancel := bc.TimeoutContext()
+	defer cancel()
+
+	sysPrompt := "You are a professional AI sales assistant writing outreach emails. Output strict JSON with subject and content fields."
+	userPrompt := "Invite {{ .Subscriber.FirstName }} at {{ .Subscriber.Email }} to a 15-minute product demo."
+
+	// Compile user prompt template
+	var userPromptStr string
+	if ut, err := txttpl.New("user").Parse(userPrompt); err == nil {
+		var ub bytes.Buffer
+		if err := ut.Execute(&ub, scope); err == nil {
+			userPromptStr = ub.String()
+		}
+	}
+	if userPromptStr == "" {
+		userPromptStr = userPrompt
+	}
+
+	rawAI, err := bc.GeneratePromptWithFormat(ctx, sysPrompt, userPromptStr, manager.EmailResponseFormat())
+	if err != nil {
+		t.Fatalf("Live LiteLLM AI prompt completion failed: %v", err)
+	}
+
+	cleanJSON := manager.CleanJSONResponse(rawAI)
+	var emailOut manager.EmailStructuredOutput
+	if err := json.Unmarshal([]byte(cleanJSON), &emailOut); err != nil || emailOut.Content == "" {
+		t.Fatalf("failed unmarshaling AI response JSON '%s': %v", cleanJSON, err)
+	}
+
+	if strings.TrimSpace(emailOut.Subject) == "" || strings.TrimSpace(emailOut.Content) == "" {
+		t.Fatalf("expected non-empty AI subject and content, got subject='%s', content='%s'", emailOut.Subject, emailOut.Content)
+	}
+
+	// 1. Without Parent Template Verification: Content is plain text with signature
+	sig := "Best regards,\nSales Team"
+	finalPlainText := manager.FormatPlainTextWithSignature(emailOut.Content, sig)
+
+	if !strings.Contains(finalPlainText, sig) {
+		t.Errorf("expected final plain text to contain signature, got: %s", finalPlainText)
+	}
+	if strings.Contains(finalPlainText, "<html>") || strings.Contains(finalPlainText, "<div class=\"wrap\">") {
+		t.Errorf("expected plain text without parent template HTML wrapper, got: %s", finalPlainText)
+	}
+
+	// 2. With Parent Template Verification: Content is wrapped inside Parent HTML Template layout
+	parentTpl := models.Template{
+		Body: `<!doctype html><html><body><div class="wrap">{{ template "content" . }}</div></body></html>`,
+	}
+
+	camp := models.Campaign{
+		UUID:         uuid.Must(uuid.NewV4()).String(),
+		Subject:      emailOut.Subject,
+		TemplateBody: parentTpl.Body,
+		Body:         finalPlainText,
+	}
+
+	if err := camp.CompileTemplate(htmltpl.FuncMap{}); err != nil {
+		t.Fatalf("failed compiling parent HTML template: %v", err)
+	}
+
+	var buf bytes.Buffer
+	if err := camp.Tpl.ExecuteTemplate(&buf, models.BaseTpl, scope); err == nil {
+		htmlOutput := buf.String()
+		if !strings.Contains(htmlOutput, "<div class=\"wrap\">") || !strings.Contains(htmlOutput, "</body>") {
+			t.Errorf("expected HTML output to contain parent template layout structure, got: %s", htmlOutput)
+		}
+	} else {
+		t.Fatalf("failed executing parent HTML template: %v", err)
+	}
+
+	t.Log("Successfully verified live LiteLLM AI prompt completion both WITH and WITHOUT parent HTML template wrapping")
 }

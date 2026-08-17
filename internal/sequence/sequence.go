@@ -25,6 +25,19 @@ import (
 	null "gopkg.in/volatiletech/null.v6"
 )
 
+var (
+	sequenceInstance *Manager
+	sequenceOnce     sync.Once
+)
+
+// GetSequenceManager returns the thread-safe singleton instance of Sequence Manager.
+func GetSequenceManager(c *core.Core, msgrs map[string]manager.Messenger, store media.Store, l *log.Logger) *Manager {
+	sequenceOnce.Do(func() {
+		sequenceInstance = NewManager(c, msgrs, store, l)
+	})
+	return sequenceInstance
+}
+
 // Manager handles scheduled processing of sequences.
 type Manager struct {
 	core          *core.Core

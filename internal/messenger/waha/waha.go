@@ -38,6 +38,33 @@ type Options struct {
 	Timeout           time.Duration `json:"timeout"`
 }
 
+var (
+	wahaInstances = make(map[string]*Waha)
+	wahaMutex     sync.RWMutex
+)
+
+// GetWAHAMessenger returns a thread-safe singleton instance of the WAHA messenger per session.
+func GetWAHAMessenger(o Options) (*Waha, error) {
+	wahaMutex.Lock()
+	defer wahaMutex.Unlock()
+
+	sessKey := o.Session
+	if sessKey == "" {
+		sessKey = "default"
+	}
+
+	if inst, ok := wahaInstances[sessKey]; ok {
+		return inst, nil
+	}
+
+	inst, err := New(o)
+	if err != nil {
+		return nil, err
+	}
+	wahaInstances[sessKey] = inst
+	return inst, nil
+}
+
 // Waha represents a WAHA messenger backend.
 type Waha struct {
 	o Options

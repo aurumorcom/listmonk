@@ -12,6 +12,28 @@ import (
 	"github.com/knadh/listmonk/models"
 )
 
+func TestGetWAHAMessenger(t *testing.T) {
+	opts := Options{
+		Name:    "waha-test",
+		Session: "default-test-session",
+		Host:    "http://localhost:3000",
+	}
+
+	w1, err1 := GetWAHAMessenger(opts)
+	if err1 != nil || w1 == nil {
+		t.Fatalf("unexpected error getting waha messenger: %v", err1)
+	}
+
+	w2, err2 := GetWAHAMessenger(opts)
+	if err2 != nil || w2 == nil {
+		t.Fatalf("unexpected error getting waha messenger second time: %v", err2)
+	}
+
+	if w1 != w2 {
+		t.Fatalf("expected GetWAHAMessenger to return identical singleton pointer for session")
+	}
+}
+
 func TestFormatChatID(t *testing.T) {
 	tests := []struct {
 		name      string

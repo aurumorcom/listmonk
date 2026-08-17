@@ -2,12 +2,29 @@ package core
 
 import (
 	"net/http"
+	"sync"
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/knadh/listmonk/models"
 	"github.com/labstack/echo/v4"
 	"github.com/lib/pq"
 )
+
+var (
+	listManagerInstance *Core
+	listManagerOnce     sync.Once
+)
+
+// GetListManager returns the thread-safe singleton Core list manager instance.
+func GetListManager(c *Core) *Core {
+	listManagerOnce.Do(func() {
+		listManagerInstance = c
+	})
+	if listManagerInstance != nil {
+		return listManagerInstance
+	}
+	return c
+}
 
 type listType struct {
 	ID   int    `json:"id"`
