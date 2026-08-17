@@ -1007,3 +1007,45 @@ func TestCalculateStepWaitingWindow_And_ShouldSkipConditionalStep(t *testing.T) 
 		t.Errorf("expected ShouldSkipConditionalStep to return true for always step")
 	}
 }
+
+func TestProcessBatch_TemporalGap_And_TimeoutFallback(t *testing.T) {
+	stepIfClicked := models.SequenceStep{
+		StepNumber: 1,
+		Condition:  models.SequenceConditionIfClicked,
+		Delay:      "0s",
+	}
+	stepFallback := models.SequenceStep{
+		StepNumber: 2,
+		Condition:  models.SequenceConditionIfNotRead,
+		Delay:      "45s",
+	}
+
+	now := time.Now()
+	// Case 1: Active waiting window -> NextSendAt in future -> Should NOT skip
+	subWaiting := models.SequenceContact{
+		CurrentStep: 1,
+		NextSendAt:  null.TimeFrom(now.Add(45 * time.Second)),
+	}
+
+	if ShouldSkipConditionalStep(stepIfClicked, subWaiting, now) {
+		t.Fatalf("expected contact within waiting window NOT to be skipped")
+	}
+
+	// Case 2: Window Timeout Expired -> NextSendAt in past -> Should skip to fallback step
+	subExpired := models.SequenceContact{
+		CurrentStep: 1,
+		NextSendAt:  null.TimeFrom(now.Add(-1 * time.Second)),
+	}
+
+	if !ShouldSkipConditionalStep(stepIfClicked, subExpired, now) {
+		t.Fatalf("expected expired contact to be skipped to fallback step")
+	}
+
+	// Case 3: Link clicked within window -> EvaluateStepCondition becomes true
+	subWaiting.LastClickedAt = null.TimeFrom(now)
+	if !EvaluateStepCondition(stepIfClicked.Condition, subWaiting) {
+		t.Fatalf("expected EvaluateStepCondition to return true after link click")
+	}
+
+	_ = stepFallback
+}
