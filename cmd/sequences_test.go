@@ -2624,3 +2624,60 @@ func TestE2E_Sequence_RealWorld_Pooled_LoadBalancing(t *testing.T) {
 
 	t.Log("Successfully verified real-world sequence dispatch with NULL waha_session without 'default' errors")
 }
+
+func TestE2E_Sequence_BaseTemplate_L_Function_Integration(t *testing.T) {
+	// Initialize Mock Sequence Messenger
+	msgr := &mockCmdMessenger{name: "email"}
+	seqMgr := sequence.NewManager(nil, map[string]manager.Messenger{"email": msgr}, nil, nil)
+
+	// Step template assigned to HTML base layout with L.T, TrackLink, TrackView
+	baseHTML := `<!DOCTYPE html><html><body>{{ if L }}{{ L.T "app.name" }}{{ end }} {{ template "content" . }} - {{ TrackLink "https://aurumor.com" }} - {{ TrackView }}</body></html>`
+
+	// Compile campaign using sequence manager template functions
+	funcs := seqMgr.TemplateFuncsWithContext("seq-e2e-123", "sub-e2e-456")
+	camp := models.Campaign{
+		UUID:         "camp-e2e-789",
+		Subject:      "Welcome {{ .Subscriber.Name }}",
+		TemplateBody: baseHTML,
+		Body:         "Hello {{ .Subscriber.Name }}",
+	}
+
+	if err := camp.CompileTemplate(funcs); err != nil {
+		t.Fatalf("unexpected error compiling sequence step template with L helper: %v", err)
+	}
+
+	sub := models.Subscriber{
+		Base:  models.Base{ID: 101},
+		UUID:  "sub-e2e-456",
+		Name:  "Daniel",
+		Email: "daniel@example.com",
+	}
+	seqContact := models.SequenceContact{
+		SequenceID:   1,
+		SubscriberID: 101,
+		CurrentStep:  1,
+	}
+	step := models.SequenceStep{
+		ID:        1,
+		Messenger: "email",
+		Subject:   "Welcome {{ .Subscriber.Name }}",
+		Body:      "Hello {{ .Subscriber.Name }} - {{ TrackLink \"https://aurumor.com\" }}",
+	}
+
+	err := seqMgr.PrepareAndDispatchStep(seqContact, sub, step, "")
+	if err != nil {
+		t.Fatalf("failed to dispatch sequence step with base template: %v", err)
+	}
+
+	if len(msgr.pushed) != 1 {
+		t.Fatalf("expected 1 message pushed, got %d", len(msgr.pushed))
+	}
+
+	pushedBody := string(msgr.pushed[0].Body)
+	if !strings.Contains(pushedBody, "Hello Daniel") {
+		t.Errorf("expected rendered subscriber name in body, got %s", pushedBody)
+	}
+	if !strings.Contains(pushedBody, "aurumor.com") {
+		t.Errorf("expected link URL in rendered body, got %s", pushedBody)
+	}
+}
