@@ -265,7 +265,7 @@ func (b *BifrostClient) GeneratePromptWithFormat(ctx context.Context, systemProm
 	return bifrostResp.Choices[0].Message.Content, nil
 }
 
-// ExtractTemplateScope extracts .Context, .User, .Subscriber/.Contact, and step history maps (.Steps, .Step1, .Step) from Subscriber attribs.
+// ExtractTemplateScope extracts .Context, .User, .Subscriber/.Contact, .Campaign, and step history maps (.Steps, .Step1, .Step) from Subscriber attribs.
 func ExtractTemplateScope(sub models.Subscriber) map[string]any {
 	var ctxObj any
 	var userObj any
@@ -282,11 +282,52 @@ func ExtractTemplateScope(sub models.Subscriber) map[string]any {
 		userObj = map[string]any{}
 	}
 
+	// Normalize subscriber attributes with shorthand case aliases
+	if sub.Attribs == nil {
+		sub.Attribs = models.JSON{}
+	}
+	if _, ok := sub.Attribs["first_name"]; !ok {
+		sub.Attribs["first_name"] = sub.FirstName()
+	}
+	if _, ok := sub.Attribs["last_name"]; !ok {
+		sub.Attribs["last_name"] = sub.LastName()
+	}
+	if _, ok := sub.Attribs["name"]; !ok {
+		sub.Attribs["name"] = sub.Name
+	}
+	if _, ok := sub.Attribs["email"]; !ok {
+		sub.Attribs["email"] = sub.Email
+	}
+	if sub.Phone.Valid {
+		if _, ok := sub.Attribs["phone"]; !ok {
+			sub.Attribs["phone"] = sub.Phone.String
+		}
+	}
+
+	campaignObj := map[string]any{
+		"Subject": "",
+		"Name":    "",
+		"UUID":    "",
+	}
+	if sub.Attribs != nil {
+		if rawCamp, ok := sub.Attribs["campaign"].(map[string]any); ok {
+			for k, v := range rawCamp {
+				campaignObj[k] = v
+			}
+		}
+	}
+
 	scope := map[string]any{
 		"Subscriber": sub,
 		"Contact":    sub,
+		"subscriber": sub,
+		"contact":    sub,
 		"Context":    ctxObj,
+		"context":    ctxObj,
 		"User":       userObj,
+		"user":       userObj,
+		"Campaign":   campaignObj,
+		"campaign":   campaignObj,
 	}
 
 	stepsNamed := map[string]any{}
