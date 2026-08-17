@@ -227,10 +227,11 @@ func (a *App) UpdateSettings(c echo.Context) error {
 
 		// If there's no password coming in from the frontend, copy the existing
 		// password by matching the UUID.
-		if s.Password == "" {
+		if s.Password == "" || strings.Contains(s.Password, pwdMask) {
 			for _, c := range cur.BounceBoxes {
-				if s.UUID == c.UUID {
+				if s.UUID == c.UUID || (s.Host != "" && s.Host == c.Host && s.Username == c.Username) {
 					set.BounceBoxes[i].Password = c.Password
+					break
 				}
 			}
 		}
@@ -242,10 +243,11 @@ func (a *App) UpdateSettings(c echo.Context) error {
 			set.Messengers[i].UUID = uuid.Must(uuid.NewV4()).String()
 		}
 
-		if m.Password == "" {
+		if m.Password == "" || strings.Contains(m.Password, pwdMask) {
 			for _, c := range cur.Messengers {
-				if m.UUID == c.UUID {
+				if m.UUID == c.UUID || (m.Name != "" && m.Name == c.Name) {
 					set.Messengers[i].Password = c.Password
+					break
 				}
 			}
 		}
@@ -268,10 +270,11 @@ func (a *App) UpdateSettings(c echo.Context) error {
 			set.WAHASettings[i].UUID = uuid.Must(uuid.NewV4()).String()
 		}
 
-		if m.APIKey == "" {
+		if m.APIKey == "" || strings.Contains(m.APIKey, pwdMask) {
 			for _, c := range cur.WAHASettings {
-				if m.UUID == c.UUID {
+				if m.UUID == c.UUID || (m.Name != "" && m.Name == c.Name) || (m.Session != "" && m.Session == c.Session) {
 					set.WAHASettings[i].APIKey = c.APIKey
+					break
 				}
 			}
 		}
