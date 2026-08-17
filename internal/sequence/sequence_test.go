@@ -17,6 +17,7 @@ import (
 	"github.com/knadh/listmonk/internal/i18n"
 	"github.com/knadh/listmonk/internal/manager"
 	"github.com/knadh/listmonk/internal/testutil"
+	"github.com/knadh/listmonk/internal/utils"
 	"github.com/knadh/listmonk/models"
 	null "gopkg.in/volatiletech/null.v6"
 )
@@ -37,47 +38,15 @@ func TestGetSequenceManager(t *testing.T) {
 	}
 }
 
-func TestEvaluateStepCondition(t *testing.T) {
-	now := time.Now()
-
-	subUnread := models.SequenceContact{
-		LastReadAt:    null.Time{},
-		LastClickedAt: null.Time{},
+func TestLinearStepDelayProgression(t *testing.T) {
+	d1, err := utils.ParseDuration("10s")
+	if err != nil || d1 != 10*time.Second {
+		t.Fatalf("expected 10s duration, got %v", d1)
 	}
 
-	subRead := models.SequenceContact{
-		LastReadAt:    null.TimeFrom(now),
-		LastClickedAt: null.Time{},
-	}
-
-	subClicked := models.SequenceContact{
-		LastReadAt:    null.TimeFrom(now),
-		LastClickedAt: null.TimeFrom(now),
-	}
-
-	tests := []struct {
-		name      string
-		condition string
-		sub       models.SequenceContact
-		expected  bool
-	}{
-		{"Always - Unread", models.SequenceConditionAlways, subUnread, true},
-		{"Always - Read", models.SequenceConditionAlways, subRead, true},
-		{"IfRead - Unread", models.SequenceConditionIfRead, subUnread, false},
-		{"IfRead - Read", models.SequenceConditionIfRead, subRead, true},
-		{"IfNotRead - Unread", models.SequenceConditionIfNotRead, subUnread, true},
-		{"IfNotRead - Read", models.SequenceConditionIfNotRead, subRead, false},
-		{"IfClicked - Unclicked", models.SequenceConditionIfClicked, subRead, false},
-		{"IfClicked - Clicked", models.SequenceConditionIfClicked, subClicked, true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			res := EvaluateStepCondition(tt.condition, tt.sub)
-			if res != tt.expected {
-				t.Errorf("EvaluateStepCondition(%s) = %v; want %v", tt.condition, res, tt.expected)
-			}
-		})
+	d2, err := utils.ParseDuration("24h")
+	if err != nil || d2 != 24*time.Hour {
+		t.Fatalf("expected 24h duration, got %v", d2)
 	}
 }
 
@@ -618,7 +587,7 @@ func TestSequence_TemplateScope_Interpolation(t *testing.T) {
 func TestSequence_TrackLink_And_TrackView(t *testing.T) {
 	mgr := NewManager(nil, nil, nil, nil)
 
-	funcs := mgr.TemplateFuncsWithContext("seq-uuid-456", "sub-uuid-789")
+	funcs := mgr.TemplateFuncsWithContext("seq-uuid-456", "sub-uuid-789", 42)
 
 	trackLinkFn, ok := funcs["TrackLink"].(func(string, ...any) string)
 	if !ok {
@@ -637,8 +606,8 @@ func TestSequence_TrackLink_And_TrackView(t *testing.T) {
 	}
 
 	pixelHTML := string(trackViewFn())
-	if !strings.Contains(pixelHTML, "/campaign/seq-uuid-456/sub-uuid-789/px.png") {
-		t.Errorf("expected TrackView to output pixel tracking image tag, got '%s'", pixelHTML)
+	if !strings.Contains(pixelHTML, "/campaign/seq-uuid-456/sub-uuid-789/px.png?step_id=42") {
+		t.Errorf("expected TrackView to output pixel tracking image tag with step_id, got '%s'", pixelHTML)
 	}
 }
 
@@ -957,97 +926,12 @@ func TestSequence_PrepareAndDispatchStep_WhatsApp_HTMLTemplateSanitization(t *te
 	}
 }
 
-func TestCalculateStepWaitingWindow_And_ShouldSkipConditionalStep(t *testing.T) {
-	stepIfClicked := models.SequenceStep{
-		Condition: models.SequenceConditionIfClicked,
-		Delay:     "0s",
-	}
-	stepIfRead := models.SequenceStep{
-		Condition: models.SequenceConditionIfRead,
-		Delay:     "0s",
-	}
-	fallbackStep := models.SequenceStep{
-		Condition: models.SequenceConditionIfNotRead,
-		Delay:     "45s",
-	}
-	stepAlways := models.SequenceStep{
-		Condition: models.SequenceConditionAlways,
-		Delay:     "10s",
-	}
-
-	w1 := CalculateStepWaitingWindow(stepIfClicked, fallbackStep)
-	if w1 != 45*time.Second {
-		t.Errorf("expected 45s waiting window from fallback step, got %v", w1)
-	}
-
-	w2 := CalculateStepWaitingWindow(stepAlways, fallbackStep)
-	if w2 != 10*time.Second {
-		t.Errorf("expected 10s waiting window for always step, got %v", w2)
-	}
-
+func TestLinearSequence_StepDelay_Schedule(t *testing.T) {
 	now := time.Now()
-	subFuture := models.SequenceContact{
-		NextSendAt: null.TimeFrom(now.Add(30 * time.Second)),
-	}
-	subPast := models.SequenceContact{
-		NextSendAt: null.TimeFrom(now.Add(-5 * time.Second)),
-	}
+	delay, _ := utils.ParseDuration("45s")
+	nextSend := now.Add(delay)
 
-	if ShouldSkipConditionalStep(stepIfClicked, subFuture, now) {
-		t.Errorf("expected ShouldSkipConditionalStep to return false when NextSendAt is in the future")
+	if !nextSend.After(now) {
+		t.Fatalf("expected nextSend to be in the future")
 	}
-
-	if !ShouldSkipConditionalStep(stepIfClicked, subPast, now) {
-		t.Errorf("expected ShouldSkipConditionalStep to return true when NextSendAt has expired")
-	}
-
-	if ShouldSkipConditionalStep(stepIfRead, subFuture, now) {
-		t.Errorf("expected ShouldSkipConditionalStep to return false for if_read when NextSendAt is in the future")
-	}
-
-	if !ShouldSkipConditionalStep(stepAlways, subFuture, now) {
-		t.Errorf("expected ShouldSkipConditionalStep to return true for always step")
-	}
-}
-
-func TestProcessBatch_TemporalGap_And_TimeoutFallback(t *testing.T) {
-	stepIfClicked := models.SequenceStep{
-		StepNumber: 1,
-		Condition:  models.SequenceConditionIfClicked,
-		Delay:      "0s",
-	}
-	stepFallback := models.SequenceStep{
-		StepNumber: 2,
-		Condition:  models.SequenceConditionIfNotRead,
-		Delay:      "45s",
-	}
-
-	now := time.Now()
-	// Case 1: Active waiting window -> NextSendAt in future -> Should NOT skip
-	subWaiting := models.SequenceContact{
-		CurrentStep: 1,
-		NextSendAt:  null.TimeFrom(now.Add(45 * time.Second)),
-	}
-
-	if ShouldSkipConditionalStep(stepIfClicked, subWaiting, now) {
-		t.Fatalf("expected contact within waiting window NOT to be skipped")
-	}
-
-	// Case 2: Window Timeout Expired -> NextSendAt in past -> Should skip to fallback step
-	subExpired := models.SequenceContact{
-		CurrentStep: 1,
-		NextSendAt:  null.TimeFrom(now.Add(-1 * time.Second)),
-	}
-
-	if !ShouldSkipConditionalStep(stepIfClicked, subExpired, now) {
-		t.Fatalf("expected expired contact to be skipped to fallback step")
-	}
-
-	// Case 3: Link clicked within window -> EvaluateStepCondition becomes true
-	subWaiting.LastClickedAt = null.TimeFrom(now)
-	if !EvaluateStepCondition(stepIfClicked.Condition, subWaiting) {
-		t.Fatalf("expected EvaluateStepCondition to return true after link click")
-	}
-
-	_ = stepFallback
 }

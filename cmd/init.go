@@ -477,8 +477,8 @@ func initUrlConfig(ko *koanf.Koanf) *UrlConfig {
 		// url.com/subscription/optin/{subscriber_uuid}
 		OptinURL: fmt.Sprintf("%s/subscription/optin/%%s?%%s", root),
 
-		// url.com/link/{campaign_uuid}/{subscriber_uuid}/{link_uuid}
-		LinkTrackURL: fmt.Sprintf("%s/link/%%s/%%s/%%s", root),
+		// url.com/link/{token_10}
+		LinkTrackURL: fmt.Sprintf("%s/link/%%s", root),
 
 		// url.com/link/{campaign_uuid}/{subscriber_uuid}
 		MessageURL: fmt.Sprintf("%s/campaign/%%s/%%s", root),

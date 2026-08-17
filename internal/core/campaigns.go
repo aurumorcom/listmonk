@@ -9,6 +9,7 @@ import (
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/jmoiron/sqlx"
+	"github.com/knadh/listmonk/internal/utils"
 	"github.com/knadh/listmonk/models"
 	"github.com/labstack/echo/v4"
 	"github.com/lib/pq"
@@ -480,6 +481,92 @@ func (c *Core) GetLinkURL(linkUUID string) (string, error) {
 		return "", echo.NewHTTPError(http.StatusInternalServerError, c.i18n.Ts("public.errorProcessingRequest"))
 	}
 	return url, nil
+}
+
+// GetOrCreateLinkID gets or creates the link record in the links table and returns its integer ID.
+func (c *Core) GetOrCreateLinkID(rawURL string) (int, error) {
+	if c == nil || c.db == nil {
+		return 0, fmt.Errorf("core or database not initialized")
+	}
+	var linkID int
+	err := c.db.Get(&linkID, `INSERT INTO links (uuid, url) VALUES(gen_random_uuid(), $1) ON CONFLICT (url) DO UPDATE SET url=EXCLUDED.url RETURNING id`, rawURL)
+	if err != nil {
+		err = c.db.Get(&linkID, `SELECT id FROM links WHERE url = $1 LIMIT 1`, rawURL)
+	}
+	return linkID, err
+}
+
+// EncodeShortLink encodes link parameters into a Sqids short link token.
+func (c *Core) EncodeShortLink(linkID int, isSequence bool, entityID int, subscriberID int, stepID ...int) string {
+	return utils.EncodeSqidsLink(linkID, isSequence, entityID, subscriberID, stepID...)
+}
+
+// DecodeShortLink decodes a Sqids short link token back into its constituent parameters.
+func (c *Core) DecodeShortLink(token string) (utils.ShortLinkPayload, error) {
+	return utils.DecodeSqidsLink(token)
+}
+
+// ResolveLinkURL returns the destination URL for an integer link ID.
+func (c *Core) ResolveLinkURL(linkID int) (string, error) {
+	if c == nil || c.db == nil || linkID <= 0 {
+		return "", fmt.Errorf("invalid link id or core not initialized")
+	}
+	var url string
+	err := c.db.Get(&url, `SELECT url FROM links WHERE id = $1 LIMIT 1`, linkID)
+	return url, err
+}
+
+// RegisterShortLinkClick registers a link click event for a resolved short link payload.
+func (c *Core) RegisterShortLinkClick(payload utils.ShortLinkPayload, meta ClientMeta, subID int) error {
+	if c == nil || c.db == nil || payload.LinkID <= 0 {
+		return nil
+	}
+
+	var utmsJSON []byte
+	if len(meta.UTMParams) > 0 {
+		utmsJSON, _ = json.Marshal(meta.UTMParams)
+	} else {
+		utmsJSON = []byte("{}")
+	}
+
+	var campID int
+	if !payload.IsSequence {
+		campID = payload.EntityID
+	}
+
+	_, err := c.db.Exec(`
+		INSERT INTO link_clicks (
+			campaign_id, subscriber_id, link_id, ip_address, geo_country, geo_region, geo_city, geo_asn,
+			user_agent, device_type, client_os, client_browser, email_client, is_bot, bot_type, sequence_step_id,
+			variant_id, link_position, utm_params
+		) VALUES (
+			NULLIF($1, 0), NULLIF($2, 0), $3, NULLIF($4::TEXT, '')::INET, NULLIF($5::TEXT, ''), NULLIF($6::TEXT, ''),
+			NULLIF($7::TEXT, ''), NULLIF($8::TEXT, ''), NULLIF($9::TEXT, ''), NULLIF($10::TEXT, ''), NULLIF($11::TEXT, ''),
+			NULLIF($12::TEXT, ''), NULLIF($13::TEXT, ''), $14, NULLIF($15::TEXT, ''), NULLIF($16, 0),
+			NULLIF($17::TEXT, ''), NULLIF($18::TEXT, ''), COALESCE($19::JSONB, '{}'::JSONB)
+		)`,
+		campID,
+		subID,
+		payload.LinkID,
+		meta.IPAddress,
+		meta.GeoCountry,
+		meta.GeoRegion,
+		meta.GeoCity,
+		meta.GeoASN,
+		meta.UserAgent,
+		meta.DeviceType,
+		meta.ClientOS,
+		meta.ClientBrowser,
+		meta.EmailClient,
+		meta.IsBot,
+		meta.BotType,
+		meta.SequenceStepID,
+		meta.VariantID,
+		meta.LinkPosition,
+		string(utmsJSON),
+	)
+
+	return err
 }
 
 // RegisterCampaignLinkClick registers a subscriber's link click on a campaign with client metadata.

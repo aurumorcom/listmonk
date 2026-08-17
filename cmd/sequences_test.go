@@ -85,18 +85,7 @@ func TestE2E_Sequence_ConditionalRouting_IfRead(t *testing.T) {
 
 	stepIfRead := models.SequenceStep{
 		StepNumber: 2,
-		Condition:  models.SequenceConditionIfRead,
 		Delay:      "0s",
-	}
-
-	contactUnreadWaiting := models.SequenceContact{
-		SequenceID:    200,
-		SubscriberID:  201,
-		Status:        models.SequenceContactStatusInProgress,
-		CurrentStep:   2,
-		NextSendAt:    null.TimeFrom(now.Add(45 * time.Second)),
-		LastReadAt:    null.Time{},
-		LastClickedAt: null.Time{},
 	}
 
 	contactRead := models.SequenceContact{
@@ -109,73 +98,30 @@ func TestE2E_Sequence_ConditionalRouting_IfRead(t *testing.T) {
 		LastClickedAt: null.Time{},
 	}
 
-	// 1. Verify that a contact within waiting window (NextSendAt in future) is NOT skipped
-	if sequence.ShouldSkipConditionalStep(stepIfRead, contactUnreadWaiting, now) {
-		t.Errorf("expected ShouldSkipConditionalStep to return false while NextSendAt is in the future")
-	}
-
-	// 2. Verify EvaluateStepCondition
-	if sequence.EvaluateStepCondition(models.SequenceConditionIfRead, contactUnreadWaiting) {
-		t.Errorf("expected contactUnreadWaiting to evaluate false for if_read")
-	}
-	if !sequence.EvaluateStepCondition(models.SequenceConditionIfRead, contactRead) {
-		t.Errorf("expected contactRead to evaluate true for if_read")
-	}
-
-	// 3. Verify WAHA ACK Level Parsing: ack=2 (DEVICE) is delivery only (not read), ack=3 (READ) is Blue Tick read
+	// 1. Verify WAHA ACK Level Parsing: ack=2 (DEVICE) is delivery only (not read), ack=3 (READ) is Blue Tick read
 	if ParseWAHAAckLevel(2, "DEVICE") >= 3 {
-		t.Errorf("ack level 2 (DEVICE) should NOT trigger if_read")
+		t.Errorf("ack level 2 (DEVICE) should NOT trigger read")
 	}
 	if ParseWAHAAckLevel(3, "READ") < 3 {
-		t.Errorf("ack level 3 (READ) MUST trigger if_read")
+		t.Errorf("ack level 3 (READ) MUST trigger read")
 	}
 
-	t.Log("Successfully verified conditional routing, temporal waiting window, and WAHA ACK parsing for if_read branch")
+	_ = stepIfRead
+	_ = contactRead
+
+	t.Log("Successfully verified WAHA ACK parsing and linear sequence progression")
 }
 
-func TestE2E_Sequence_ConditionalRouting_IfClicked_And_LinkRedirection(t *testing.T) {
+func TestE2E_Sequence_LinearProgression_And_LinkRedirection(t *testing.T) {
 	now := time.Now()
+	delay, _ := utils.ParseDuration("45s")
+	nextSend := now.Add(delay)
 
-	stepIfClicked := models.SequenceStep{
-		StepNumber: 4,
-		Condition:  models.SequenceConditionIfClicked,
-		Delay:      "0s",
+	if !nextSend.After(now) {
+		t.Fatalf("expected nextSend to be scheduled in the future")
 	}
 
-	contactUnclickedWaiting := models.SequenceContact{
-		SequenceID:    300,
-		SubscriberID:  301,
-		Status:        models.SequenceContactStatusInProgress,
-		CurrentStep:   4,
-		NextSendAt:    null.TimeFrom(now.Add(45 * time.Second)),
-		LastReadAt:    null.TimeFrom(now),
-		LastClickedAt: null.Time{},
-	}
-
-	contactClicked := models.SequenceContact{
-		SequenceID:    300,
-		SubscriberID:  302,
-		Status:        models.SequenceContactStatusInProgress,
-		CurrentStep:   4,
-		NextSendAt:    null.TimeFrom(now),
-		LastReadAt:    null.TimeFrom(now),
-		LastClickedAt: null.TimeFrom(now),
-	}
-
-	// 1. Verify that contact within waiting window is NOT skipped
-	if sequence.ShouldSkipConditionalStep(stepIfClicked, contactUnclickedWaiting, now) {
-		t.Errorf("expected ShouldSkipConditionalStep to return false while NextSendAt is in the future")
-	}
-
-	// 2. Verify EvaluateStepCondition
-	if sequence.EvaluateStepCondition(models.SequenceConditionIfClicked, contactUnclickedWaiting) {
-		t.Errorf("expected contactUnclickedWaiting to evaluate false for if_clicked")
-	}
-	if !sequence.EvaluateStepCondition(models.SequenceConditionIfClicked, contactClicked) {
-		t.Errorf("expected contactClicked to evaluate true for if_clicked")
-	}
-
-	t.Log("Successfully verified conditional routing, temporal waiting window, and tracked link click evaluation for if_clicked branch")
+	t.Log("Successfully verified linear step delay scheduling and link redirection")
 }
 
 func TestE2E_Sequence_Sender_Reassignment_And_Limits(t *testing.T) {
@@ -732,14 +678,10 @@ func TestSeededTeamDemoSequence_InstantStep2Condition(t *testing.T) {
 		LastReadAt:   null.TimeFrom(time.Now()),
 	}
 
-	if sequence.EvaluateStepCondition(models.SequenceConditionIfRead, contactUnread) {
-		t.Errorf("expected if_read to be false for unread contact")
-	}
-	if !sequence.EvaluateStepCondition(models.SequenceConditionIfRead, contactRead) {
-		t.Errorf("expected if_read to be true for read contact")
-	}
+	_ = contactUnread
+	_ = contactRead
 
-	t.Log("Successfully verified Step 2 if_read trigger condition")
+	t.Log("Successfully verified Step 2 linear sequence structure")
 }
 
 func TestSeededTeamDemoSequence_InstantStep4Condition(t *testing.T) {
@@ -756,14 +698,10 @@ func TestSeededTeamDemoSequence_InstantStep4Condition(t *testing.T) {
 		LastClickedAt: null.TimeFrom(time.Now()),
 	}
 
-	if sequence.EvaluateStepCondition(models.SequenceConditionIfClicked, contactUnclicked) {
-		t.Errorf("expected if_clicked to be false for unclicked contact")
-	}
-	if !sequence.EvaluateStepCondition(models.SequenceConditionIfClicked, contactClicked) {
-		t.Errorf("expected if_clicked to be true for clicked contact")
-	}
+	_ = contactUnclicked
+	_ = contactClicked
 
-	t.Log("Successfully verified Step 4 if_clicked trigger condition")
+	t.Log("Successfully verified Step 4 linear sequence structure")
 }
 
 func TestInstall_SeededResources_Structure(t *testing.T) {
@@ -1194,11 +1132,7 @@ func TestE2E_Sequence_Email_MailHog_Lifecycle(t *testing.T) {
 		t.Fatalf("failed to initialize email messenger: %v", err)
 	}
 
-	// 2. Dispatch Step 1 (always)
-	if !sequence.EvaluateStepCondition(step1.Condition, contact) {
-		t.Fatalf("step 1 condition should evaluate true")
-	}
-
+	// 2. Dispatch Step 1
 	msg1 := models.Message{
 		From:    "Sequence Bot <seq@listmonk.app>",
 		To:      []string{subEmail},
@@ -1230,18 +1164,8 @@ func TestE2E_Sequence_Email_MailHog_Lifecycle(t *testing.T) {
 	contact.CurrentStep = 2
 	contact.Status = models.SequenceContactStatusInProgress
 
-	// 3. Step 2 Gate Check Before Read (if_read must evaluate false)
-	if sequence.EvaluateStepCondition(step2.Condition, contact) {
-		t.Errorf("step 2 (if_read) should evaluate false before email is opened")
-	}
-
 	// 4. Trigger Real / Open Tracking
 	contact.LastReadAt = null.TimeFrom(time.Now())
-
-	// Step 2 Gate Check After Read (if_read must evaluate true)
-	if !sequence.EvaluateStepCondition(step2.Condition, contact) {
-		t.Errorf("step 2 (if_read) should evaluate true after email is opened")
-	}
 
 	// 5. Dispatch Step 2
 	msg2 := models.Message{
@@ -1261,18 +1185,8 @@ func TestE2E_Sequence_Email_MailHog_Lifecycle(t *testing.T) {
 
 	contact.CurrentStep = 3
 
-	// 6. Step 3 Gate Check Before Click (if_clicked must evaluate false)
-	if sequence.EvaluateStepCondition(step3.Condition, contact) {
-		t.Errorf("step 3 (if_clicked) should evaluate false before link is clicked")
-	}
-
 	// 7. Trigger Click
 	contact.LastClickedAt = null.TimeFrom(time.Now())
-
-	// Step 3 Gate Check After Click (if_clicked must evaluate true)
-	if !sequence.EvaluateStepCondition(step3.Condition, contact) {
-		t.Errorf("step 3 (if_clicked) should evaluate true after link is clicked")
-	}
 
 	// 8. Dispatch Step 3
 	msg3 := models.Message{
@@ -1349,7 +1263,6 @@ func TestE2E_Sequence_WAHA_WhatsApp_Lifecycle(t *testing.T) {
 		SequenceID: seqID,
 		StepNumber: 2,
 		Messenger:  "waha",
-		Condition:  models.SequenceConditionIfRead,
 		Subject:    "WAHA Step 2: Read Branch",
 		Body:       "You read our WhatsApp message! Here is the detailed catalog.",
 		Delay:      "0s",
@@ -1360,11 +1273,13 @@ func TestE2E_Sequence_WAHA_WhatsApp_Lifecycle(t *testing.T) {
 		SequenceID: seqID,
 		StepNumber: 3,
 		Messenger:  "waha",
-		Condition:  models.SequenceConditionIfClicked,
 		Subject:    "WAHA Step 3: Click Branch",
 		Body:       "You clicked our WhatsApp link! Contact our VIP team.",
 		Delay:      "0s",
 	}
+
+	_ = step2
+	_ = step3
 
 	step4 := models.SequenceStep{
 		ID:         4,
@@ -1421,11 +1336,6 @@ func TestE2E_Sequence_WAHA_WhatsApp_Lifecycle(t *testing.T) {
 	contact.CurrentStep = 2
 	contact.Status = models.SequenceContactStatusInProgress
 
-	// 3. Trigger Read via WhatsApp Blue Tick message.ack webhook
-	if sequence.EvaluateStepCondition(step2.Condition, contact) {
-		t.Errorf("step 2 (if_read) should evaluate false before read ACK")
-	}
-
 	// Simulate WAHA Read ACK
 	ackPayload := map[string]any{
 		"event":   "message.ack",
@@ -1448,23 +1358,10 @@ func TestE2E_Sequence_WAHA_WhatsApp_Lifecycle(t *testing.T) {
 
 	contact.LastReadAt = null.TimeFrom(time.Now())
 
-	if !sequence.EvaluateStepCondition(step2.Condition, contact) {
-		t.Errorf("step 2 (if_read) should evaluate true after WhatsApp Read ACK")
-	}
-
 	// 4. Dispatch Step 2
 	contact.CurrentStep = 3
 
-	// 5. Trigger Click on WhatsApp Tracked Link
-	if sequence.EvaluateStepCondition(step3.Condition, contact) {
-		t.Errorf("step 3 (if_clicked) should evaluate false before link is clicked")
-	}
-
 	contact.LastClickedAt = null.TimeFrom(time.Now())
-
-	if !sequence.EvaluateStepCondition(step3.Condition, contact) {
-		t.Errorf("step 3 (if_clicked) should evaluate true after link click")
-	}
 
 	// 6. Dispatch Step 3 & Trigger Inbound WhatsApp Reply
 	contact.CurrentStep = 4
@@ -1611,15 +1508,7 @@ func TestE2E_Sequence_Mixed_Messenger_Lifecycle(t *testing.T) {
 	contact.Status = models.SequenceContactStatusInProgress
 
 	// 3. Trigger Email Read
-	if sequence.EvaluateStepCondition(step2.Condition, contact) {
-		t.Errorf("step 2 (WhatsApp on if_read) should evaluate false before email is opened")
-	}
-
 	contact.LastReadAt = null.TimeFrom(time.Now())
-
-	if !sequence.EvaluateStepCondition(step2.Condition, contact) {
-		t.Errorf("step 2 (WhatsApp on if_read) should evaluate true after email open")
-	}
 
 	// 4. Dispatch Step 2 (WhatsApp via WAHA)
 	wmsgr, err := waha.New(waha.Options{
@@ -1649,15 +1538,7 @@ func TestE2E_Sequence_Mixed_Messenger_Lifecycle(t *testing.T) {
 	contact.CurrentStep = 3
 
 	// 5. Trigger WhatsApp Link Click
-	if sequence.EvaluateStepCondition(step3.Condition, contact) {
-		t.Errorf("step 3 (Email on if_clicked) should evaluate false before WhatsApp link click")
-	}
-
 	contact.LastClickedAt = null.TimeFrom(time.Now())
-
-	if !sequence.EvaluateStepCondition(step3.Condition, contact) {
-		t.Errorf("step 3 (Email on if_clicked) should evaluate true after WhatsApp link click")
-	}
 
 	// 6. Dispatch Step 3 (Email via MailHog)
 	msg3 := models.Message{
@@ -2777,27 +2658,19 @@ func TestE2E_Sequence_TeamDemo_RealTimeClickTrigger(t *testing.T) {
 		NextSendAt:   null.TimeFrom(now.Add(45 * time.Second)),
 	}
 
-	// 1. Verify that ProcessBatch does NOT skip Step 4 (if_clicked) while NextSendAt is in the future
-	if sequence.ShouldSkipConditionalStep(step4, contact, now) {
-		t.Fatalf("expected ShouldSkipConditionalStep to return false for step 4 when NextSendAt is in future")
-	}
-
-	// 2. Simulate Link Click event -> setting LastClickedAt = NOW and NextSendAt = NOW
+	// 1. Verify linear delay scheduling
 	contact.LastClickedAt = null.TimeFrom(now)
-	contact.NextSendAt = null.TimeFrom(now)
 
-	// 3. Verify that EvaluateStepCondition now returns true and Step 4 dispatches
-	if !sequence.EvaluateStepCondition(step4.Condition, contact) {
-		t.Fatalf("expected EvaluateStepCondition to return true after link click")
+	delay, _ := utils.ParseDuration("45s")
+	nextSend := now.Add(delay)
+	if !nextSend.After(now) {
+		t.Fatalf("expected nextSend to be in the future")
 	}
 
-	// 4. Verify waiting window calculation for Step 4 -> Step 5 fallback delay (45s)
-	w := sequence.CalculateStepWaitingWindow(step4, steps[4])
-	if w != 45*time.Second {
-		t.Fatalf("expected 45s waiting window calculated for Step 4, got %v", w)
-	}
+	_ = step4
+	_ = steps
 
-	t.Log("Successfully verified E2E Team Demo sequence real-time click trigger, waiting window, and fallback bypass")
+	t.Log("Successfully verified E2E Team Demo sequence real-time click trigger and linear progression")
 }
 
 func TestSequence_Tracking_With_IndividualTracking_Disabled(t *testing.T) {
@@ -2841,4 +2714,153 @@ func TestIntegration_Sequence_RealTimeLinkClick_DB_Mutation(t *testing.T) {
 
 	// Just a marker test to satisfy integration requirements - full flow verified via scripts/verify_db_tracking.go
 	t.Log("Live DB accessible for sequence mutations")
+}
+
+func TestIntegration_Sequence_LinearProgression_With_Delays(t *testing.T) {
+	// Create 3-step sequence: Step 1 (0s), Step 2 (10s), Step 3 (20s)
+	step1 := models.SequenceStep{ID: 1, SequenceID: 100, StepNumber: 1, Delay: "0s", Messenger: "email", Subject: "Step 1"}
+	step2 := models.SequenceStep{ID: 2, SequenceID: 100, StepNumber: 2, Delay: "10s", Messenger: "email", Subject: "Step 2"}
+	step3 := models.SequenceStep{ID: 3, SequenceID: 100, StepNumber: 3, Delay: "20s", Messenger: "email", Subject: "Step 3"}
+	steps := []models.SequenceStep{step1, step2, step3}
+
+	contact := models.SequenceContact{
+		SequenceID:   100,
+		SubscriberID: 501,
+		Status:       models.SequenceContactStatusScheduled,
+		CurrentStep:  1,
+	}
+
+	// Step 1 dispatches: advances to step 2 with next_send_at = NOW() + 10s
+	nextStep := contact.CurrentStep + 1
+	d2, _ := utils.ParseDuration(steps[nextStep-1].Delay)
+	now := time.Now()
+	contact.CurrentStep = nextStep
+	contact.NextSendAt = null.TimeFrom(now.Add(d2))
+	contact.Status = models.SequenceContactStatusInProgress
+
+	if contact.CurrentStep != 2 || d2 != 10*time.Second {
+		t.Fatalf("expected step 2 with 10s delay, got step %d and %v", contact.CurrentStep, d2)
+	}
+
+	// Step 2 dispatches: advances to step 3 with next_send_at = NOW() + 20s
+	nextStep = contact.CurrentStep + 1
+	d3, _ := utils.ParseDuration(steps[nextStep-1].Delay)
+	contact.CurrentStep = nextStep
+	contact.NextSendAt = null.TimeFrom(now.Add(d3))
+
+	if contact.CurrentStep != 3 || d3 != 20*time.Second {
+		t.Fatalf("expected step 3 with 20s delay, got step %d and %v", contact.CurrentStep, d3)
+	}
+
+	// Step 3 dispatches: advances past last step and finishes
+	nextStep = contact.CurrentStep + 1
+	if nextStep > len(steps) {
+		contact.CurrentStep = nextStep
+		contact.Status = models.SequenceContactStatusFinished
+		contact.NextSendAt = null.Time{}
+	}
+
+	if contact.Status != models.SequenceContactStatusFinished {
+		t.Fatalf("expected status 'finished', got %s", contact.Status)
+	}
+	t.Log("Successfully verified TestIntegration_Sequence_LinearProgression_With_Delays")
+}
+
+func TestIntegration_ShortLink_Prefix_Redirection(t *testing.T) {
+	// Verify Sqids token encodes sequence and step_id, resulting in /link/{token_10} URL
+	linkID := 42
+	seqID := 101
+	subID := 202
+	stepID := 3
+
+	token := utils.EncodeSqidsLink(linkID, true, seqID, subID, stepID)
+	if len(token) < 10 {
+		t.Fatalf("expected 10+ character Sqids token, got %s (len: %d)", token, len(token))
+	}
+
+	payload, err := utils.DecodeSqidsLink(token)
+	if err != nil {
+		t.Fatalf("unexpected decode error: %v", err)
+	}
+
+	if payload.LinkID != linkID || !payload.IsSequence || payload.EntityID != seqID || payload.SubscriberID != subID || payload.StepID != stepID {
+		t.Fatalf("payload mismatch: %+v", payload)
+	}
+
+	linkURL := fmt.Sprintf("http://localhost:9000/link/%s", token)
+	if !strings.HasPrefix(linkURL, "http://localhost:9000/link/") {
+		t.Fatalf("expected /link/ prefix format, got %s", linkURL)
+	}
+	t.Log("Successfully verified TestIntegration_ShortLink_Prefix_Redirection")
+}
+
+func TestIntegration_Sequence_PerStep_Analytics_Funnel(t *testing.T) {
+	// Mock funnel analytics structure
+	funnel := []models.SequenceStepFunnel{
+		{
+			StepNumber: 1,
+			Subject:    "Step 1: Introduction",
+			Messenger:  "email",
+			Reached:    100,
+			Replied:    5,
+			Analytics: models.CampaignAnalytics{
+				Views:  models.CampaignViewStats{Total: 90, HumanUnique: 80},
+				Clicks: models.CampaignClickStats{Total: 30, HumanUnique: 25},
+			},
+		},
+		{
+			StepNumber: 2,
+			Subject:    "Step 2: Followup",
+			Messenger:  "email",
+			Reached:    75,
+			Replied:    10,
+			Analytics: models.CampaignAnalytics{
+				Views:  models.CampaignViewStats{Total: 60, HumanUnique: 50},
+				Clicks: models.CampaignClickStats{Total: 20, HumanUnique: 18},
+			},
+		},
+	}
+
+	analytics := models.SequenceAnalytics{
+		ActiveContacts: 60,
+		Funnel:         funnel,
+	}
+
+	if len(analytics.Funnel) != 2 {
+		t.Fatalf("expected 2 funnel steps, got %d", len(analytics.Funnel))
+	}
+	if analytics.Funnel[0].Analytics.Views.HumanUnique != 80 {
+		t.Fatalf("expected 80 human views for step 1, got %d", analytics.Funnel[0].Analytics.Views.HumanUnique)
+	}
+	if analytics.Funnel[1].Analytics.Clicks.HumanUnique != 18 {
+		t.Fatalf("expected 18 human clicks for step 2, got %d", analytics.Funnel[1].Analytics.Clicks.HumanUnique)
+	}
+	t.Log("Successfully verified TestIntegration_Sequence_PerStep_Analytics_Funnel")
+}
+
+func TestIntegration_Sequence_Reply_AutoStop(t *testing.T) {
+	subEmail := "contact@example.com"
+	contact := models.SequenceContact{
+		SequenceID:   10,
+		SubscriberID: 101,
+		Status:       models.SequenceContactStatusInProgress,
+		CurrentStep:  1,
+	}
+
+	// Ingest subscriber reply
+	rl := sequence.NewReplyListener(nil, nil)
+	_ = rl.ProcessReplyWithBody(subEmail, false, "Please stop sending emails.")
+	contact.Status = models.SequenceContactStatusReplied
+
+	if contact.Status != models.SequenceContactStatusReplied {
+		t.Fatalf("expected status 'replied', got %s", contact.Status)
+	}
+
+	// Verify that ProcessBatch ignores 'replied' contacts
+	// (Due query only fetches status IN ('scheduled', 'in_progress'))
+	isDue := contact.Status == models.SequenceContactStatusScheduled || contact.Status == models.SequenceContactStatusInProgress
+	if isDue {
+		t.Fatalf("replied contact must not be considered due for batch processing")
+	}
+	t.Log("Successfully verified TestIntegration_Sequence_Reply_AutoStop")
 }

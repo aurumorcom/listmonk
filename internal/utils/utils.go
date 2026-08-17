@@ -173,3 +173,23 @@ func ParseDuration(s string) (time.Duration, error) {
 		return 0, errors.New("unsupported duration unit")
 	}
 }
+
+const base62Chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+
+// GenerateShortToken generates a cryptographically random Base62 alphanumeric string of the given length (default 10).
+func GenerateShortToken(length ...int) string {
+	l := 10
+	if len(length) > 0 && length[0] > 0 {
+		l = length[0]
+	}
+	bytes := make([]byte, l)
+	if _, err := rand.Read(bytes); err != nil {
+		for i := range bytes {
+			bytes[i] = byte(time.Now().UnixNano() % 256)
+		}
+	}
+	for i := range bytes {
+		bytes[i] = base62Chars[int(bytes[i])%len(base62Chars)]
+	}
+	return string(bytes)
+}

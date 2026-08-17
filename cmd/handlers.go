@@ -321,6 +321,12 @@ func initHTTPHandlers(e *echo.Echo, a *App) {
 		g.POST("/subscription/optin/:subUUID", a.hasUUID(a.hasSub(a.OptinPage), "subUUID"))
 		g.POST("/subscription/export/:subUUID", a.hasUUID(a.hasSub(a.SelfExportSubscriberData), "subUUID"))
 		g.POST("/subscription/wipe/:subUUID", a.hasUUID(a.hasSub(a.WipeSubscriberData), "subUUID"))
+		// Short link redirection: /link/:token, /r/:token, and /:token
+		g.GET("/link/:token", a.ShortLinkRedirect, a.validShortToken)
+		g.GET("/r/:token", a.ShortLinkRedirect, a.validShortToken)
+		g.GET("/:token", a.ShortLinkRedirect, a.validShortToken)
+
+		// Legacy link redirection
 		g.GET("/link/:linkUUID/:campUUID/:subUUID", noIndex(a.hasUUID(a.LinkRedirect, "linkUUID", "campUUID", "subUUID")))
 		g.GET("/campaign/:campUUID/:subUUID", noIndex(a.hasUUID(a.ViewCampaignMessage, "campUUID", "subUUID")))
 		g.GET("/campaign/:campUUID/:subUUID/px.png", noIndex(a.hasUUID(a.RegisterCampaignView, "campUUID", "subUUID")))
