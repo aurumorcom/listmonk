@@ -351,6 +351,8 @@ func (a *App) WAHAWebhook(c echo.Context) error {
 	type wahaPayload struct {
 		Event   string `json:"event"`
 		Payload struct {
+			ID          string `json:"id"`
+			FromMe      bool   `json:"fromMe"`
 			Ack         any    `json:"ack"`
 			AckName     string `json:"ackName"`
 			ChatID      string `json:"chatId"`
@@ -359,6 +361,15 @@ func (a *App) WAHAWebhook(c echo.Context) error {
 			Participant string `json:"participant"`
 			Error       string `json:"error"`
 			Body        string `json:"body"`
+			Data        struct {
+				ID struct {
+					Serialized string `json:"_serialized"`
+					ID         string `json:"id"`
+				} `json:"id"`
+				QuotedMsg struct {
+					ID string `json:"id"`
+				} `json:"quotedMsg"`
+			} `json:"_data"`
 		} `json:"payload"`
 	}
 
@@ -370,39 +381,62 @@ func (a *App) WAHAWebhook(c echo.Context) error {
 	// Parse ACK status into numeric level
 	ackLevel := ParseWAHAAckLevel(req.Payload.Ack, req.Payload.AckName)
 
+	msgID := req.Payload.ID
+	if msgID == "" {
+		msgID = req.Payload.Data.ID.Serialized
+	}
+	stanzaID := req.Payload.Data.ID.ID
+	if stanzaID == "" && msgID != "" {
+		if idx := strings.LastIndex(msgID, "_"); idx >= 0 && idx < len(msgID)-1 {
+			stanzaID = msgID[idx+1:]
+		} else {
+			stanzaID = msgID
+		}
+	}
+
+	rawRecipient := req.Payload.To
+	if rawRecipient == "" {
+		rawRecipient = req.Payload.ChatID
+	}
+	if rawRecipient == "" {
+		rawRecipient = req.Payload.Participant
+	}
+	if rawRecipient == "" {
+		rawRecipient = req.Payload.From
+	}
+
+	lid := ""
+	if strings.Contains(rawRecipient, "@lid") {
+		lid = rawRecipient
+	} else if strings.Contains(req.Payload.From, "@lid") {
+		lid = req.Payload.From
+	}
+
 	if req.Event == "message.ack" && ackLevel == -1 {
 		if a.log != nil {
-			target := req.Payload.To
-			if target == "" {
-				target = req.Payload.ChatID
-			}
+			target := rawRecipient
 			a.log.Printf("WAHA delivery failure for %s: %s", target, req.Payload.Error)
 		}
 	} else if req.Event == "message.ack" && ackLevel >= 3 {
-		// Priority recipient extraction: To -> ChatID -> Participant -> From
-		targetPhone := req.Payload.To
-		if targetPhone == "" {
-			targetPhone = req.Payload.ChatID
-		}
-		if targetPhone == "" {
-			targetPhone = req.Payload.Participant
-		}
-		if targetPhone == "" {
-			targetPhone = req.Payload.From
-		}
-
+		targetPhone := rawRecipient
 		if targetPhone != "" {
 			targetPhone = strings.TrimSuffix(targetPhone, "@c.us")
 			targetPhone = strings.TrimSuffix(targetPhone, "@s.whatsapp.net")
 		}
 
-		if targetPhone != "" && a.core != nil {
-			_ = a.core.RecordSequenceReadByPhone(targetPhone)
+		if a.core != nil {
+			if msgID != "" || stanzaID != "" {
+				_ = a.core.RecordSequenceReadByMessageID(msgID, stanzaID, lid)
+			}
+			if targetPhone != "" || lid != "" {
+				_ = a.core.RecordSequenceReadByPhone(targetPhone, lid)
+			}
 		}
-	} else if req.Event == "message" && req.Payload.From != "" {
+	} else if req.Event == "message" && !req.Payload.FromMe && req.Payload.From != "" {
 		if a.core != nil {
 			l := sequence.NewReplyListener(a.core, a.log)
-			_ = l.ProcessReplyWithBody(req.Payload.From, true, req.Payload.Body)
+			quotedID := req.Payload.Data.QuotedMsg.ID
+			_ = l.ProcessReplyWithQuotedID(req.Payload.From, true, req.Payload.Body, quotedID)
 		}
 	}
 
