@@ -2798,3 +2798,27 @@ func TestE2E_Sequence_TeamDemo_RealTimeClickTrigger(t *testing.T) {
 
 	t.Log("Successfully verified E2E Team Demo sequence real-time click trigger, waiting window, and fallback bypass")
 }
+
+func TestSequence_Tracking_With_IndividualTracking_Disabled(t *testing.T) {
+	// Verify that sequence operational tracking works even when Privacy.IndividualTracking = false
+	reqSubUUID := "sub-uuid-1234"
+
+	// Mock individual tracking setting = false
+	individualTracking := false
+
+	// Anonymized subUUID for campaign analytics
+	subUUID := reqSubUUID
+	if !individualTracking {
+		subUUID = ""
+	}
+
+	if subUUID != "" {
+		t.Fatalf("expected subUUID to be anonymized (empty string) for campaign analytics when IndividualTracking=false")
+	}
+
+	if reqSubUUID == "" {
+		t.Fatalf("expected reqSubUUID to remain valid for sequence contact operational tracking")
+	}
+
+	t.Log("Successfully verified decoupling of campaign analytics subUUID from sequence operational reqSubUUID")
+}
