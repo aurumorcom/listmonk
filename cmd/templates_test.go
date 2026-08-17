@@ -352,3 +352,44 @@ func TestTemplate_ParentTemplateID_Persistence(t *testing.T) {
 		t.Errorf("expected ParentTemplateID to be valid and 42, got %v", tpl.ParentTemplateID)
 	}
 }
+
+func TestTemplate_FullPreviewAndCompilationAPI(t *testing.T) {
+	// Test manager template compilation & scope extraction
+	m := manager.New(manager.Config{}, nil, nil, nil)
+	funcs := m.GenericTemplateFuncs()
+
+	// Verify "Date" and "Safe" and Sprig helpers in generic template funcs
+	if _, ok := funcs["Date"]; !ok {
+		t.Errorf("expected 'Date' in GenericTemplateFuncs")
+	}
+	if _, ok := funcs["Safe"]; !ok {
+		t.Errorf("expected 'Safe' in GenericTemplateFuncs")
+	}
+	if _, ok := funcs["upper"]; !ok {
+		t.Errorf("expected Sprig 'upper' in GenericTemplateFuncs")
+	}
+
+	// Verify compilation of tx template
+	txTpl := models.Template{
+		Name:    "Order Confirmation",
+		Type:    models.TemplateTypeTx,
+		Subject: "Order #{{ .Tx.Data.order_id }} for {{ .Subscriber.Name }}",
+		Body:    "<html><body><h1>Order #{{ .Tx.Data.order_id }}</h1><p>{{ .Subscriber.Name }}</p></body></html>",
+	}
+
+	if err := txTpl.Compile(funcs); err != nil {
+		t.Fatalf("unexpected error compiling tx template: %v", err)
+	}
+
+	msg := &models.TxMessage{
+		Data: map[string]any{"order_id": 999},
+	}
+	sub := models.Subscriber{Name: "Charlie", Email: "charlie@acme.com"}
+	if err := msg.Render(sub, &txTpl, template.FuncMap(funcs)); err != nil {
+		t.Fatalf("unexpected error rendering tx message: %v", err)
+	}
+
+	if msg.Subject != "Order #999 for Charlie" {
+		t.Errorf("expected rendered subject 'Order #999 for Charlie', got %q", msg.Subject)
+	}
+}
