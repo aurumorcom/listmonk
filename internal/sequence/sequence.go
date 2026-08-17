@@ -515,17 +515,21 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceContact, contact mod
 				TemplateBody: tpl.Body,
 				Body:         step.Body,
 			}
-			funcs := m.TemplateFuncs()
+			funcs := m.TemplateFuncsWithContext(seqUUID, contact.UUID)
 			if err := camp.CompileTemplate(funcs); err == nil {
 				var buf bytes.Buffer
 				if err := camp.Tpl.ExecuteTemplate(&buf, models.BaseTpl, scope); err == nil {
 					msg.Body = buf.Bytes()
+				} else if m.log != nil {
+					m.log.Printf("sequence step %d HTML template execution error for subscriber %d: %v", step.ID, contact.ID, err)
 				}
+			} else if m.log != nil {
+				m.log.Printf("sequence step %d HTML template compilation error for subscriber %d: %v", step.ID, contact.ID, err)
 			}
 		}
 	} else {
 		// Plain text / standard template interpolation with full FuncMap and shorthand tags replacement
-		funcs := txttpl.FuncMap(m.TemplateFuncs())
+		funcs := txttpl.FuncMap(m.TemplateFuncsWithContext(seqUUID, contact.UUID))
 		bodyStr := models.SubstituteTplShorthand(string(msg.Body))
 		subjStr := models.SubstituteTplShorthand(msg.Subject)
 
@@ -533,7 +537,11 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceContact, contact mod
 			var ub bytes.Buffer
 			if err := ut.Execute(&ub, scope); err == nil {
 				msg.Body = ub.Bytes()
+			} else if m.log != nil {
+				m.log.Printf("sequence step %d text template execution error for subscriber %d: %v", step.ID, contact.ID, err)
 			}
+		} else if m.log != nil {
+			m.log.Printf("sequence step %d text template parse error for subscriber %d: %v", step.ID, contact.ID, err)
 		}
 		if st, err := txttpl.New("subj").Funcs(funcs).Parse(subjStr); err == nil {
 			var sb bytes.Buffer
