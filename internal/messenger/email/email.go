@@ -9,12 +9,40 @@ import (
 	"net/smtp"
 	"net/textproto"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/knadh/listmonk/internal/utils"
 	"github.com/knadh/listmonk/models"
 	"github.com/knadh/smtppool/v2"
 )
+
+var (
+	emailInstances = make(map[string]*Server)
+	emailMutex     sync.RWMutex
+)
+
+// GetEmailMessenger returns a thread-safe singleton instance of the Email messenger per SMTP server config.
+func GetEmailMessenger(s Server) (*Server, error) {
+	emailMutex.Lock()
+	defer emailMutex.Unlock()
+
+	key := s.Name
+	if key == "" {
+		key = s.Host
+	}
+	if key == "" {
+		key = "default"
+	}
+
+	if inst, ok := emailInstances[key]; ok {
+		return inst, nil
+	}
+
+	inst := &s
+	emailInstances[key] = inst
+	return inst, nil
+}
 
 const (
 	MessengerName = "email"
