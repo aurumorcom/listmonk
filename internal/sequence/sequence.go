@@ -40,30 +40,93 @@ type Manager struct {
 
 // TemplateFuncs returns template functions to be applied during sequence step rendering.
 func (m *Manager) TemplateFuncs() htmltpl.FuncMap {
+	return m.TemplateFuncsWithContext("", "")
+}
+
+// TemplateFuncsWithContext returns template functions configured with sequence and subscriber tracking context.
+func (m *Manager) TemplateFuncsWithContext(seqUUID, subUUID string) htmltpl.FuncMap {
+	var rootURL string
+	if m.core != nil {
+		if st, err := m.core.GetSettings(); err == nil {
+			rootURL = strings.TrimRight(st.AppRootURL, "/")
+		}
+	}
+
 	f := htmltpl.FuncMap{
 		"TrackLink": func(url string, args ...any) string {
-			return url
+			if strings.TrimSpace(url) == "" {
+				return ""
+			}
+			url = strings.ReplaceAll(url, "&amp;", "&")
+			if seqUUID == "" || subUUID == "" || m.core == nil {
+				return url
+			}
+			uu, err := m.core.CreateLink(url)
+			if err != nil {
+				if m.log != nil {
+					m.log.Printf("error creating sequence link tracking record for %s: %v", url, err)
+				}
+				return url
+			}
+			if rootURL != "" {
+				return fmt.Sprintf("%s/link/%s/%s/%s", rootURL, uu, seqUUID, subUUID)
+			}
+			return fmt.Sprintf("/link/%s/%s/%s", uu, seqUUID, subUUID)
 		},
 		"TrackView": func(args ...any) htmltpl.HTML {
-			return htmltpl.HTML("")
+			if seqUUID == "" || subUUID == "" {
+				return htmltpl.HTML("")
+			}
+			pxURL := fmt.Sprintf("%s/campaign/%s/%s/px.png", rootURL, seqUUID, subUUID)
+			if rootURL == "" {
+				pxURL = fmt.Sprintf("/campaign/%s/%s/px.png", seqUUID, subUUID)
+			}
+			return htmltpl.HTML(fmt.Sprintf(`<img src="%s" width="1" height="1" style="display:none;max-height:0;max-width:0;opacity:0" alt="" />`, pxURL))
 		},
 		"UnsubscribeURL": func(args ...any) string {
-			return ""
+			if subUUID == "" {
+				return ""
+			}
+			if rootURL != "" {
+				return fmt.Sprintf("%s/subscription/optin/%s", rootURL, subUUID)
+			}
+			return fmt.Sprintf("/subscription/optin/%s", subUUID)
 		},
 		"ManageURL": func(args ...any) string {
-			return ""
+			if subUUID == "" {
+				return ""
+			}
+			if rootURL != "" {
+				return fmt.Sprintf("%s/subscription/optin/%s", rootURL, subUUID)
+			}
+			return fmt.Sprintf("/subscription/optin/%s", subUUID)
 		},
 		"OptinURL": func(args ...any) string {
-			return ""
+			if subUUID == "" {
+				return ""
+			}
+			if rootURL != "" {
+				return fmt.Sprintf("%s/subscription/optin/%s", rootURL, subUUID)
+			}
+			return fmt.Sprintf("/subscription/optin/%s", subUUID)
 		},
 		"MessageURL": func(args ...any) string {
-			return ""
+			if seqUUID == "" || subUUID == "" {
+				return ""
+			}
+			if rootURL != "" {
+				return fmt.Sprintf("%s/campaign/%s/%s", rootURL, seqUUID, subUUID)
+			}
+			return fmt.Sprintf("/campaign/%s/%s", seqUUID, subUUID)
 		},
 		"ArchiveURL": func() string {
-			return ""
+			if rootURL != "" {
+				return fmt.Sprintf("%s/archive", rootURL)
+			}
+			return "/archive"
 		},
 		"RootURL": func() string {
-			return ""
+			return rootURL
 		},
 		"Date": func(layout string) string {
 			if layout == "" {
