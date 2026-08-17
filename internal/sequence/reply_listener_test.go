@@ -1,4 +1,4 @@
-//go:build integration || unit || !integration
+//go:build unit || !integration
 
 package sequence
 
