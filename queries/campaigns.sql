@@ -483,16 +483,17 @@ AND (
 
 -- name: register-campaign-view
 WITH view AS (
-    SELECT campaigns.id as campaign_id, subscribers.id AS subscriber_id FROM campaigns
-    LEFT JOIN subscribers ON (CASE WHEN $2::TEXT != '' THEN subscribers.uuid = $2::UUID ELSE FALSE END)
-    WHERE campaigns.uuid = $1
+    SELECT campaigns.id AS campaign_id, subscribers.id AS subscriber_id
+    FROM (SELECT id FROM campaigns WHERE uuid = $1) campaigns
+    FULL OUTER JOIN (SELECT id FROM subscribers WHERE (CASE WHEN $2::TEXT != '' THEN uuid = $2::UUID ELSE FALSE END)) subscribers ON TRUE
 )
 INSERT INTO campaign_views (
     campaign_id, subscriber_id, ip_address, geo_country, geo_region, geo_city,
     user_agent, device_type, client_os, client_browser, is_proxy, is_bot, bot_type, sequence_step_id, variant_id
-) VALUES (
-    (SELECT campaign_id FROM view),
-    (SELECT subscriber_id FROM view),
+)
+SELECT
+    view.campaign_id,
+    view.subscriber_id,
     NULLIF($3::TEXT, '')::INET,
     NULLIF($4::TEXT, ''),
     NULLIF($5::TEXT, ''),
@@ -506,5 +507,6 @@ INSERT INTO campaign_views (
     NULLIF($13::TEXT, ''),
     $14::INTEGER,
     NULLIF($15::TEXT, '')
-);
+FROM view
+WHERE view.campaign_id IS NOT NULL;
 
