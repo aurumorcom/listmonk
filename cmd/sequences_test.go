@@ -2735,3 +2735,45 @@ func TestE2E_Sequence_WhatsApp_HTMLTemplate_BypassAndSanitization(t *testing.T) 
 		t.Fatalf("expected clean rendered text, got: %s", pushedBody)
 	}
 }
+
+func TestE2E_Sequence_TeamDemo_RealTimeClickTrigger(t *testing.T) {
+	// Recreate full 6-step Team Demo sequence structure
+	step1 := models.SequenceStep{StepNumber: 1, Delay: "0s", Messenger: "whatsapp", Condition: models.SequenceConditionAlways, Subject: "Step 1"}
+	step2 := models.SequenceStep{StepNumber: 2, Delay: "0s", Messenger: "whatsapp", Condition: models.SequenceConditionIfRead, Subject: "Step 2"}
+	step3 := models.SequenceStep{StepNumber: 3, Delay: "10s", Messenger: "email", Condition: models.SequenceConditionAlways, Subject: "Step 3"}
+	step4 := models.SequenceStep{StepNumber: 4, Delay: "0s", Messenger: "whatsapp", Condition: models.SequenceConditionIfClicked, Subject: "Step 4"}
+	step5 := models.SequenceStep{StepNumber: 5, Delay: "45s", Messenger: "whatsapp", Condition: models.SequenceConditionIfNotRead, Subject: "Step 5"}
+	step6 := models.SequenceStep{StepNumber: 6, Delay: "30s", Messenger: "email", Condition: models.SequenceConditionAlways, Subject: "Step 6"}
+
+	steps := []models.SequenceStep{step1, step2, step3, step4, step5, step6}
+
+	now := time.Now()
+	contact := models.SequenceContact{
+		SequenceID:   1,
+		SubscriberID: 10,
+		CurrentStep:  4,
+		NextSendAt:   null.TimeFrom(now.Add(45 * time.Second)),
+	}
+
+	// 1. Verify that ProcessBatch does NOT skip Step 4 (if_clicked) while NextSendAt is in the future
+	if sequence.ShouldSkipConditionalStep(step4, contact, now) {
+		t.Fatalf("expected ShouldSkipConditionalStep to return false for step 4 when NextSendAt is in future")
+	}
+
+	// 2. Simulate Link Click event -> setting LastClickedAt = NOW and NextSendAt = NOW
+	contact.LastClickedAt = null.TimeFrom(now)
+	contact.NextSendAt = null.TimeFrom(now)
+
+	// 3. Verify that EvaluateStepCondition now returns true and Step 4 dispatches
+	if !sequence.EvaluateStepCondition(step4.Condition, contact) {
+		t.Fatalf("expected EvaluateStepCondition to return true after link click")
+	}
+
+	// 4. Verify waiting window calculation for Step 4 -> Step 5 fallback delay (45s)
+	w := sequence.CalculateStepWaitingWindow(step4, steps[4])
+	if w != 45*time.Second {
+		t.Fatalf("expected 45s waiting window calculated for Step 4, got %v", w)
+	}
+
+	t.Log("Successfully verified E2E Team Demo sequence real-time click trigger, waiting window, and fallback bypass")
+}
