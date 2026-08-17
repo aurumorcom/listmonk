@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid/v5"
+	"github.com/knadh/listmonk/internal/auth"
 	"github.com/knadh/listmonk/internal/core"
 	"github.com/knadh/listmonk/internal/manager"
 	"github.com/knadh/listmonk/internal/testutil"
@@ -521,8 +522,8 @@ func TestSequence_ContactStickyFromAddress_TestVsProdRouting(t *testing.T) {
 	if prodMsg.To[0] != "lead@client.com" {
 		t.Errorf("expected prod destination 'lead@client.com', got '%s'", prodMsg.To[0])
 	}
-	if prodMsg.From != "Test Account <sticky.rep@acme.com>" {
-		t.Errorf("expected prod sender 'Test Account <sticky.rep@acme.com>', got '%s'", prodMsg.From)
+	if prodMsg.From != "Active Admin User <sticky.rep@acme.com>" {
+		t.Errorf("expected prod sender 'Active Admin User <sticky.rep@acme.com>', got '%s'", prodMsg.From)
 	}
 }
 
@@ -563,8 +564,8 @@ func TestSequence_PerAddressDailyLimitFailover(t *testing.T) {
 		t.Fatalf("expected 1 pushed message, got %d", len(msgr.pushed))
 	}
 
-	if msgr.pushed[0].From != "Test Account <primary@acme.com>" {
-		t.Errorf("expected From header 'Test Account <primary@acme.com>', got '%s'", msgr.pushed[0].From)
+	if msgr.pushed[0].From != "primary@acme.com" {
+		t.Errorf("expected From header 'primary@acme.com', got '%s'", msgr.pushed[0].From)
 	}
 }
 
@@ -736,4 +737,128 @@ func TestE2E_Sequence_PromptTemplate_LiveLiteLLM(t *testing.T) {
 	}
 
 	t.Log("Successfully verified live LiteLLM AI prompt completion both WITH and WITHOUT parent HTML template wrapping")
+}
+
+type mockUserStore struct {
+	user auth.User
+	err  error
+}
+
+func (m *mockUserStore) GetUser(id int, email, username string) (auth.User, error) {
+	if m.err != nil {
+		return auth.User{}, m.err
+	}
+	return m.user, nil
+}
+
+func TestResolveSenderDisplayName_Tier1_ContactAssignedUser(t *testing.T) {
+	contact := models.Subscriber{
+		Attribs: models.JSON{
+			"user": map[string]any{
+				"name": "Contact Agent",
+			},
+		},
+	}
+	email := &models.Email{
+		UserID: null.IntFrom(10),
+		Name:   "Account Name",
+	}
+	store := &mockUserStore{user: auth.User{Name: "Messenger User"}}
+
+	displayName, _ := ResolveSenderDisplayName(contact, email, false, store)
+	if displayName != "Contact Agent" {
+		t.Errorf("expected Tier 1 Contact Agent, got '%s'", displayName)
+	}
+}
+
+func TestResolveSenderDisplayName_Tier2_MessengerAssignedUser(t *testing.T) {
+	contact := models.Subscriber{
+		Attribs: models.JSON{},
+	}
+	email := &models.Email{
+		UserID: null.IntFrom(10),
+		Name:   "Company Email Account",
+	}
+	store := &mockUserStore{user: auth.User{Name: "Alex Rep"}}
+
+	displayName, assignedUser := ResolveSenderDisplayName(contact, email, false, store)
+	if displayName != "Alex Rep" {
+		t.Errorf("expected Tier 2 Messenger User 'Alex Rep', got '%s'", displayName)
+	}
+	if assignedUser == nil || assignedUser.Name != "Alex Rep" {
+		t.Errorf("expected assignedUser to be returned, got %+v", assignedUser)
+	}
+}
+
+func TestResolveSenderDisplayName_Tier3_ActiveUser_TestOnly(t *testing.T) {
+	contact := models.Subscriber{
+		Attribs: models.JSON{
+			"active_user": map[string]any{
+				"name": "Active Admin",
+			},
+		},
+	}
+	email := &models.Email{
+		UserID: null.Int{},
+		Name:   "Company SMTP",
+	}
+	store := &mockUserStore{}
+
+	testDisplayName, _ := ResolveSenderDisplayName(contact, email, true, store)
+	if testDisplayName != "Active Admin" {
+		t.Errorf("expected Tier 3 Active Admin in test mode, got '%s'", testDisplayName)
+	}
+
+	liveDisplayName, _ := ResolveSenderDisplayName(contact, email, false, store)
+	if liveDisplayName != "" {
+		t.Errorf("expected empty display name in live mode when no assigned user exists, got '%s'", liveDisplayName)
+	}
+}
+
+func TestResolveSenderDisplayName_ZeroAccountNameFallback(t *testing.T) {
+	contact := models.Subscriber{Attribs: models.JSON{}}
+	email := &models.Email{
+		UserID: null.Int{},
+		Name:   "Sales Account Name",
+	}
+	store := &mockUserStore{}
+
+	displayName, _ := ResolveSenderDisplayName(contact, email, false, store)
+	if displayName != "" {
+		t.Errorf("expected zero account name fallback (empty string), got '%s'", displayName)
+	}
+}
+
+func TestFormatSenderFromHeader(t *testing.T) {
+	if res := FormatSenderFromHeader("John Doe", "john@acme.com"); res != "John Doe <john@acme.com>" {
+		t.Errorf("expected 'John Doe <john@acme.com>', got '%s'", res)
+	}
+	if res := FormatSenderFromHeader("", "john@acme.com"); res != "john@acme.com" {
+		t.Errorf("expected 'john@acme.com', got '%s'", res)
+	}
+	if res := FormatSenderFromHeader("John Doe", ""); res != "" {
+		t.Errorf("expected empty string for empty fromEmail, got '%s'", res)
+	}
+}
+
+func TestResolveTargetRecipient_LiveVsTest(t *testing.T) {
+	contact := models.Subscriber{
+		Email: "lead@client.com",
+		Phone: null.StringFrom("+15551234567"),
+	}
+
+	to, phone := ResolveTargetRecipient(contact, "", false)
+	if len(to) != 1 || to[0] != "lead@client.com" || phone != "+15551234567" {
+		t.Errorf("unexpected live mode recipient resolution: to=%v, phone=%s", to, phone)
+	}
+
+	toTest, _ := ResolveTargetRecipient(contact, "tester@company.com", false)
+	if len(toTest) != 1 || toTest[0] != "tester@company.com" {
+		t.Errorf("unexpected test mode email recipient resolution: to=%v", toTest)
+	}
+
+	_, phoneTest := ResolveTargetRecipient(contact, "+15559998888", true)
+	if phoneTest != "+15559998888" {
+		t.Errorf("unexpected test mode whatsapp recipient resolution: phone=%s", phoneTest)
+	}
 }
