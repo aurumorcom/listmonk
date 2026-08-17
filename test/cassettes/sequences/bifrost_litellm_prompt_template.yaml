@@ -1,0 +1,99 @@
+---
+version: 2
+interactions:
+    - id: 0
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 862
+        transfer_encoding: []
+        trailer: {}
+        host: litellm.aurumor.com
+        remote_addr: ""
+        request_uri: ""
+        body: '{"model":"gpt-4o-mini","messages":[{"role":"system","content":"You are a professional AI sales assistant writing outreach emails. Output strict JSON with subject and content fields."},{"role":"user","content":"Invite Alice at alice.prospect@acme.org to a 15-minute product demo."}],"response_format":{"type":"json_schema","json_schema":{"name":"email_prompt_output","schema":{"additionalProperties":false,"properties":{"content":{"description":"The main body of the email in pure plain text. MUST NOT contain the subject line. MUST NOT contain signatures or sign-offs (e.g. ''Best regards'', ''Sincerely'', or closing names), as signatures are dynamically appended by the system.","type":"string"},"subject":{"description":"The email subject line. Short, compelling, and relevant.","type":"string"}},"required":["subject","content"],"type":"object"},"strict":true}}}'
+        form: {}
+        headers:
+            Authorization:
+                - '[REDACTED]'
+            Content-Type:
+                - application/json
+        url: https://litellm.aurumor.com/v1/chat/completions
+        method: POST
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        transfer_encoding: []
+        trailer: {}
+        content_length: -1
+        uncompressed: true
+        body: '{"id":"qb2CaufPGJOAg8UPy8anuAE","created":1786953129,"model":"gpt-4o-mini","object":"chat.completion","choices":[{"finish_reason":"stop","index":0,"message":{"content":"{\"content\":\"Hi Alice, I have been following Acme''s recent progress and believe our solution could help your team drive even better results. Would you be open to a brief 15-minute product demo next week to see how we can specifically support your current goals?\",\"subject\":\"15 minutes for Acme\"}","role":"assistant","images":[],"thinking_blocks":[],"provider_specific_fields":{"thought_signatures":["EtcJCtQJARFNMg+6FER54dBTssGzmnq8SA2IYsZk59M9tkJVWbPYpu2/donCS5oQUjaT/A1QpvLnKGV9ao6454u4RiOnugU0YKefYyZ+PvMPSXDZ2BxWug3Pje5JK+XsbAt/SnjiP9fuC598FaL3blHrmLMbVNa+o/1rcY3TAkiYkQPUsoVi55hu1bk30YHCJet3S2PwkO1suZ9gpaIHCW7FeFrXOFe6vzuBGC64hwm1B6JbYaMJIx0tYrAUNnrOE+M/pvdLl3iAnaHBU9cHGbJYBeltfDs/ZW5FynOnnMKJ4UctWUL7hYen0mDM+zy+ILZG72docTVTLteaBvgPytrdVZknHXf2kpiuGe3Jd3SwE5j6lw/5eP9joV1u/yqxiUL+r5bKG7PGfNfsx7orPViUNsAzV1+Lt9cf98ozQtbRIleCpEvCZQ6QrmFapf4fYqsmGDbl1pWARwy0iC4+1ZNIlHHDcmeT/jMeqm3ALZJVJwsDWdJy7W1B1zWHwwQIQfZ2Er3b6GwWnRVFxHlLddDn5hUZ82JOhnmCE5IzPoQKNIqiSOMz/2Y4c0QTzHNnTcu7pyXPpHnIivRiMwHstoXHiHnazuW5AxSAz3gSx3iXp9EJALBqLEFx3BFROhB1g0PxXfvrllYd0TqtRxjKWrcSTdup5VZC6WgYNLoS8WVfAbV6mhKDoaWfWwU/oI+Rn+7jgti/NPm6J/T0MgpoBdBQG1aTbarIMVmUx3QBx1GAlTPJuv3qtuIkbvJEYkys1Xkndzsw13UzTTPnFczJEZBfeV+Cx1aRzrW1iRbC51N/hif/c2hPtsvJ8Bzgfp98/OaB+SZtvAIdjdLjX/tZq1Afhiq1txI4cl20yET5gJGUdUeA8plyNKpN/vp+v/AijzXyLD9iZNKcsxi1Py5MF/wuWGU3/tEzWjcan+NK35RDQ7mLWR6D0eRGjq//FL3rL1yHTGC6Iu1ME6TmXKGLFEjqPMnvIeVz36SFktJkhePUolXj49uk/tzNizd/2AbYesAs79cEJCRDDLfRDqPkGXrbmQ1MV6XgG/64erdbM0LCXtGV4AbEJU9+00xaURzzOMzaft5YLsc13LEKPqwgtO3wFEGp4NYdkbsb3Zt8ShRnnM3+ZvEjN+TK2fF0ftJjUmLCjoM05SCKQAioZrJ+O+iiFLEvlGr/tK4YH8++S8uhy5P3yCLoCM8kphnil5MXL7+UWoI41En0wDl0D9FtntkN0+gPRWI5QntTNK655toD0SApXT8LdMBZhlliTRgA1uzCdlh/bgOVKAUeChndjKfmLWtVpPPZhW9nYYjZFbEj8cGlGDyBpOBm+nO49QGI6rYeaRJNLJHiLtIMB13F/Is0WE9AMLpj+CeldkylFgDw8MPm+b9ij79NU5+6m/17noHSdiVQaNpaLExLIN9OBys8MBjD/E4H0ie0WrAS+K+Zntzzhv4H3ubWM4BCNpQtml0iXBbxQ3qq9EQ43IcPp8YWbIE66HR4sn0cuQUPIG6lwp9Gj3iTOoNJGKDUG13/LXhSeXBOCRoOP0aDKiYEFICCuTeu+UivV3Dlu/fjMMm7OECvhh7ux2Ur32iMottCI88+GkyhEHYrzVZBAfTbPHmmQbRhIukNfwJeiRhrlYNBytPrSJAviBjL"]}}}],"usage":{"completion_tokens":372,"prompt_tokens":43,"total_tokens":415,"completion_tokens_details":{"reasoning_tokens":308,"text_tokens":64},"prompt_tokens_details":{"text_tokens":43}},"vertex_ai_grounding_metadata":[],"vertex_ai_url_context_metadata":[],"vertex_ai_safety_results":[],"vertex_ai_citation_metadata":[],"service_tier":"default"}'
+        headers:
+            Alt-Svc:
+                - h3=":443"; ma=86400
+            Cf-Cache-Status:
+                - DYNAMIC
+            Cf-Ray:
+                - a2c718fbcdac7f8f-MAA
+            Content-Type:
+                - application/json
+            Date:
+                - Mon, 17 Aug 2026 07:52:12 GMT
+            Nel:
+                - '{"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}'
+            Report-To:
+                - '{"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=wF3dlNxaq8bXp79I3nSshxvJJkTEmE2tAIyBu%2B9rZr8f4Rjq5u%2BrJzIE5VnHxeBTolaD42cJcDmAUomZCybXYrOgWceiBQQcbXDVsCTAELOhWGLt0zK7zJYmR7kYaxVXX8mDmXHI"}]}'
+            Server:
+                - cloudflare
+            Server-Timing:
+                - cfCacheStatus;desc="DYNAMIC"
+                - cfEdge;dur=10,cfOrigin;dur=4392
+            Via:
+                - 1.1 google
+            X-Cloud-Trace-Context:
+                - 61030d3160067f593db1c93c8a1934ab;o=1
+            X-Litellm-Attempted-Fallbacks:
+                - "0"
+            X-Litellm-Attempted-Retries:
+                - "0"
+            X-Litellm-Call-Id:
+                - ab262b73-5133-4acb-a0bd-438452c59ff3
+            X-Litellm-Callback-Duration-Ms:
+                - "0.4821"
+            X-Litellm-Key-Spend:
+                - "0.006420500000000001"
+            X-Litellm-Model-Api-Base:
+                - https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent
+            X-Litellm-Model-Group:
+                - gpt-4o-mini
+            X-Litellm-Model-Id:
+                - b31bbe7c-df1b-48e7-8003-326a09a49f77
+            X-Litellm-Overhead-Duration-Ms:
+                - "27.642"
+            X-Litellm-Response-Cost:
+                - "0.0011375"
+            X-Litellm-Response-Cost-Discount-Amount:
+                - "0.0"
+            X-Litellm-Response-Cost-Margin-Amount:
+                - "0.0"
+            X-Litellm-Response-Cost-Margin-Percent:
+                - "0.0"
+            X-Litellm-Response-Cost-Original:
+                - "0.0011375"
+            X-Litellm-Response-Duration-Ms:
+                - "3215.357"
+            X-Litellm-Version:
+                - 1.85.0
+            X-Ratelimit-Limit-Requests:
+                - "2000"
+            X-Ratelimit-Limit-Tokens:
+                - "800000"
+            X-Ratelimit-Remaining-Requests:
+                - "1999"
+            X-Ratelimit-Remaining-Tokens:
+                - "799585"
+        status: 200 OK
+        code: 200
+        duration: 4.713042s
