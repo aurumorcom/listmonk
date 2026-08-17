@@ -268,7 +268,6 @@ func initHTTPHandlers(e *echo.Echo, a *App) {
 			// Private authenticated bounce endpoint.
 			g.POST("/webhooks/bounce", pm(a.BounceWebhook, "webhooks:post_bounce"))
 		}
-		g.POST("/api/webhooks/waha", a.WAHAWebhook)
 	}
 
 	// =================================================================
@@ -276,6 +275,8 @@ func initHTTPHandlers(e *echo.Echo, a *App) {
 	{
 		// Public unauthenticated endpoints.
 		g := e.Group("")
+
+		g.POST("/api/webhooks/waha", a.WAHAWebhook)
 
 		if a.cfg.BounceWebhooksEnabled {
 			// Public bounce endpoints for webservices like SES.

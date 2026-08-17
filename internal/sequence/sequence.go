@@ -285,7 +285,8 @@ func (m *Manager) ProcessBatch() error {
 		step := steps[sub.CurrentStep-1]
 
 		if !EvaluateStepCondition(step.Condition, sub) {
-			if ShouldSkipConditionalStep(step, sub, time.Now()) {
+			skip := ShouldSkipConditionalStep(step, sub, time.Now())
+			if skip {
 				// Skip step if condition not met and window timeout reached
 				nextStep := sub.CurrentStep + 1
 				if nextStep > len(steps) {

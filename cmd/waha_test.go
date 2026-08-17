@@ -234,6 +234,48 @@ func TestIntegration_WAHA_Replied(t *testing.T) {
 	rl := sequence.NewReplyListener(nil, nil)
 	_ = rl.ProcessReplyWithBody(receiverSess.Phone, true, "Yes, I am interested in this offer!")
 
+	// 4B. Verify @lid Inbound Reply with fromMe=false
+	replyLIDPayload := map[string]any{
+		"event":   "message",
+		"session": senderSess.Name,
+		"payload": map[string]any{
+			"id":     "false_210556493537459@lid_AC6DD75E5513F74D982B46860BA9E85D",
+			"from":   "210556493537459@lid",
+			"fromMe": false,
+			"body":   "Hlo, I want to confirm my interest",
+		},
+	}
+	bLID, _ := json.Marshal(replyLIDPayload)
+	reqLID := httptest.NewRequest(http.MethodPost, "/api/webhooks/waha", bytes.NewReader(bLID))
+	reqLID.Header.Set("Content-Type", "application/json")
+	recLID := httptest.NewRecorder()
+	cLID := e.NewContext(reqLID, recLID)
+	_ = app.WAHAWebhook(cLID)
+	if recLID.Code != http.StatusOK {
+		t.Errorf("expected HTTP 200 from WAHA LID Reply webhook, got %d", recLID.Code)
+	}
+
+	// 4C. Verify Outbound Echo with fromMe=true is Ignored
+	echoPayload := map[string]any{
+		"event":   "message",
+		"session": senderSess.Name,
+		"payload": map[string]any{
+			"id":     "true_210556493537459@lid_OUTBOUND123",
+			"from":   senderSess.JID,
+			"fromMe": true,
+			"body":   "Automated broadcast from bot",
+		},
+	}
+	bEcho, _ := json.Marshal(echoPayload)
+	reqEcho := httptest.NewRequest(http.MethodPost, "/api/webhooks/waha", bytes.NewReader(bEcho))
+	reqEcho.Header.Set("Content-Type", "application/json")
+	recEcho := httptest.NewRecorder()
+	cEcho := e.NewContext(reqEcho, recEcho)
+	_ = app.WAHAWebhook(cEcho)
+	if recEcho.Code != http.StatusOK {
+		t.Errorf("expected HTTP 200 from WAHA echo webhook, got %d", recEcho.Code)
+	}
+
 	t.Log("Successfully verified WAHA incoming reply webhook handling and ReplyListener intent parsing")
 }
 
