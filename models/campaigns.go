@@ -222,40 +222,44 @@ func (camps Campaigns) LoadStats(stmt *sqlx.Stmt) error {
 
 // CompileTemplate compiles a campaign body template into its base
 // template and sets the resultant template to Campaign.Tpl.
-func (c *Campaign) CompileTemplate(f template.FuncMap) error {
-	// If the subject line has a template string, compile it.
-	if hasTplExpr(c.Subject) {
-		subj := c.Subject
-		for _, r := range regTplFuncs {
-			subj = r.regExp.ReplaceAllString(subj, r.replace)
-		}
-
-		var txtFuncs map[string]any = f
-		subjTpl, err := txttpl.New(ContentTpl).Funcs(txtFuncs).Parse(subj)
-		if err != nil {
-			return fmt.Errorf("error compiling subject: %v", err)
-		}
-		c.SubjectTpl = subjTpl
+func compileCampaignSubject(c *Campaign, f template.FuncMap) error {
+	if !hasTplExpr(c.Subject) {
+		return nil
+	}
+	subj := c.Subject
+	for _, r := range regTplFuncs {
+		subj = r.regExp.ReplaceAllString(subj, r.replace)
 	}
 
-	// If template is prompt type, compile template body as system prompt.
-	if c.TemplateType == TemplateTypePrompt && c.TemplateBody != "" && hasTplExpr(c.TemplateBody) {
-		sysPrompt := c.TemplateBody
-		for _, r := range regTplFuncs {
-			sysPrompt = r.regExp.ReplaceAllString(sysPrompt, r.replace)
-		}
+	var txtFuncs map[string]any = f
+	subjTpl, err := txttpl.New(ContentTpl).Funcs(txtFuncs).Parse(subj)
+	if err != nil {
+		return fmt.Errorf("error compiling subject: %v", err)
+	}
+	c.SubjectTpl = subjTpl
+	return nil
+}
 
-		var txtFuncs map[string]any = f
-		sysTpl, err := txttpl.New(ContentTpl).Funcs(txtFuncs).Parse(sysPrompt)
-		if err != nil {
-			return fmt.Errorf("error compiling system prompt: %v", err)
-		}
-		c.SystemPromptTpl = sysTpl
+func compileCampaignSystemPrompt(c *Campaign, f template.FuncMap) error {
+	if c.TemplateType != TemplateTypePrompt || c.TemplateBody == "" || !hasTplExpr(c.TemplateBody) {
+		return nil
+	}
+	sysPrompt := c.TemplateBody
+	for _, r := range regTplFuncs {
+		sysPrompt = r.regExp.ReplaceAllString(sysPrompt, r.replace)
 	}
 
-	// Compile the base template.
+	var txtFuncs map[string]any = f
+	sysTpl, err := txttpl.New(ContentTpl).Funcs(txtFuncs).Parse(sysPrompt)
+	if err != nil {
+		return fmt.Errorf("error compiling system prompt: %v", err)
+	}
+	c.SystemPromptTpl = sysTpl
+	return nil
+}
+
+func compileCampaignBaseAndBody(c *Campaign, f template.FuncMap) error {
 	body := c.TemplateBody
-
 	if body == "" || c.ContentType == CampaignContentTypeVisual {
 		body = `{{ template "content" . }}`
 	}
@@ -269,7 +273,6 @@ func (c *Campaign) CompileTemplate(f template.FuncMap) error {
 		return fmt.Errorf("error compiling base template: %v", err)
 	}
 
-	// If the format is markdown, convert Markdown to HTML.
 	if c.ContentType == CampaignContentTypeMarkdown {
 		var b bytes.Buffer
 		if err := markdown.Convert([]byte(c.Body), &b); err != nil {
@@ -280,7 +283,6 @@ func (c *Campaign) CompileTemplate(f template.FuncMap) error {
 		body = c.Body
 	}
 
-	// Compile the campaign message.
 	for _, r := range regTplFuncs {
 		body = r.regExp.ReplaceAllString(body, r.replace)
 	}
@@ -295,48 +297,77 @@ func (c *Campaign) CompileTemplate(f template.FuncMap) error {
 		return fmt.Errorf("error inserting child template: %v", err)
 	}
 	c.Tpl = out
+	return nil
+}
 
-	if hasTplExpr(c.AltBody.String) {
-		b := c.AltBody.String
-		for _, r := range regTplFuncs {
-			b = r.regExp.ReplaceAllString(b, r.replace)
-		}
-		bTpl, err := template.New(ContentTpl).Funcs(f).Parse(b)
-		if err != nil {
-			return fmt.Errorf("error compiling alt plaintext message: %v", err)
-		}
-		c.AltBodyTpl = bTpl
+func compileCampaignAltBody(c *Campaign, f template.FuncMap) error {
+	if !hasTplExpr(c.AltBody.String) {
+		return nil
 	}
+	b := c.AltBody.String
+	for _, r := range regTplFuncs {
+		b = r.regExp.ReplaceAllString(b, r.replace)
+	}
+	bTpl, err := template.New(ContentTpl).Funcs(f).Parse(b)
+	if err != nil {
+		return fmt.Errorf("error compiling alt plaintext message: %v", err)
+	}
+	c.AltBodyTpl = bTpl
+	return nil
+}
 
-	// Compile any header values that contain template expressions.
+func compileCampaignHeaderTemplates(c *Campaign, f template.FuncMap) error {
+	hasHdrExpr := false
 	for _, set := range c.Headers {
 		for _, val := range set {
 			if hasTplExpr(val) {
-				c.HeaderTpls = make([]map[string]*txttpl.Template, len(c.Headers))
+				hasHdrExpr = true
 				break
 			}
 		}
-		if c.HeaderTpls != nil {
+		if hasHdrExpr {
 			break
 		}
 	}
-	if c.HeaderTpls != nil {
-		var txtFuncs map[string]any = f
-		for i, set := range c.Headers {
-			c.HeaderTpls[i] = make(map[string]*txttpl.Template, len(set))
-			for hdr, val := range set {
-				if !hasTplExpr(val) {
-					continue
-				}
-				tpl, err := txttpl.New(ContentTpl).Funcs(txtFuncs).Parse(val)
-				if err != nil {
-					return fmt.Errorf("error compiling header %q: %v", hdr, err)
-				}
-				c.HeaderTpls[i][hdr] = tpl
-			}
-		}
+	if !hasHdrExpr {
+		return nil
 	}
 
+	c.HeaderTpls = make([]map[string]*txttpl.Template, len(c.Headers))
+	var txtFuncs map[string]any = f
+	for i, set := range c.Headers {
+		c.HeaderTpls[i] = make(map[string]*txttpl.Template, len(set))
+		for hdr, val := range set {
+			if !hasTplExpr(val) {
+				continue
+			}
+			tpl, err := txttpl.New(ContentTpl).Funcs(txtFuncs).Parse(val)
+			if err != nil {
+				return fmt.Errorf("error compiling header %q: %v", hdr, err)
+			}
+			c.HeaderTpls[i][hdr] = tpl
+		}
+	}
+	return nil
+}
+
+// CompileTemplate compiles a campaign body template into its base template.
+func (c *Campaign) CompileTemplate(f template.FuncMap) error {
+	if err := compileCampaignSubject(c, f); err != nil {
+		return err
+	}
+	if err := compileCampaignSystemPrompt(c, f); err != nil {
+		return err
+	}
+	if err := compileCampaignBaseAndBody(c, f); err != nil {
+		return err
+	}
+	if err := compileCampaignAltBody(c, f); err != nil {
+		return err
+	}
+	if err := compileCampaignHeaderTemplates(c, f); err != nil {
+		return err
+	}
 	return nil
 }
 
