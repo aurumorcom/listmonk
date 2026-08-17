@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/knadh/listmonk/internal/auth"
@@ -317,11 +318,14 @@ func (a *App) WAHAWebhook(c echo.Context) error {
 	type wahaPayload struct {
 		Event   string `json:"event"`
 		Payload struct {
-			Ack   int    `json:"ack"`
-			From  string `json:"from"`
-			To    string `json:"to"`
-			Error string `json:"error"`
-			Body  string `json:"body"`
+			Ack         any    `json:"ack"`
+			AckName     string `json:"ackName"`
+			ChatID      string `json:"chatId"`
+			From        string `json:"from"`
+			To          string `json:"to"`
+			Participant string `json:"participant"`
+			Error       string `json:"error"`
+			Body        string `json:"body"`
 		} `json:"payload"`
 	}
 
@@ -330,15 +334,62 @@ func (a *App) WAHAWebhook(c echo.Context) error {
 		return c.NoContent(http.StatusOK)
 	}
 
-	if req.Event == "message.ack" && req.Payload.Ack == -1 {
-		if a.log != nil {
-			a.log.Printf("WAHA delivery failure for %s: %s", req.Payload.To, req.Payload.Error)
+	// Parse ACK status into numeric level
+	ackLevel := 0
+	if req.Payload.Ack != nil {
+		switch v := req.Payload.Ack.(type) {
+		case float64:
+			ackLevel = int(v)
+		case int:
+			ackLevel = v
+		case string:
+			s := strings.ToUpper(strings.TrimSpace(v))
+			if strings.Contains(s, "READ") {
+				ackLevel = 4
+			} else if strings.Contains(s, "DEVICE") || strings.Contains(s, "DELIVERED") {
+				ackLevel = 3
+			} else if s == "-1" || strings.Contains(s, "ERR") {
+				ackLevel = -1
+			}
 		}
-	} else if req.Event == "message.ack" && req.Payload.Ack >= 3 {
+	}
+	if ackLevel == 0 && req.Payload.AckName != "" {
+		s := strings.ToUpper(strings.TrimSpace(req.Payload.AckName))
+		if strings.Contains(s, "READ") {
+			ackLevel = 4
+		} else if strings.Contains(s, "DEVICE") || strings.Contains(s, "DELIVERED") {
+			ackLevel = 3
+		} else if s == "-1" || strings.Contains(s, "ERR") {
+			ackLevel = -1
+		}
+	}
+
+	if req.Event == "message.ack" && ackLevel == -1 {
+		if a.log != nil {
+			target := req.Payload.To
+			if target == "" {
+				target = req.Payload.ChatID
+			}
+			a.log.Printf("WAHA delivery failure for %s: %s", target, req.Payload.Error)
+		}
+	} else if req.Event == "message.ack" && ackLevel >= 3 {
+		// Priority recipient extraction: To -> ChatID -> Participant -> From
 		targetPhone := req.Payload.To
+		if targetPhone == "" {
+			targetPhone = req.Payload.ChatID
+		}
+		if targetPhone == "" {
+			targetPhone = req.Payload.Participant
+		}
 		if targetPhone == "" {
 			targetPhone = req.Payload.From
 		}
+
+		if targetPhone != "" {
+			targetPhone = strings.TrimSuffix(targetPhone, "@c.us")
+			targetPhone = strings.TrimSuffix(targetPhone, "@s.whatsapp.net")
+		}
+
 		if targetPhone != "" && a.core != nil {
 			_ = a.core.RecordSequenceReadByPhone(targetPhone)
 		}
