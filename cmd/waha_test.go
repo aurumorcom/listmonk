@@ -268,6 +268,27 @@ func TestResilience_WAHA_APIOutageAndBackoff(t *testing.T) {
 	}
 }
 
+func TestParseWAHAAckLevel_DeviceVsRead(t *testing.T) {
+	// Test Request #1: ack: 2, ackName: "DEVICE" -> level 2 (Delivery, not read)
+	if l1 := ParseWAHAAckLevel(2, "DEVICE"); l1 != 2 {
+		t.Errorf("expected level 2 for DEVICE delivery, got %d", l1)
+	}
+
+	// Test Request #2: ack: 3, ackName: "READ" -> level 3 (Read, Blue Tick)
+	if l2 := ParseWAHAAckLevel(3, "READ"); l2 != 3 {
+		t.Errorf("expected level 3 for READ blue tick, got %d", l2)
+	}
+
+	// Test string ACK variants
+	if l3 := ParseWAHAAckLevel("READ", ""); l3 != 3 {
+		t.Errorf("expected level 3 for string READ, got %d", l3)
+	}
+
+	if l4 := ParseWAHAAckLevel("DEVICE", ""); l4 != 2 {
+		t.Errorf("expected level 2 for string DEVICE, got %d", l4)
+	}
+}
+
 // 6. WAHA Webhook Flexible ACK & JID Recipient Parsing Test
 func TestWAHAWebhook_ACK_Parsing_And_PhoneExtraction(t *testing.T) {
 	testCases := []struct {
