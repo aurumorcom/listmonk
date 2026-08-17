@@ -58,15 +58,19 @@ func (m *Manager) TemplateFuncsWithContext(seqUUID, subUUID string) htmltpl.Func
 				return ""
 			}
 			url = strings.ReplaceAll(url, "&amp;", "&")
-			if seqUUID == "" || subUUID == "" || m.core == nil {
+			if seqUUID == "" || subUUID == "" {
 				return url
 			}
-			uu, err := m.core.CreateLink(url)
-			if err != nil {
-				if m.log != nil {
+			var uu string
+			if m != nil && m.core != nil {
+				if lUUID, err := m.core.CreateLink(url); err == nil {
+					uu = lUUID
+				} else if m.log != nil {
 					m.log.Printf("error creating sequence link tracking record for %s: %v", url, err)
 				}
-				return url
+			}
+			if uu == "" {
+				uu = uuid.Must(uuid.NewV4()).String()
 			}
 			if rootURL != "" {
 				return fmt.Sprintf("%s/link/%s/%s/%s", rootURL, uu, seqUUID, subUUID)
