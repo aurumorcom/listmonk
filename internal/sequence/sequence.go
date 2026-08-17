@@ -401,7 +401,21 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceContact, contact mod
 		msg.From = fromEmail
 	}
 
+	var seqUUID string
+	if m.core != nil && sub.SequenceID > 0 {
+		if seq, err := m.core.GetSequence(sub.SequenceID, ""); err == nil {
+			seqUUID = seq.UUID
+		}
+	}
+
 	scope := manager.ExtractTemplateScope(contact)
+	if seqUUID != "" {
+		if rawCamp, ok := scope["Campaign"].(map[string]any); ok {
+			rawCamp["UUID"] = seqUUID
+			rawCamp["Subject"] = msg.Subject
+			scope["Campaign"] = rawCamp
+		}
+	}
 
 	if step.TemplateID.Valid && step.TemplateID.Int > 0 {
 		tpl, err := m.core.GetTemplate(step.TemplateID.Int, false)
