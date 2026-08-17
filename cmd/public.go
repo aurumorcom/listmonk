@@ -610,8 +610,8 @@ func (a *App) LinkRedirect(c echo.Context) error {
 		return c.Render(e.Code, tplMessage, makeMsgTpl(a.i18n.T("public.errorTitle"), "", e.Error()))
 	}
 
-	// Record sequence click strictly for genuine human activity (bot activity is isolated)
-	if !clientMeta.IsBot {
+	// Record sequence click strictly for valid sequence subscribers (excluding honeypot / security prefetchers)
+	if clientMeta.BotType != core.BotTypeHoneypot && clientMeta.BotType != core.BotTypeSecurityScanner {
 		if sub, err := a.core.GetSubscriber(0, subUUID, ""); err == nil {
 			if seq, err := a.core.GetSequence(0, campUUID); err == nil {
 				_ = a.core.RecordSequenceClick(seq.ID, sub.ID)
