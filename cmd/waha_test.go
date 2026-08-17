@@ -297,6 +297,30 @@ func TestWAHAWebhook_ACK_Parsing_And_PhoneExtraction(t *testing.T) {
 		expectRead bool
 	}{
 		{
+			name: "Numeric ACK 2 (Device Delivery - Double Grey Tick)",
+			payload: map[string]any{
+				"event": "message.ack",
+				"payload": map[string]any{
+					"ack":     2,
+					"ackName": "DEVICE",
+					"to":      "14155552672@c.us",
+				},
+			},
+			expectRead: false,
+		},
+		{
+			name: "Numeric ACK 3 (Blue Tick Read)",
+			payload: map[string]any{
+				"event": "message.ack",
+				"payload": map[string]any{
+					"ack":     3,
+					"ackName": "READ",
+					"to":      "14155552672@c.us",
+				},
+			},
+			expectRead: true,
+		},
+		{
 			name: "Numeric ACK 4 (Read)",
 			payload: map[string]any{
 				"event": "message.ack",
