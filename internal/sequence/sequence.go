@@ -40,30 +40,97 @@ type Manager struct {
 
 // TemplateFuncs returns template functions to be applied during sequence step rendering.
 func (m *Manager) TemplateFuncs() htmltpl.FuncMap {
+	return m.TemplateFuncsWithContext("", "")
+}
+
+// TemplateFuncsWithContext returns template functions configured with sequence and subscriber tracking context.
+func (m *Manager) TemplateFuncsWithContext(seqUUID, subUUID string) htmltpl.FuncMap {
+	var rootURL string
+	if m.core != nil {
+		if st, err := m.core.GetSettings(); err == nil {
+			rootURL = strings.TrimRight(st.AppRootURL, "/")
+		}
+	}
+
 	f := htmltpl.FuncMap{
 		"TrackLink": func(url string, args ...any) string {
-			return url
+			if strings.TrimSpace(url) == "" {
+				return ""
+			}
+			url = strings.ReplaceAll(url, "&amp;", "&")
+			if seqUUID == "" || subUUID == "" {
+				return url
+			}
+			var uu string
+			if m != nil && m.core != nil {
+				if lUUID, err := m.core.CreateLink(url); err == nil {
+					uu = lUUID
+				} else if m.log != nil {
+					m.log.Printf("error creating sequence link tracking record for %s: %v", url, err)
+				}
+			}
+			if uu == "" {
+				uu = uuid.Must(uuid.NewV4()).String()
+			}
+			if rootURL != "" {
+				return fmt.Sprintf("%s/link/%s/%s/%s", rootURL, uu, seqUUID, subUUID)
+			}
+			return fmt.Sprintf("/link/%s/%s/%s", uu, seqUUID, subUUID)
 		},
 		"TrackView": func(args ...any) htmltpl.HTML {
-			return htmltpl.HTML("")
+			if seqUUID == "" || subUUID == "" {
+				return htmltpl.HTML("")
+			}
+			pxURL := fmt.Sprintf("%s/campaign/%s/%s/px.png", rootURL, seqUUID, subUUID)
+			if rootURL == "" {
+				pxURL = fmt.Sprintf("/campaign/%s/%s/px.png", seqUUID, subUUID)
+			}
+			return htmltpl.HTML(fmt.Sprintf(`<img src="%s" width="1" height="1" style="display:none;max-height:0;max-width:0;opacity:0" alt="" />`, pxURL))
 		},
 		"UnsubscribeURL": func(args ...any) string {
-			return ""
+			if subUUID == "" {
+				return ""
+			}
+			if rootURL != "" {
+				return fmt.Sprintf("%s/subscription/optin/%s", rootURL, subUUID)
+			}
+			return fmt.Sprintf("/subscription/optin/%s", subUUID)
 		},
 		"ManageURL": func(args ...any) string {
-			return ""
+			if subUUID == "" {
+				return ""
+			}
+			if rootURL != "" {
+				return fmt.Sprintf("%s/subscription/optin/%s", rootURL, subUUID)
+			}
+			return fmt.Sprintf("/subscription/optin/%s", subUUID)
 		},
 		"OptinURL": func(args ...any) string {
-			return ""
+			if subUUID == "" {
+				return ""
+			}
+			if rootURL != "" {
+				return fmt.Sprintf("%s/subscription/optin/%s", rootURL, subUUID)
+			}
+			return fmt.Sprintf("/subscription/optin/%s", subUUID)
 		},
 		"MessageURL": func(args ...any) string {
-			return ""
+			if seqUUID == "" || subUUID == "" {
+				return ""
+			}
+			if rootURL != "" {
+				return fmt.Sprintf("%s/campaign/%s/%s", rootURL, seqUUID, subUUID)
+			}
+			return fmt.Sprintf("/campaign/%s/%s", seqUUID, subUUID)
 		},
 		"ArchiveURL": func() string {
-			return ""
+			if rootURL != "" {
+				return fmt.Sprintf("%s/archive", rootURL)
+			}
+			return "/archive"
 		},
 		"RootURL": func() string {
-			return ""
+			return rootURL
 		},
 		"Date": func(layout string) string {
 			if layout == "" {
@@ -338,7 +405,21 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceContact, contact mod
 		msg.From = fromEmail
 	}
 
+	var seqUUID string
+	if m.core != nil && sub.SequenceID > 0 {
+		if seq, err := m.core.GetSequence(sub.SequenceID, ""); err == nil {
+			seqUUID = seq.UUID
+		}
+	}
+
 	scope := manager.ExtractTemplateScope(contact)
+	if seqUUID != "" {
+		if rawCamp, ok := scope["Campaign"].(map[string]any); ok {
+			rawCamp["UUID"] = seqUUID
+			rawCamp["Subject"] = msg.Subject
+			scope["Campaign"] = rawCamp
+		}
+	}
 
 	if step.TemplateID.Valid && step.TemplateID.Int > 0 {
 		tpl, err := m.core.GetTemplate(step.TemplateID.Int, false)
@@ -438,17 +519,21 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceContact, contact mod
 				TemplateBody: tpl.Body,
 				Body:         step.Body,
 			}
-			funcs := m.TemplateFuncs()
+			funcs := m.TemplateFuncsWithContext(seqUUID, contact.UUID)
 			if err := camp.CompileTemplate(funcs); err == nil {
 				var buf bytes.Buffer
 				if err := camp.Tpl.ExecuteTemplate(&buf, models.BaseTpl, scope); err == nil {
 					msg.Body = buf.Bytes()
+				} else if m.log != nil {
+					m.log.Printf("sequence step %d HTML template execution error for subscriber %d: %v", step.ID, contact.ID, err)
 				}
+			} else if m.log != nil {
+				m.log.Printf("sequence step %d HTML template compilation error for subscriber %d: %v", step.ID, contact.ID, err)
 			}
 		}
 	} else {
 		// Plain text / standard template interpolation with full FuncMap and shorthand tags replacement
-		funcs := txttpl.FuncMap(m.TemplateFuncs())
+		funcs := txttpl.FuncMap(m.TemplateFuncsWithContext(seqUUID, contact.UUID))
 		bodyStr := models.SubstituteTplShorthand(string(msg.Body))
 		subjStr := models.SubstituteTplShorthand(msg.Subject)
 
@@ -456,7 +541,11 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceContact, contact mod
 			var ub bytes.Buffer
 			if err := ut.Execute(&ub, scope); err == nil {
 				msg.Body = ub.Bytes()
+			} else if m.log != nil {
+				m.log.Printf("sequence step %d text template execution error for subscriber %d: %v", step.ID, contact.ID, err)
 			}
+		} else if m.log != nil {
+			m.log.Printf("sequence step %d text template parse error for subscriber %d: %v", step.ID, contact.ID, err)
 		}
 		if st, err := txttpl.New("subj").Funcs(funcs).Parse(subjStr); err == nil {
 			var sb bytes.Buffer

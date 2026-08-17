@@ -3,6 +3,7 @@ package core
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -451,6 +452,24 @@ func (c *Core) RegisterCampaignView(campUUID, subUUID string, meta ClientMeta) e
 			c.i18n.Ts("globals.messages.errorUpdating", "name", "{globals.terms.campaign}", "error", pqErrMsg(err)))
 	}
 	return nil
+}
+
+// CreateLink registers a URL with a UUID for tracking clicks and returns the UUID.
+func (c *Core) CreateLink(url string) (string, error) {
+	if c == nil || c.q == nil || c.q.CreateLink == nil {
+		return "", fmt.Errorf("core or query not initialized")
+	}
+	uu, err := uuid.NewV4()
+	if err != nil {
+		return "", err
+	}
+
+	var out string
+	if err := c.q.CreateLink.Get(&out, uu, url); err != nil {
+		return "", err
+	}
+
+	return out, nil
 }
 
 // GetLinkURL returns the original URL for a link UUID without recording a click.

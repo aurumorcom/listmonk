@@ -267,3 +267,66 @@ func TestResilience_WAHA_APIOutageAndBackoff(t *testing.T) {
 		t.Logf("Successfully captured WAHA API outage error for backoff retry: %v", err)
 	}
 }
+
+// 6. WAHA Webhook Flexible ACK & JID Recipient Parsing Test
+func TestWAHAWebhook_ACK_Parsing_And_PhoneExtraction(t *testing.T) {
+	testCases := []struct {
+		name       string
+		payload    map[string]any
+		expectRead bool
+	}{
+		{
+			name: "Numeric ACK 4 (Read)",
+			payload: map[string]any{
+				"event": "message.ack",
+				"payload": map[string]any{
+					"ack": 4,
+					"to":  "14155552672@c.us",
+				},
+			},
+			expectRead: true,
+		},
+		{
+			name: "String ACK 'READ'",
+			payload: map[string]any{
+				"event": "message.ack",
+				"payload": map[string]any{
+					"ack":    "READ",
+					"chatId": "14155552672@s.whatsapp.net",
+				},
+			},
+			expectRead: true,
+		},
+		{
+			name: "ACK Name 'ACK_READ'",
+			payload: map[string]any{
+				"event": "message.ack",
+				"payload": map[string]any{
+					"ackName": "ACK_READ",
+					"to":      "14155552672@c.us",
+				},
+			},
+			expectRead: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			b, _ := json.Marshal(tc.payload)
+			e := echo.New()
+			req := httptest.NewRequest(http.MethodPost, "/api/webhooks/waha", bytes.NewReader(b))
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+
+			app := &App{log: nil}
+			err := app.WAHAWebhook(c)
+			if err != nil {
+				t.Fatalf("WAHAWebhook returned unexpected error: %v", err)
+			}
+			if rec.Code != http.StatusOK {
+				t.Errorf("expected HTTP 200, got %d", rec.Code)
+			}
+		})
+	}
+}

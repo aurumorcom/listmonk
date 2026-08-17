@@ -1,6 +1,8 @@
 package sequence
 
 import (
+	htmltpl "html/template"
+	"strings"
 	"testing"
 	"time"
 
@@ -542,5 +544,75 @@ func TestSequence_PerAddressDailyLimitFailover(t *testing.T) {
 
 	if msgr.pushed[0].From != "Test Account <primary@acme.com>" {
 		t.Errorf("expected From header 'Test Account <primary@acme.com>', got '%s'", msgr.pushed[0].From)
+	}
+}
+
+func TestSequence_TemplateScope_Interpolation(t *testing.T) {
+	msgr := &mockSeqMessenger{name: "email"}
+	mgr := NewManager(nil, map[string]manager.Messenger{"email": msgr}, nil, nil)
+
+	sub := models.Subscriber{
+		UUID:  "sub-uuid-123",
+		Name:  "Alice Smith",
+		Email: "alice@example.com",
+		Phone: null.StringFrom("+14155552672"),
+	}
+
+	step := models.SequenceStep{
+		ID:         1,
+		StepNumber: 1,
+		Messenger:  "email",
+		Subject:    "Welcome {{ .Subscriber.FirstName }}",
+		Body:       "Hey {{ .Subscriber.FirstName }}! Email: {{ .Subscriber.Email }}, Phone: {{ .contact.phone }}",
+	}
+
+	seqContact := models.SequenceContact{
+		SequenceID:   1,
+		SubscriberID: 10,
+	}
+
+	err := mgr.PrepareAndDispatchStep(seqContact, sub, step, "alice@example.com")
+	if err != nil {
+		t.Fatalf("PrepareAndDispatchStep failed: %v", err)
+	}
+
+	if len(msgr.pushed) != 1 {
+		t.Fatalf("expected 1 message pushed, got %d", len(msgr.pushed))
+	}
+
+	msg := msgr.pushed[0]
+	if msg.Subject != "Welcome Alice" {
+		t.Errorf("expected Subject 'Welcome Alice', got '%s'", msg.Subject)
+	}
+	expectedBody := "Hey Alice! Email: alice@example.com, Phone: +14155552672"
+	if string(msg.Body) != expectedBody {
+		t.Errorf("expected Body '%s', got '%s'", expectedBody, string(msg.Body))
+	}
+}
+
+func TestSequence_TrackLink_And_TrackView(t *testing.T) {
+	mgr := NewManager(nil, nil, nil, nil)
+
+	funcs := mgr.TemplateFuncsWithContext("seq-uuid-456", "sub-uuid-789")
+
+	trackLinkFn, ok := funcs["TrackLink"].(func(string, ...any) string)
+	if !ok {
+		t.Fatal("expected TrackLink function in TemplateFuncs")
+	}
+
+	rawURL := "https://example.com/offer?a=1&amp;b=2"
+	formatted := trackLinkFn(rawURL)
+	if !strings.Contains(formatted, "/link/") || !strings.Contains(formatted, "seq-uuid-456") || !strings.Contains(formatted, "sub-uuid-789") {
+		t.Errorf("expected TrackLink to output tracking URL with sequence and sub UUID, got '%s'", formatted)
+	}
+
+	trackViewFn, ok := funcs["TrackView"].(func(...any) htmltpl.HTML)
+	if !ok {
+		t.Fatal("expected TrackView function in TemplateFuncs")
+	}
+
+	pixelHTML := string(trackViewFn())
+	if !strings.Contains(pixelHTML, "/campaign/seq-uuid-456/sub-uuid-789/px.png") {
+		t.Errorf("expected TrackView to output pixel tracking image tag, got '%s'", pixelHTML)
 	}
 }
