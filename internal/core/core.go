@@ -224,3 +224,11 @@ func sanitizeSQLExp(q string) string {
 func strHasLen(str string, min, max int) bool {
 	return len(str) >= min && len(str) <= max
 }
+
+// I18n returns the i18n instance.
+func (c *Core) I18n() *i18n.I18n {
+	if c == nil {
+		return nil
+	}
+	return c.i18n
+}
