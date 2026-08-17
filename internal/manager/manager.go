@@ -20,6 +20,7 @@ import (
 	"github.com/Masterminds/sprig/v3"
 	"github.com/knadh/listmonk/internal/i18n"
 	"github.com/knadh/listmonk/internal/notifs"
+	"github.com/knadh/listmonk/internal/utils"
 	"github.com/knadh/listmonk/models"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -55,6 +56,7 @@ type Store interface {
 	UpdateCampaignStatus(campID int, status string) error
 	UpdateCampaignCounts(campID int, toSend int, sent int, lastSubID int) error
 	CreateLink(url string) (string, error)
+	GetOrCreateLinkID(rawURL string) (int, error)
 	BlocklistSubscriber(id int64) error
 	DeleteSubscriber(id int64) error
 }
@@ -721,10 +723,21 @@ func (m *Manager) trackLink(url, campUUID, subUUID string) string {
 
 	url = strings.ReplaceAll(url, "&amp;", "&")
 
+	// Attempt generating 10-character Sqids short link token
+	if linkID, err := m.store.GetOrCreateLinkID(url); err == nil && linkID > 0 {
+		token := utils.EncodeSqidsLink(linkID, false, 0, 0)
+		if token != "" {
+			return fmt.Sprintf(m.cfg.LinkTrackURL, token)
+		}
+	}
+
 	m.linksMut.RLock()
 	if uu, ok := m.links[url]; ok {
 		m.linksMut.RUnlock()
-		return fmt.Sprintf(m.cfg.LinkTrackURL, uu, campUUID, subUUID)
+		if m.cfg.RootURL != "" {
+			return fmt.Sprintf("%s/link/%s/%s/%s", strings.TrimRight(m.cfg.RootURL, "/"), uu, campUUID, subUUID)
+		}
+		return fmt.Sprintf("/link/%s/%s/%s", uu, campUUID, subUUID)
 	}
 	m.linksMut.RUnlock()
 
@@ -741,7 +754,10 @@ func (m *Manager) trackLink(url, campUUID, subUUID string) string {
 	m.links[url] = uu
 	m.linksMut.Unlock()
 
-	return fmt.Sprintf(m.cfg.LinkTrackURL, uu, campUUID, subUUID)
+	if m.cfg.RootURL != "" {
+		return fmt.Sprintf("%s/link/%s/%s/%s", strings.TrimRight(m.cfg.RootURL, "/"), uu, campUUID, subUUID)
+	}
+	return fmt.Sprintf("/link/%s/%s/%s", uu, campUUID, subUUID)
 }
 
 // sendNotif sends a notification to registered admin e-mails.

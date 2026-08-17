@@ -823,7 +823,7 @@ func (c *Core) RecordSequenceRead(sequenceID, subID int) error {
 	if c == nil || c.db == nil {
 		return nil
 	}
-	_, err := c.db.Exec(`UPDATE sequence_contacts SET last_read_at = NOW(), next_send_at = NOW() WHERE sequence_id = $1 AND subscriber_id = $2`, sequenceID, subID)
+	_, err := c.db.Exec(`UPDATE sequence_contacts SET last_read_at = NOW() WHERE sequence_id = $1 AND subscriber_id = $2`, sequenceID, subID)
 	return err
 }
 
@@ -841,7 +841,7 @@ func (c *Core) RecordSequenceReadByPhone(phone string, lids ...string) error {
 		return nil
 	}
 	_, err := c.db.Exec(`UPDATE sequence_contacts
-		SET last_read_at = NOW(), next_send_at = NOW()
+		SET last_read_at = NOW()
 		WHERE subscriber_id IN (
 			SELECT id FROM subscribers
 			WHERE (CASE WHEN $1 != '' THEN REGEXP_REPLACE(phone, '[^\d]', '', 'g') = $1 OR REGEXP_REPLACE(attribs->>'phone', '[^\d]', '', 'g') = $1 ELSE FALSE END)
@@ -866,7 +866,7 @@ func (c *Core) RecordSequenceReadByMessageID(msgID string, extra ...string) erro
 
 	var subID int
 	err := c.db.QueryRow(`UPDATE sequence_contacts
-		SET last_read_at = NOW(), next_send_at = NOW()
+		SET last_read_at = NOW()
 		WHERE (
 			last_message_id = $1
 			OR last_thread_msg_id = $1
@@ -888,7 +888,7 @@ func (c *Core) RecordSequenceClick(sequenceID, subID int) error {
 	if c == nil || c.db == nil {
 		return nil
 	}
-	_, err := c.db.Exec(`UPDATE sequence_contacts SET last_clicked_at = NOW(), next_send_at = NOW() WHERE sequence_id = $1 AND subscriber_id = $2`, sequenceID, subID)
+	_, err := c.db.Exec(`UPDATE sequence_contacts SET last_clicked_at = NOW() WHERE sequence_id = $1 AND subscriber_id = $2`, sequenceID, subID)
 	return err
 }
 
@@ -906,7 +906,7 @@ func (c *Core) RecordSequenceClickByPhone(phone string, lids ...string) error {
 		return nil
 	}
 	_, err := c.db.Exec(`UPDATE sequence_contacts
-		SET last_clicked_at = NOW(), next_send_at = NOW()
+		SET last_clicked_at = NOW()
 		WHERE subscriber_id IN (
 			SELECT id FROM subscribers
 			WHERE (CASE WHEN $1 != '' THEN REGEXP_REPLACE(phone, '[^\d]', '', 'g') = $1 OR REGEXP_REPLACE(attribs->>'phone', '[^\d]', '', 'g') = $1 ELSE FALSE END)

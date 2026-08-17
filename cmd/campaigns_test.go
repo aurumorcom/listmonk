@@ -788,3 +788,42 @@ func TestE2E_ProductionMessage_Routing_And_ContactRendering(t *testing.T) {
 
 	t.Log("Successfully verified production campaign message routes to contact with rendered contact data")
 }
+
+func TestIntegration_ShortLink_Redirect_And_Parity(t *testing.T) {
+	e := echo.New()
+	app := &App{
+		cfg: &Config{},
+	}
+	app.cfg.Privacy.DisableTracking = false
+
+	// 1. Test invalid short token (less than 10 chars)
+	reqInvalid := httptest.NewRequest(http.MethodGet, "/abc123", nil)
+	recInvalid := httptest.NewRecorder()
+	cInvalid := e.NewContext(reqInvalid, recInvalid)
+	cInvalid.SetParamNames("token")
+	cInvalid.SetParamValues("abc123")
+	err := app.validShortToken(app.ShortLinkRedirect)(cInvalid)
+	if err == nil {
+		t.Errorf("expected error / 404 for invalid token length, got nil")
+	}
+
+	// 2. Test valid 10-char short token format
+	reqValid := httptest.NewRequest(http.MethodGet, "/aB3x9Z1kLm", nil)
+	recValid := httptest.NewRecorder()
+	cValid := e.NewContext(reqValid, recValid)
+	cValid.SetParamNames("token")
+	cValid.SetParamValues("aB3x9Z1kLm")
+
+	// Middleware passes for exactly 10 alphanumeric chars
+	passed := false
+	handler := app.validShortToken(func(c echo.Context) error {
+		passed = true
+		return nil
+	})
+	_ = handler(cValid)
+	if !passed {
+		t.Errorf("expected 10-char token to pass validShortToken middleware")
+	}
+
+	t.Log("Successfully verified 10-character short link pattern validation and routing")
+}

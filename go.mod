@@ -64,6 +64,7 @@ require (
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/spf13/cast v1.9.2 // indirect
+	github.com/sqids/sqids-go v0.4.1 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
 	golang.org/x/crypto v0.52.0 // indirect

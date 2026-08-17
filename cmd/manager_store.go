@@ -145,6 +145,14 @@ func (s *store) CreateLink(url string) (string, error) {
 	return out, nil
 }
 
+// GetOrCreateLinkID gets or creates the integer ID for a link URL.
+func (s *store) GetOrCreateLinkID(rawURL string) (int, error) {
+	if s.core != nil {
+		return s.core.GetOrCreateLinkID(rawURL)
+	}
+	return 0, nil
+}
+
 // RecordBounce records a bounce event and returns the bounce count.
 func (s *store) RecordBounce(b models.Bounce) (int64, int, error) {
 	var res = struct {

@@ -58,7 +58,7 @@ func (m *Manager) TemplateFuncs() htmltpl.FuncMap {
 }
 
 // TemplateFuncsWithContext returns template functions configured with sequence and subscriber tracking context.
-func (m *Manager) TemplateFuncsWithContext(seqUUID, subUUID string) htmltpl.FuncMap {
+func (m *Manager) TemplateFuncsWithContext(seqUUID, subUUID string, stepID ...int) htmltpl.FuncMap {
 	var rootURL string
 	var i18nInst *i18n.I18n
 	if m != nil && m.core != nil {
@@ -66,6 +66,11 @@ func (m *Manager) TemplateFuncsWithContext(seqUUID, subUUID string) htmltpl.Func
 		if st, err := m.core.GetSettings(); err == nil {
 			rootURL = strings.TrimRight(st.AppRootURL, "/")
 		}
+	}
+
+	var curStepID int
+	if len(stepID) > 0 && stepID[0] > 0 {
+		curStepID = stepID[0]
 	}
 
 	f := htmltpl.FuncMap{
@@ -80,6 +85,27 @@ func (m *Manager) TemplateFuncsWithContext(seqUUID, subUUID string) htmltpl.Func
 			if seqUUID == "" || subUUID == "" {
 				return url
 			}
+
+			// Generate 10-character Sqids short link token
+			if m != nil && m.core != nil {
+				var seqID, subID int
+				if seq, err := m.core.GetSequence(0, seqUUID); err == nil {
+					seqID = seq.ID
+				}
+				if sub, err := m.core.GetSubscriber(0, subUUID, ""); err == nil {
+					subID = sub.ID
+				}
+				if linkID, err := m.core.GetOrCreateLinkID(url); err == nil && linkID > 0 {
+					token := utils.EncodeSqidsLink(linkID, true, seqID, subID, curStepID)
+					if token != "" {
+						if rootURL != "" {
+							return fmt.Sprintf("%s/link/%s", strings.TrimRight(rootURL, "/"), token)
+						}
+						return fmt.Sprintf("/link/%s", token)
+					}
+				}
+			}
+
 			var uu string
 			if m != nil && m.core != nil {
 				if lUUID, err := m.core.CreateLink(url); err == nil {
@@ -100,9 +126,17 @@ func (m *Manager) TemplateFuncsWithContext(seqUUID, subUUID string) htmltpl.Func
 			if seqUUID == "" || subUUID == "" {
 				return htmltpl.HTML("")
 			}
-			pxURL := fmt.Sprintf("%s/campaign/%s/%s/px.png", rootURL, seqUUID, subUUID)
-			if rootURL == "" {
-				pxURL = fmt.Sprintf("/campaign/%s/%s/px.png", seqUUID, subUUID)
+			var pxURL string
+			if curStepID > 0 {
+				pxURL = fmt.Sprintf("%s/campaign/%s/%s/px.png?step_id=%d", rootURL, seqUUID, subUUID, curStepID)
+				if rootURL == "" {
+					pxURL = fmt.Sprintf("/campaign/%s/%s/px.png?step_id=%d", seqUUID, subUUID, curStepID)
+				}
+			} else {
+				pxURL = fmt.Sprintf("%s/campaign/%s/%s/px.png", rootURL, seqUUID, subUUID)
+				if rootURL == "" {
+					pxURL = fmt.Sprintf("/campaign/%s/%s/px.png", seqUUID, subUUID)
+				}
 			}
 			return htmltpl.HTML(fmt.Sprintf(`<img src="%s" width="1" height="1" style="display:none;max-height:0;max-width:0;opacity:0" alt="" />`, pxURL))
 		},
@@ -220,50 +254,7 @@ func (m *Manager) Stop() {
 	m.wg.Wait()
 }
 
-// EvaluateStepCondition evaluates whether a step condition is satisfied.
-func EvaluateStepCondition(cond string, sub models.SequenceContact) bool {
-	switch cond {
-	case models.SequenceConditionAlways:
-		return true
-	case models.SequenceConditionIfRead:
-		return sub.LastReadAt.Valid
-	case models.SequenceConditionIfNotRead:
-		return !sub.LastReadAt.Valid
-	case models.SequenceConditionIfClicked:
-		return sub.LastClickedAt.Valid
-	default:
-		return true
-	}
-}
-
-// CalculateStepWaitingWindow computes the waiting window duration for sequence steps.
-func CalculateStepWaitingWindow(step models.SequenceStep, fallbackStep models.SequenceStep) time.Duration {
-	if step.Condition == models.SequenceConditionIfClicked || step.Condition == models.SequenceConditionIfRead {
-		if fallbackStep.Delay != "" {
-			if d, err := utils.ParseDuration(fallbackStep.Delay); err == nil && d > 0 {
-				return d
-			}
-		}
-		if d, err := utils.ParseDuration(step.Delay); err == nil && d > 0 {
-			return d
-		}
-		return 10 * time.Minute
-	}
-	d, _ := utils.ParseDuration(step.Delay)
-	return d
-}
-
-// ShouldSkipConditionalStep determines whether an unsatisfied conditional step should be skipped.
-func ShouldSkipConditionalStep(step models.SequenceStep, sub models.SequenceContact, now time.Time) bool {
-	if step.Condition == models.SequenceConditionIfClicked || step.Condition == models.SequenceConditionIfRead {
-		if sub.NextSendAt.Valid && now.Before(sub.NextSendAt.Time) {
-			return false // Waiting window active; do not skip
-		}
-	}
-	return true
-}
-
-// ProcessBatch processes due sequence contacts.
+// ProcessBatch processes due sequence contacts sequentially based on step delays.
 func (m *Manager) ProcessBatch() error {
 	subs, err := m.core.GetDueSequenceContacts(100)
 	if err != nil {
@@ -278,34 +269,11 @@ func (m *Manager) ProcessBatch() error {
 		}
 
 		if len(steps) == 0 || sub.CurrentStep > len(steps) {
-			_ = m.core.UpdateSequenceContactStatus(sub.SequenceID, sub.SubscriberID, models.SequenceContactStatusFinished, sub.CurrentStep, null.Time{}, null.String{}, sub.LastThreadMsgID)
+			_ = m.core.UpdateSequenceContactStatus(sub.SequenceID, sub.SubscriberID, models.SequenceContactStatusFinished, sub.CurrentStep, null.Time{}, sub.LastMessageID, sub.LastThreadMsgID)
 			continue
 		}
 
 		step := steps[sub.CurrentStep-1]
-
-		if !EvaluateStepCondition(step.Condition, sub) {
-			skip := ShouldSkipConditionalStep(step, sub, time.Now())
-			if skip {
-				// Skip step if condition not met and window timeout reached
-				nextStep := sub.CurrentStep + 1
-				if nextStep > len(steps) {
-					_ = m.core.UpdateSequenceContactStatus(sub.SequenceID, sub.SubscriberID, models.SequenceContactStatusFinished, nextStep, null.Time{}, null.String{}, sub.LastThreadMsgID)
-				} else {
-					var fallbackStep models.SequenceStep
-					if nextStep+1 <= len(steps) {
-						fallbackStep = steps[nextStep]
-					}
-					delayDur := CalculateStepWaitingWindow(steps[nextStep-1], fallbackStep)
-					nextSend := null.TimeFrom(time.Now().Add(delayDur))
-					_ = m.core.UpdateSequenceContactStatus(sub.SequenceID, sub.SubscriberID, models.SequenceContactStatusInProgress, nextStep, nextSend, null.String{}, sub.LastThreadMsgID)
-				}
-				continue
-			} else {
-				// Waiting window still active; hold contact at current step
-				continue
-			}
-		}
 
 		// Resolve contact details
 		contact, err := m.core.GetContact(sub.SubscriberID, "", "")
@@ -527,7 +495,7 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceContact, contact mod
 								TemplateBody: parentTpl.Body,
 								Body:         finalContent,
 							}
-							funcs := m.TemplateFuncsWithContext(seqUUID, contact.UUID)
+							funcs := m.TemplateFuncsWithContext(seqUUID, contact.UUID, step.ID)
 							if err := camp.CompileTemplate(funcs); err == nil {
 								var buf bytes.Buffer
 								if err := camp.Tpl.ExecuteTemplate(&buf, models.BaseTpl, scope); err == nil {
@@ -550,7 +518,7 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceContact, contact mod
 			isWhatsApp := step.Messenger == "whatsapp" || step.Messenger == "waha" || msgr.Name() == "whatsapp" || msgr.Name() == "waha" || strings.HasPrefix(msgr.Name(), "whatsapp-") || strings.HasPrefix(msgr.Name(), "waha-")
 			if isWhatsApp {
 				// WhatsApp steps bypass HTML email layout templates. Render step body directly and sanitize HTML/CSS.
-				funcs := txttpl.FuncMap(m.TemplateFuncsWithContext(seqUUID, contact.UUID))
+				funcs := txttpl.FuncMap(m.TemplateFuncsWithContext(seqUUID, contact.UUID, step.ID))
 				bodyStr := models.SubstituteTplShorthand(step.Body)
 				subjStr := models.SubstituteTplShorthand(msg.Subject)
 
@@ -578,7 +546,7 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceContact, contact mod
 					TemplateBody: tpl.Body,
 					Body:         step.Body,
 				}
-				funcs := m.TemplateFuncsWithContext(seqUUID, contact.UUID)
+				funcs := m.TemplateFuncsWithContext(seqUUID, contact.UUID, step.ID)
 				if err := camp.CompileTemplate(funcs); err == nil {
 					var buf bytes.Buffer
 					if err := camp.Tpl.ExecuteTemplate(&buf, models.BaseTpl, scope); err == nil {
@@ -593,7 +561,7 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceContact, contact mod
 		}
 	} else {
 		// Plain text / standard template interpolation with full FuncMap and shorthand tags replacement
-		funcs := txttpl.FuncMap(m.TemplateFuncsWithContext(seqUUID, contact.UUID))
+		funcs := txttpl.FuncMap(m.TemplateFuncsWithContext(seqUUID, contact.UUID, step.ID))
 		bodyStr := models.SubstituteTplShorthand(string(msg.Body))
 		subjStr := models.SubstituteTplShorthand(msg.Subject)
 
@@ -699,11 +667,7 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceContact, contact mod
 			if nextStep > len(steps) {
 				status = models.SequenceContactStatusFinished
 			} else {
-				var fallbackStep models.SequenceStep
-				if nextStep+1 <= len(steps) {
-					fallbackStep = steps[nextStep]
-				}
-				delayDur := CalculateStepWaitingWindow(steps[nextStep-1], fallbackStep)
+				delayDur, _ := utils.ParseDuration(steps[nextStep-1].Delay)
 				nextSend = null.TimeFrom(time.Now().Add(delayDur))
 			}
 

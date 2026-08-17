@@ -19,6 +19,7 @@ const (
 	SequenceContactStatusFinished   = "finished"
 	SequenceContactStatusOptedOut   = "opted_out"
 
+	// Sequence conditions (Deprecated: sequence progression is strictly linear based on step delays).
 	SequenceConditionAlways    = "always"
 	SequenceConditionIfRead    = "if_read"
 	SequenceConditionIfNotRead = "if_not_read"
