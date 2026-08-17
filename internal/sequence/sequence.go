@@ -379,44 +379,22 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceContact, contact mod
 		}
 	}
 
+	isWhatsApp := step.Messenger == "whatsapp" || step.Messenger == "waha" || strings.HasPrefix(step.Messenger, "whatsapp-") || strings.HasPrefix(step.Messenger, "waha-")
+	toEmails, toPhone := ResolveTargetRecipient(contact, overrideRecipient, isWhatsApp)
+
 	msgID := fmt.Sprintf("<sequence-%d-%d-%s@listmonk>", sub.SequenceID, step.StepNumber, uuid.Must(uuid.NewV4()).String())
 	msg := models.Message{
 		Subscriber: contact,
 		Subject:    step.Subject,
 		Body:       []byte(step.Body),
 		Messenger:  msgr.Name(),
-		To:         []string{contact.Email},
-		ToPhone:    contact.Phone.String,
+		To:         toEmails,
+		ToPhone:    toPhone,
 	}
 
-	// Resolve Sender Display Name
-	var userName string
-	if overrideRecipient != "" {
-		if userMap, ok := contact.Attribs["user"].(map[string]any); ok {
-			if name, ok := userMap["name"].(string); ok && strings.TrimSpace(name) != "" {
-				userName = strings.TrimSpace(name)
-			}
-		}
-	}
-
-	var assignedUser *auth.User
-	if activeEmail != nil && activeEmail.UserID.Valid && m.core != nil {
-		if u, err := m.core.GetUser(activeEmail.UserID.Int, "", ""); err == nil {
-			assignedUser = &u
-			if userName == "" && u.Name != "" {
-				userName = u.Name
-			}
-		}
-	}
-	if userName == "" && activeEmail != nil && activeEmail.Name != "" {
-		userName = activeEmail.Name
-	}
-
-	if userName != "" {
-		msg.From = fmt.Sprintf("%s <%s>", userName, fromEmail)
-	} else {
-		msg.From = fromEmail
-	}
+	// Resolve Sender Display Name & From Header via modular helper functions
+	displayName, assignedUser := ResolveSenderDisplayName(contact, activeEmail, overrideRecipient != "", m.core)
+	msg.From = FormatSenderFromHeader(displayName, fromEmail)
 
 	var seqUUID string
 	if m.core != nil && sub.SequenceID > 0 {
@@ -657,4 +635,87 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceContact, contact mod
 	}
 
 	return nil
+}
+
+type coreUserGetter interface {
+	GetUser(id int, email, username string) (auth.User, error)
+}
+
+// GetAssignedUser resolves the assigned user for a sequence contact/channel.
+func GetAssignedUser(contact models.Subscriber, activeEmail *models.Email, store coreUserGetter) *auth.User {
+	if activeEmail != nil && activeEmail.UserID.Valid && store != nil {
+		if u, err := store.GetUser(activeEmail.UserID.Int, "", ""); err == nil {
+			return &u
+		}
+	}
+	return nil
+}
+
+// ResolveSenderDisplayName resolves the sender display name according to multi-tiered priority rules:
+// Tier 1: Contact Assigned User (contact.Attribs["user"] or contact.Attribs["assigned_user"])
+// Tier 2: Messenger Assigned User (activeEmail.UserID)
+// Tier 3: Active Triggering User (extra fallback for test messages)
+// Zero Account Name Fallback: Never uses Email Account Name (models.Email.Name).
+func ResolveSenderDisplayName(contact models.Subscriber, activeEmail *models.Email, isTest bool, store coreUserGetter) (string, *auth.User) {
+	// Tier 1: Contact Assigned User (stored in contact.Attribs["user"] or contact.Attribs["assigned_user"])
+	if userMap, ok := contact.Attribs["user"].(map[string]any); ok {
+		if name, ok := userMap["name"].(string); ok && strings.TrimSpace(name) != "" {
+			return strings.TrimSpace(name), nil
+		}
+	}
+	if userMap, ok := contact.Attribs["assigned_user"].(map[string]any); ok {
+		if name, ok := userMap["name"].(string); ok && strings.TrimSpace(name) != "" {
+			return strings.TrimSpace(name), nil
+		}
+	}
+
+	// Tier 2: Messenger Assigned User
+	var assignedUser *auth.User
+	if activeEmail != nil && activeEmail.UserID.Valid && store != nil {
+		if u, err := store.GetUser(activeEmail.UserID.Int, "", ""); err == nil {
+			assignedUser = &u
+			if strings.TrimSpace(u.Name) != "" {
+				return strings.TrimSpace(u.Name), &u
+			}
+		}
+	}
+
+	// Tier 3: Active Triggering User (Extra fallback for preview test messages)
+	if isTest {
+		if userMap, ok := contact.Attribs["active_user"].(map[string]any); ok {
+			if name, ok := userMap["name"].(string); ok && strings.TrimSpace(name) != "" {
+				return strings.TrimSpace(name), assignedUser
+			}
+		}
+	}
+
+	return "", assignedUser
+}
+
+// FormatSenderFromHeader formats a display name and base email into an RFC-5322 From header string.
+func FormatSenderFromHeader(displayName string, fromEmail string) string {
+	displayName = strings.TrimSpace(displayName)
+	fromEmail = strings.TrimSpace(fromEmail)
+	if fromEmail == "" {
+		return ""
+	}
+	if displayName != "" {
+		return fmt.Sprintf("%s <%s>", displayName, fromEmail)
+	}
+	return fromEmail
+}
+
+// ResolveTargetRecipient determines recipient target addresses (To / ToPhone) for Live vs Test dispatches.
+func ResolveTargetRecipient(contact models.Subscriber, overrideRecipient string, isWhatsApp bool) ([]string, string) {
+	if overrideRecipient != "" {
+		if isWhatsApp {
+			return nil, overrideRecipient
+		}
+		return []string{overrideRecipient}, contact.Phone.String
+	}
+	var to []string
+	if contact.Email != "" {
+		to = []string{contact.Email}
+	}
+	return to, contact.Phone.String
 }
