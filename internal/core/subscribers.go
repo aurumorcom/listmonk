@@ -722,3 +722,14 @@ func traverseQueryPlan(node map[string]any, tables map[string]struct{}) {
 		}
 	}
 }
+
+// LinkSubscriberLID binds a WhatsApp Linked Device ID (@lid) to a subscriber's attributes.
+func (c *Core) LinkSubscriberLID(subscriberID int, lid string) error {
+	if c == nil || c.db == nil || subscriberID <= 0 || lid == "" {
+		return nil
+	}
+	_, err := c.db.Exec(`UPDATE subscribers
+		SET attribs = jsonb_set(COALESCE(attribs, '{}'::jsonb), '{whatsapp_lid}', to_jsonb($2::text), true)
+		WHERE id = $1 AND (attribs->>'whatsapp_lid' IS NULL OR attribs->>'whatsapp_lid' != $2)`, subscriberID, lid)
+	return err
+}
