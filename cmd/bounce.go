@@ -313,6 +313,39 @@ func (a *App) validateBounceFields(b models.Bounce) (models.Bounce, error) {
 	return b, nil
 }
 
+// ParseWAHAAckLevel extracts numeric ACK level from WAHA payload (2=DEVICE delivery, 3=READ blue tick, 4=PLAYED).
+func ParseWAHAAckLevel(ack any, ackName string) int {
+	ackLevel := 0
+	if ack != nil {
+		switch v := ack.(type) {
+		case float64:
+			ackLevel = int(v)
+		case int:
+			ackLevel = v
+		case string:
+			s := strings.ToUpper(strings.TrimSpace(v))
+			if strings.Contains(s, "READ") || strings.Contains(s, "PLAYED") || strings.Contains(s, "ACK_READ") {
+				ackLevel = 3
+			} else if strings.Contains(s, "DEVICE") || strings.Contains(s, "DELIVERED") {
+				ackLevel = 2
+			} else if s == "-1" || strings.Contains(s, "ERR") {
+				ackLevel = -1
+			}
+		}
+	}
+	if ackLevel == 0 && ackName != "" {
+		s := strings.ToUpper(strings.TrimSpace(ackName))
+		if strings.Contains(s, "READ") || strings.Contains(s, "PLAYED") || strings.Contains(s, "ACK_READ") {
+			ackLevel = 3
+		} else if strings.Contains(s, "DEVICE") || strings.Contains(s, "DELIVERED") {
+			ackLevel = 2
+		} else if s == "-1" || strings.Contains(s, "ERR") {
+			ackLevel = -1
+		}
+	}
+	return ackLevel
+}
+
 // WAHAWebhook handles delivery status webhooks from WAHA.
 func (a *App) WAHAWebhook(c echo.Context) error {
 	type wahaPayload struct {
@@ -335,34 +368,7 @@ func (a *App) WAHAWebhook(c echo.Context) error {
 	}
 
 	// Parse ACK status into numeric level
-	ackLevel := 0
-	if req.Payload.Ack != nil {
-		switch v := req.Payload.Ack.(type) {
-		case float64:
-			ackLevel = int(v)
-		case int:
-			ackLevel = v
-		case string:
-			s := strings.ToUpper(strings.TrimSpace(v))
-			if strings.Contains(s, "READ") {
-				ackLevel = 4
-			} else if strings.Contains(s, "DEVICE") || strings.Contains(s, "DELIVERED") {
-				ackLevel = 3
-			} else if s == "-1" || strings.Contains(s, "ERR") {
-				ackLevel = -1
-			}
-		}
-	}
-	if ackLevel == 0 && req.Payload.AckName != "" {
-		s := strings.ToUpper(strings.TrimSpace(req.Payload.AckName))
-		if strings.Contains(s, "READ") {
-			ackLevel = 4
-		} else if strings.Contains(s, "DEVICE") || strings.Contains(s, "DELIVERED") {
-			ackLevel = 3
-		} else if s == "-1" || strings.Contains(s, "ERR") {
-			ackLevel = -1
-		}
-	}
+	ackLevel := ParseWAHAAckLevel(req.Payload.Ack, req.Payload.AckName)
 
 	if req.Event == "message.ack" && ackLevel == -1 {
 		if a.log != nil {

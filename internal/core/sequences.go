@@ -820,7 +820,7 @@ func (c *Core) UpdateSequenceContactStatus(sequenceID, subID int, status string,
 
 // RecordSequenceRead records an open/read event for a sequence subscriber.
 func (c *Core) RecordSequenceRead(sequenceID, subID int) error {
-	_, err := c.db.Exec(`UPDATE sequence_contacts SET last_read_at = NOW() WHERE sequence_id = $1 AND subscriber_id = $2`, sequenceID, subID)
+	_, err := c.db.Exec(`UPDATE sequence_contacts SET last_read_at = NOW(), next_send_at = NOW() WHERE sequence_id = $1 AND subscriber_id = $2`, sequenceID, subID)
 	return err
 }
 
@@ -834,7 +834,7 @@ func (c *Core) RecordSequenceReadByPhone(phone string) error {
 		return nil
 	}
 	_, err := c.db.Exec(`UPDATE sequence_contacts
-		SET last_read_at = NOW()
+		SET last_read_at = NOW(), next_send_at = NOW()
 		WHERE subscriber_id IN (
 			SELECT id FROM subscribers
 			WHERE REGEXP_REPLACE(phone, '[^\d]', '', 'g') = $1
@@ -848,7 +848,7 @@ func (c *Core) RecordSequenceClick(sequenceID, subID int) error {
 	if c == nil || c.db == nil {
 		return nil
 	}
-	_, err := c.db.Exec(`UPDATE sequence_contacts SET last_clicked_at = NOW() WHERE sequence_id = $1 AND subscriber_id = $2`, sequenceID, subID)
+	_, err := c.db.Exec(`UPDATE sequence_contacts SET last_clicked_at = NOW(), next_send_at = NOW() WHERE sequence_id = $1 AND subscriber_id = $2`, sequenceID, subID)
 	return err
 }
 
@@ -862,7 +862,7 @@ func (c *Core) RecordSequenceClickByPhone(phone string) error {
 		return nil
 	}
 	_, err := c.db.Exec(`UPDATE sequence_contacts
-		SET last_clicked_at = NOW()
+		SET last_clicked_at = NOW(), next_send_at = NOW()
 		WHERE subscriber_id IN (
 			SELECT id FROM subscribers
 			WHERE REGEXP_REPLACE(phone, '[^\d]', '', 'g') = $1

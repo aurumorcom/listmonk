@@ -236,6 +236,33 @@ func EvaluateStepCondition(cond string, sub models.SequenceContact) bool {
 	}
 }
 
+// CalculateStepWaitingWindow computes the waiting window duration for sequence steps.
+func CalculateStepWaitingWindow(step models.SequenceStep, fallbackStep models.SequenceStep) time.Duration {
+	if step.Condition == models.SequenceConditionIfClicked || step.Condition == models.SequenceConditionIfRead {
+		if fallbackStep.Delay != "" {
+			if d, err := utils.ParseDuration(fallbackStep.Delay); err == nil && d > 0 {
+				return d
+			}
+		}
+		if d, err := utils.ParseDuration(step.Delay); err == nil && d > 0 {
+			return d
+		}
+		return 10 * time.Minute
+	}
+	d, _ := utils.ParseDuration(step.Delay)
+	return d
+}
+
+// ShouldSkipConditionalStep determines whether an unsatisfied conditional step should be skipped.
+func ShouldSkipConditionalStep(step models.SequenceStep, sub models.SequenceContact, now time.Time) bool {
+	if step.Condition == models.SequenceConditionIfClicked || step.Condition == models.SequenceConditionIfRead {
+		if sub.NextSendAt.Valid && now.Before(sub.NextSendAt.Time) {
+			return false // Waiting window active; do not skip
+		}
+	}
+	return true
+}
+
 // ProcessBatch processes due sequence contacts.
 func (m *Manager) ProcessBatch() error {
 	subs, err := m.core.GetDueSequenceContacts(100)
@@ -258,16 +285,25 @@ func (m *Manager) ProcessBatch() error {
 		step := steps[sub.CurrentStep-1]
 
 		if !EvaluateStepCondition(step.Condition, sub) {
-			// Skip step if condition not met and advance to next step
-			nextStep := sub.CurrentStep + 1
-			if nextStep > len(steps) {
-				_ = m.core.UpdateSequenceContactStatus(sub.SequenceID, sub.SubscriberID, models.SequenceContactStatusFinished, nextStep, null.Time{}, null.String{}, sub.LastThreadMsgID)
+			if ShouldSkipConditionalStep(step, sub, time.Now()) {
+				// Skip step if condition not met and window timeout reached
+				nextStep := sub.CurrentStep + 1
+				if nextStep > len(steps) {
+					_ = m.core.UpdateSequenceContactStatus(sub.SequenceID, sub.SubscriberID, models.SequenceContactStatusFinished, nextStep, null.Time{}, null.String{}, sub.LastThreadMsgID)
+				} else {
+					var fallbackStep models.SequenceStep
+					if nextStep+1 <= len(steps) {
+						fallbackStep = steps[nextStep]
+					}
+					delayDur := CalculateStepWaitingWindow(steps[nextStep-1], fallbackStep)
+					nextSend := null.TimeFrom(time.Now().Add(delayDur))
+					_ = m.core.UpdateSequenceContactStatus(sub.SequenceID, sub.SubscriberID, models.SequenceContactStatusInProgress, nextStep, nextSend, null.String{}, sub.LastThreadMsgID)
+				}
+				continue
 			} else {
-				delayDur, _ := utils.ParseDuration(steps[nextStep-1].Delay)
-				nextSend := null.TimeFrom(time.Now().Add(delayDur))
-				_ = m.core.UpdateSequenceContactStatus(sub.SequenceID, sub.SubscriberID, models.SequenceContactStatusInProgress, nextStep, nextSend, null.String{}, sub.LastThreadMsgID)
+				// Waiting window still active; hold contact at current step
+				continue
 			}
-			continue
 		}
 
 		// Resolve contact details
@@ -662,7 +698,11 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceContact, contact mod
 			if nextStep > len(steps) {
 				status = models.SequenceContactStatusFinished
 			} else {
-				delayDur, _ := utils.ParseDuration(steps[nextStep-1].Delay)
+				var fallbackStep models.SequenceStep
+				if nextStep+1 <= len(steps) {
+					fallbackStep = steps[nextStep]
+				}
+				delayDur := CalculateStepWaitingWindow(steps[nextStep-1], fallbackStep)
 				nextSend = null.TimeFrom(time.Now().Add(delayDur))
 			}
 

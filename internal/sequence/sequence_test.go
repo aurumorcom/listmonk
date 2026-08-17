@@ -954,3 +954,98 @@ func TestSequence_PrepareAndDispatchStep_WhatsApp_HTMLTemplateSanitization(t *te
 		t.Fatalf("expected rendered text 'Hey Aryan! Welcome to HQ.', got: %s", body)
 	}
 }
+
+func TestCalculateStepWaitingWindow_And_ShouldSkipConditionalStep(t *testing.T) {
+	stepIfClicked := models.SequenceStep{
+		Condition: models.SequenceConditionIfClicked,
+		Delay:     "0s",
+	}
+	stepIfRead := models.SequenceStep{
+		Condition: models.SequenceConditionIfRead,
+		Delay:     "0s",
+	}
+	fallbackStep := models.SequenceStep{
+		Condition: models.SequenceConditionIfNotRead,
+		Delay:     "45s",
+	}
+	stepAlways := models.SequenceStep{
+		Condition: models.SequenceConditionAlways,
+		Delay:     "10s",
+	}
+
+	w1 := CalculateStepWaitingWindow(stepIfClicked, fallbackStep)
+	if w1 != 45*time.Second {
+		t.Errorf("expected 45s waiting window from fallback step, got %v", w1)
+	}
+
+	w2 := CalculateStepWaitingWindow(stepAlways, fallbackStep)
+	if w2 != 10*time.Second {
+		t.Errorf("expected 10s waiting window for always step, got %v", w2)
+	}
+
+	now := time.Now()
+	subFuture := models.SequenceContact{
+		NextSendAt: null.TimeFrom(now.Add(30 * time.Second)),
+	}
+	subPast := models.SequenceContact{
+		NextSendAt: null.TimeFrom(now.Add(-5 * time.Second)),
+	}
+
+	if ShouldSkipConditionalStep(stepIfClicked, subFuture, now) {
+		t.Errorf("expected ShouldSkipConditionalStep to return false when NextSendAt is in the future")
+	}
+
+	if !ShouldSkipConditionalStep(stepIfClicked, subPast, now) {
+		t.Errorf("expected ShouldSkipConditionalStep to return true when NextSendAt has expired")
+	}
+
+	if ShouldSkipConditionalStep(stepIfRead, subFuture, now) {
+		t.Errorf("expected ShouldSkipConditionalStep to return false for if_read when NextSendAt is in the future")
+	}
+
+	if !ShouldSkipConditionalStep(stepAlways, subFuture, now) {
+		t.Errorf("expected ShouldSkipConditionalStep to return true for always step")
+	}
+}
+
+func TestProcessBatch_TemporalGap_And_TimeoutFallback(t *testing.T) {
+	stepIfClicked := models.SequenceStep{
+		StepNumber: 1,
+		Condition:  models.SequenceConditionIfClicked,
+		Delay:      "0s",
+	}
+	stepFallback := models.SequenceStep{
+		StepNumber: 2,
+		Condition:  models.SequenceConditionIfNotRead,
+		Delay:      "45s",
+	}
+
+	now := time.Now()
+	// Case 1: Active waiting window -> NextSendAt in future -> Should NOT skip
+	subWaiting := models.SequenceContact{
+		CurrentStep: 1,
+		NextSendAt:  null.TimeFrom(now.Add(45 * time.Second)),
+	}
+
+	if ShouldSkipConditionalStep(stepIfClicked, subWaiting, now) {
+		t.Fatalf("expected contact within waiting window NOT to be skipped")
+	}
+
+	// Case 2: Window Timeout Expired -> NextSendAt in past -> Should skip to fallback step
+	subExpired := models.SequenceContact{
+		CurrentStep: 1,
+		NextSendAt:  null.TimeFrom(now.Add(-1 * time.Second)),
+	}
+
+	if !ShouldSkipConditionalStep(stepIfClicked, subExpired, now) {
+		t.Fatalf("expected expired contact to be skipped to fallback step")
+	}
+
+	// Case 3: Link clicked within window -> EvaluateStepCondition becomes true
+	subWaiting.LastClickedAt = null.TimeFrom(now)
+	if !EvaluateStepCondition(stepIfClicked.Condition, subWaiting) {
+		t.Fatalf("expected EvaluateStepCondition to return true after link click")
+	}
+
+	_ = stepFallback
+}
