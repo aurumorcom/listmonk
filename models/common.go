@@ -125,33 +125,54 @@ type StringIntMap map[string]int
 
 // Value returns the JSON marshalled SubscriberAttribs.
 func (s JSON) Value() (driver.Value, error) {
+	if s == nil {
+		return []byte("{}"), nil
+	}
 	return json.Marshal(s)
 }
 
 // Scan unmarshals JSONB from the DB.
-func (s JSON) Scan(b any) error {
-	if b == nil {
-		s = make(JSON)
+func (s *JSON) Scan(src any) error {
+	var b []byte
+	switch src := src.(type) {
+	case []byte:
+		b = src
+	case string:
+		b = []byte(src)
+	case nil:
+		*s = make(JSON)
 		return nil
+	default:
+		return fmt.Errorf("could not decode type %T -> models.JSON", src)
 	}
 
-	if data, ok := b.([]byte); ok {
-		return json.Unmarshal(data, &s)
+	if *s == nil {
+		*s = make(JSON)
 	}
-	return fmt.Errorf("could not not decode type %T -> %T", b, s)
+
+	return json.Unmarshal(b, s)
 }
 
 // Scan unmarshals JSONB from the DB.
-func (s StringIntMap) Scan(src any) error {
-	if src == nil {
-		s = make(StringIntMap)
+func (s *StringIntMap) Scan(src any) error {
+	var b []byte
+	switch src := src.(type) {
+	case []byte:
+		b = src
+	case string:
+		b = []byte(src)
+	case nil:
+		*s = make(StringIntMap)
 		return nil
+	default:
+		return fmt.Errorf("could not decode type %T -> models.StringIntMap", src)
 	}
 
-	if data, ok := src.([]byte); ok {
-		return json.Unmarshal(data, &s)
+	if *s == nil {
+		*s = make(StringIntMap)
 	}
-	return fmt.Errorf("could not not decode type %T -> %T", src, s)
+
+	return json.Unmarshal(b, s)
 }
 
 // Scan implements the sql.Scanner interface.
