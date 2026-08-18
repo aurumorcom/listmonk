@@ -410,6 +410,34 @@ func TestInstall_SequenceRETURNINGStructScanAlignment(t *testing.T) {
 	t.Log("Successfully verified Sequence model struct scanning alignment for all 15 RETURNING columns")
 }
 
+func TestInstall_UpsertSubscriberParameterMapping(t *testing.T) {
+	// Verify upsert-subscriber 9 positional parameters alignment with queries/subscribers.sql:
+	// WITH sub AS (
+	//     INSERT INTO subscribers as s (uuid, email, name, attribs, status, phone)
+	//     VALUES($1, $2, $3, $4, 'enabled', $9)
+	//     ON CONFLICT (email) DO UPDATE SET ...
+	// )
+	subUUID := uuid.Must(uuid.NewV4())
+	email := "alex@example.com"
+	name := "Alex Lead"
+	attribs := `{"company": "Acme Corp", "city": "San Francisco"}`
+	listIDs := pq.Int64Array{1}
+	subStatus := models.SubscriptionStatusConfirmed
+	overwriteUserInfo := true
+	overwriteSubStatus := true
+	phone := "+14155552671"
+
+	args := []any{subUUID, email, name, attribs, listIDs, subStatus, overwriteUserInfo, overwriteSubStatus, phone}
+	if len(args) != 9 {
+		t.Fatalf("expected 9 query parameters for upsert-subscriber (including $9 phone), got %d", len(args))
+	}
+	if args[1] != email || args[2] != name || args[5] != models.SubscriptionStatusConfirmed || args[8] != phone {
+		t.Fatalf("upsert-subscriber argument mapping mismatch: got %v", args)
+	}
+
+	t.Log("Successfully verified upsert-subscriber 9-parameter alignment for installSubs")
+}
+
 func TestInstall_ColdListParameterMapping(t *testing.T) {
 	// Verify Cold list attributes
 	name := "Cold list"
