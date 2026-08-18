@@ -593,14 +593,19 @@ func (a *App) TestCampaign(c echo.Context) error {
 
 	user := auth.GetUser(c)
 
-	var sampleSub models.Subscriber
-	if req.SubscriberID > 0 {
-		if sub, err := a.core.GetSubscriber(req.SubscriberID, "", ""); err == nil && sub.ID > 0 {
-			sampleSub = sub
+	var contactInputs []string
+	for _, s := range req.SubscriberEmails {
+		if s = strings.TrimSpace(s); s != "" {
+			contactInputs = append(contactInputs, s)
 		}
 	}
-	if sampleSub.ID == 0 {
-		sampleSub = a.resolveTestPreviewSubscriber(req.SubscriberID, user)
+	if len(contactInputs) == 0 {
+		if req.TestEmail != "" {
+			contactInputs = append(contactInputs, strings.TrimSpace(req.TestEmail))
+		}
+		if req.TestPhone != "" {
+			contactInputs = append(contactInputs, strings.TrimSpace(req.TestPhone))
+		}
 	}
 
 	targets, err := resolveTestRecipients(req, user)
@@ -616,35 +621,56 @@ func (a *App) TestCampaign(c echo.Context) error {
 
 	camp := buildTestCampaignOverride(&baseCamp, req, &user)
 
-	for _, target := range targets {
-		sub := sampleSub
-		target = strings.TrimSpace(target)
-		targetMessenger := camp.Messenger
-
-		if targetMessenger == "" {
-			if strings.Contains(target, "@") {
-				targetMessenger = "email"
-			} else if _, err := utils.SanitizePhone(target); err == nil {
-				targetMessenger = "whatsapp"
-			} else {
-				targetMessenger = "email"
+	var contactSubs []models.Subscriber
+	if len(contactInputs) > 0 {
+		for _, input := range contactInputs {
+			sub, err := a.resolveTestSubscriber(input)
+			if err != nil {
+				return err
 			}
+			contactSubs = append(contactSubs, sub)
 		}
-
-		testCamp := *camp
-		testCamp.Messenger = targetMessenger
-
-		var overrideEmail, overridePhone string
-		if strings.Contains(target, "@") {
-			overrideEmail = target
-		} else {
-			overridePhone = target
+	} else if req.SubscriberID > 0 {
+		sub, err := a.core.GetSubscriber(req.SubscriberID, "", "")
+		if err != nil || sub.ID == 0 {
+			return echo.NewHTTPError(http.StatusNotFound, a.i18n.Ts("globals.messages.notFound", "name", fmt.Sprintf("{globals.terms.subscriber} (%d)", req.SubscriberID)))
 		}
+		contactSubs = append(contactSubs, sub)
+	} else {
+		sub := a.resolveTestPreviewSubscriber(0, user)
+		contactSubs = append(contactSubs, sub)
+	}
 
-		if err := a.sendTestMessage(sub, &testCamp, overrideEmail, overridePhone); err != nil {
-			a.log.Printf("error sending test message: %v", err)
-			return echo.NewHTTPError(http.StatusInternalServerError,
-				a.i18n.Ts("campaigns.errorSendTest", "error", err.Error()))
+	for _, sub := range contactSubs {
+		for _, target := range targets {
+			target = strings.TrimSpace(target)
+			targetMessenger := camp.Messenger
+
+			if targetMessenger == "" {
+				if strings.Contains(target, "@") {
+					targetMessenger = "email"
+				} else if _, err := utils.SanitizePhone(target); err == nil {
+					targetMessenger = "whatsapp"
+				} else {
+					targetMessenger = "email"
+				}
+			}
+
+			testCamp := *camp
+			testCamp.Messenger = targetMessenger
+
+			var overrideEmail, overridePhone string
+			if strings.Contains(target, "@") {
+				overrideEmail = target
+			} else {
+				overridePhone = target
+			}
+
+			if err := a.sendTestMessage(sub, &testCamp, overrideEmail, overridePhone); err != nil {
+				a.log.Printf("error sending test message: %v", err)
+				return echo.NewHTTPError(http.StatusInternalServerError,
+					a.i18n.Ts("campaigns.errorSendTest", "error", err.Error()))
+			}
 		}
 	}
 

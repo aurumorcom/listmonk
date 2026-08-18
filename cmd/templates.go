@@ -79,6 +79,38 @@ func (a *App) getSubscriberForPreview(subID int) models.Subscriber {
 	return dummySubscriber
 }
 
+// resolveTestSubscriber resolves the subscriber context for test message template rendering from a contact email or phone string.
+// If a matching subscriber is found in the database, it returns that subscriber.
+// If no matching subscriber exists in the database, it returns an HTTP 404 Not Found error.
+func (a *App) resolveTestSubscriber(contactInput string) (models.Subscriber, error) {
+	clean := strings.TrimSpace(contactInput)
+	if clean == "" {
+		msg := "invalid request"
+		if a.i18n != nil {
+			msg = a.i18n.T("globals.messages.invalidReq")
+		}
+		return models.Subscriber{}, echo.NewHTTPError(http.StatusBadRequest, msg)
+	}
+
+	if a.core != nil {
+		if strings.Contains(clean, "@") {
+			if sub, err := a.core.GetSubscriber(0, "", clean); err == nil && sub.ID > 0 {
+				return sub, nil
+			}
+		} else {
+			if sub, err := a.core.GetSubscriberByPhone(clean); err == nil && sub.ID > 0 {
+				return sub, nil
+			}
+		}
+	}
+
+	msg := fmt.Sprintf("Subscriber not found (%s)", clean)
+	if a.i18n != nil {
+		msg = a.i18n.Ts("globals.messages.notFound", "name", fmt.Sprintf("{globals.terms.subscriber} (%s)", clean))
+	}
+	return models.Subscriber{}, echo.NewHTTPError(http.StatusNotFound, msg)
+}
+
 // resolveTestPreviewSubscriber resolves the subscriber context for test message template rendering.
 // 1. If explicit subID > 0, fetches that subscriber.
 // 2. If logged in user email exists and matches an existing subscriber in DB, uses that subscriber.

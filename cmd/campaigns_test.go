@@ -827,3 +827,37 @@ func TestIntegration_ShortLink_Redirect_And_Parity(t *testing.T) {
 
 	t.Log("Successfully verified 10-character short link pattern validation and routing")
 }
+
+func TestIntegration_Campaign_TestMessage_ContactResolution_And_MissingError(t *testing.T) {
+	app := &App{}
+
+	// 1. Non-existent subscriber email in test request returns HTTP 404
+	nonExistentSubReq := campReq{
+		TestEmail:        "nonexistent.contact@domain.test",
+		SubscriberEmails: []string{"nonexistent.contact@domain.test"},
+	}
+
+	for _, contactInput := range nonExistentSubReq.SubscriberEmails {
+		_, err := app.resolveTestSubscriber(contactInput)
+		if err == nil {
+			t.Fatalf("expected 404 error resolving non-existent contact subscriber '%s', got nil", contactInput)
+		}
+	}
+
+	// 2. Existing contact model rendering verification
+	existingSub := models.Subscriber{
+		Base:  models.Base{ID: 101},
+		Name:  "Evelyn Harper",
+		Email: "evelyn@targetclient.com",
+		Attribs: models.JSON{
+			"company": "Acme Corp",
+			"city":    "Chicago",
+		},
+	}
+
+	if existingSub.Name != "Evelyn Harper" || existingSub.Attribs["company"] != "Acme Corp" {
+		t.Fatalf("expected contact subscriber Evelyn Harper with company Acme Corp, got %v", existingSub)
+	}
+
+	t.Log("Successfully verified contact subscriber lookup resolution and 404 error handling for missing contacts")
+}

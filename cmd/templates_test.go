@@ -393,3 +393,25 @@ func TestTemplate_FullPreviewAndCompilationAPI(t *testing.T) {
 		t.Errorf("expected rendered subject 'Order #999 for Charlie', got %q", msg.Subject)
 	}
 }
+
+func TestResolveTestSubscriber_StrictEmailPhoneLookupAndErroring(t *testing.T) {
+	app := &App{}
+
+	// Case A: Empty input returns Bad Request error
+	_, err := app.resolveTestSubscriber("   ")
+	if err == nil {
+		t.Fatal("expected error for empty contact input, got nil")
+	}
+
+	// Case B: Non-existent email when core is nil returns HTTP 404 error
+	_, err = app.resolveTestSubscriber("unknown.subscriber@example.com")
+	if err == nil {
+		t.Fatal("expected 404 error for non-existent subscriber email, got nil")
+	}
+
+	// Case C: Non-existent phone when core is nil returns HTTP 404 error
+	_, err = app.resolveTestSubscriber("+19998887777")
+	if err == nil {
+		t.Fatal("expected 404 error for non-existent subscriber phone, got nil")
+	}
+}

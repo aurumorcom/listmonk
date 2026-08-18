@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -227,15 +228,41 @@ func (a *App) TestSequence(c echo.Context) error {
 
 	user := auth.GetUser(c)
 
-	// Resolve subscriber context for template compilation (preferring explicit production contact)
-	var sampleSub models.Subscriber
-	if req.SubscriberID > 0 {
-		if sub, err := a.core.GetSubscriber(req.SubscriberID, "", ""); err == nil && sub.ID > 0 {
-			sampleSub = sub
+	// Extract contact inputs from request (subscribers array, test_email, test_phone)
+	var contactInputs []string
+	for _, s := range req.SubscriberEmails {
+		if s = strings.TrimSpace(s); s != "" {
+			contactInputs = append(contactInputs, s)
 		}
 	}
-	if sampleSub.ID == 0 {
-		sampleSub = a.resolveTestPreviewSubscriber(req.SubscriberID, user)
+	if len(contactInputs) == 0 {
+		if req.TestEmail != "" {
+			contactInputs = append(contactInputs, strings.TrimSpace(req.TestEmail))
+		}
+		if req.TestPhone != "" {
+			contactInputs = append(contactInputs, strings.TrimSpace(req.TestPhone))
+		}
+	}
+
+	// Resolve subscriber context(s)
+	var contactSubs []models.Subscriber
+	if len(contactInputs) > 0 {
+		for _, input := range contactInputs {
+			sub, err := a.resolveTestSubscriber(input)
+			if err != nil {
+				return err
+			}
+			contactSubs = append(contactSubs, sub)
+		}
+	} else if req.SubscriberID > 0 {
+		sub, err := a.core.GetSubscriber(req.SubscriberID, "", "")
+		if err != nil || sub.ID == 0 {
+			return echo.NewHTTPError(http.StatusNotFound, a.i18n.Ts("globals.messages.notFound", "name", fmt.Sprintf("{globals.terms.subscriber} (%d)", req.SubscriberID)))
+		}
+		contactSubs = append(contactSubs, sub)
+	} else {
+		sub := a.resolveTestPreviewSubscriber(0, user)
+		contactSubs = append(contactSubs, sub)
 	}
 
 	if req.Messenger == "" && req.StepNumber > 0 {
@@ -323,47 +350,48 @@ func (a *App) TestSequence(c echo.Context) error {
 		}
 	}
 
-	for _, target := range targets {
-		sub := sampleSub
-		target = strings.TrimSpace(target)
-		targetMessenger := req.Messenger
+	for _, sub := range contactSubs {
+		for _, target := range targets {
+			target = strings.TrimSpace(target)
+			targetMessenger := req.Messenger
 
-		if targetMessenger == "" {
-			if strings.Contains(target, "@") {
-				targetMessenger = "email"
-			} else if _, err := utils.SanitizePhone(target); err == nil {
-				targetMessenger = "whatsapp"
-			} else {
-				targetMessenger = "email"
+			if targetMessenger == "" {
+				if strings.Contains(target, "@") {
+					targetMessenger = "email"
+				} else if _, err := utils.SanitizePhone(target); err == nil {
+					targetMessenger = "whatsapp"
+				} else {
+					targetMessenger = "email"
+				}
 			}
-		}
 
-		testStep := step
-		testStep.Messenger = targetMessenger
+			testStep := step
+			testStep.Messenger = targetMessenger
 
-		// Provide user context in subscriber attributes for persona resolution if not present
-		if sub.Attribs == nil {
-			sub.Attribs = models.JSON{}
-		}
-		if _, ok := sub.Attribs["user"]; !ok && user.Name != "" {
-			sub.Attribs["user"] = map[string]any{
-				"name":  user.Name,
-				"email": user.Email.String,
+			// Provide user context in subscriber attributes for persona resolution if not present
+			if sub.Attribs == nil {
+				sub.Attribs = models.JSON{}
 			}
-		}
+			if _, ok := sub.Attribs["user"]; !ok && user.Name != "" {
+				sub.Attribs["user"] = map[string]any{
+					"name":  user.Name,
+					"email": user.Email.String,
+				}
+			}
 
-		seqContact := models.SequenceContact{
-			SequenceID:   id,
-			SubscriberID: sub.ID,
-			CurrentStep:  req.StepNumber,
-			EmailID:      assignedEmailID,
-			WahaSession:  assignedWahaSession,
-		}
+			seqContact := models.SequenceContact{
+				SequenceID:   id,
+				SubscriberID: sub.ID,
+				CurrentStep:  req.StepNumber,
+				EmailID:      assignedEmailID,
+				WahaSession:  assignedWahaSession,
+			}
 
-		if err := a.seqManager.PrepareAndDispatchStep(seqContact, sub, testStep, target); err != nil {
-			a.log.Printf("error sending test sequence message: %v", err)
-			return echo.NewHTTPError(http.StatusInternalServerError,
-				a.i18n.Ts("campaigns.errorSendTest", "error", err.Error()))
+			if err := a.seqManager.PrepareAndDispatchStep(seqContact, sub, testStep, target); err != nil {
+				a.log.Printf("error sending test sequence message: %v", err)
+				return echo.NewHTTPError(http.StatusInternalServerError,
+					a.i18n.Ts("campaigns.errorSendTest", "error", err.Error()))
+			}
 		}
 	}
 
