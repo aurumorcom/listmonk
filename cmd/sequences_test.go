@@ -709,9 +709,54 @@ func TestInstall_SeededResources_Structure(t *testing.T) {
 	seqUUID := "00000000-0000-0000-0000-000000000001"
 	seqName := "Test sequence"
 	seqDesc := "Sample multi-step outreach sequence with delivery window schedule and link tracking"
+	seqStatus := models.SequenceStatusPaused
 
-	if seqUUID == "" || seqName != "Test sequence" || seqDesc == "" {
+	if seqUUID == "" || seqName != "Test sequence" || seqDesc == "" || seqStatus != "paused" {
 		t.Fatal("seeded sequence metadata mismatch")
+	}
+
+	// Verify 3-step outreach demo sequence structure
+	steps := []models.SequenceStep{
+		{
+			StepNumber: 1,
+			Delay:      "0s",
+			Messenger:  "whatsapp",
+			Condition:  models.SequenceConditionAlways,
+			Subject:    "Step 1: Introduction",
+			Body:       "🛸 *Welcome to the outreach demo, {{ .Subscriber.FirstName }}!*\n\nThis is Step 1 of your automated sequence. Check your inbox for our follow-up email in a moment!",
+			EmailType:  "",
+		},
+		{
+			StepNumber: 2,
+			Delay:      "1m",
+			Messenger:  "email",
+			Condition:  models.SequenceConditionAlways,
+			Subject:    "Step 2: Platform Overview & Demo Link",
+			Body:       "<p>Hi {{ .Subscriber.FirstName }}!</p><p>Here is Step 2 with your personalized platform link:</p><p><a href=\"https://listmonk.app@TrackLink\">👉 Click here to explore the platform 👈</a></p><p>We will check in with you shortly on WhatsApp!</p>",
+			EmailType:  models.EmailTypeNewThread,
+			TemplateID: null.IntFrom(1),
+		},
+		{
+			StepNumber: 3,
+			Delay:      "5m",
+			Messenger:  "whatsapp",
+			Condition:  models.SequenceConditionAlways,
+			Subject:    "Step 3: Follow-Up Check",
+			Body:       "👋 *Hi {{ .Subscriber.FirstName }}!*\n\nJust following up on the email we sent you. Let us know if you have any questions or reply directly here to chat with us!",
+			EmailType:  "",
+		},
+	}
+
+	if len(steps) != 3 {
+		t.Fatalf("expected 3 seeded steps, got %d", len(steps))
+	}
+	for i, step := range steps {
+		if step.StepNumber != i+1 {
+			t.Errorf("step %d step_number mismatch: got %d", i+1, step.StepNumber)
+		}
+		if _, err := utils.ParseDuration(step.Delay); err != nil {
+			t.Errorf("step %d invalid delay: %s", i+1, step.Delay)
+		}
 	}
 
 	// Verify sample campaign defaults

@@ -370,6 +370,8 @@ func installSequence(coldListID, campTplID, archiveTplID, schedID int, q *models
 			Condition:  models.SequenceConditionAlways,
 			Subject:    "Step 1: Introduction",
 			Body:       "🛸 *Welcome to the outreach demo, {{ .Subscriber.FirstName }}!*\n\nThis is Step 1 of your automated sequence. Check your inbox for our follow-up email in a moment!",
+			EmailType:  "",
+			TemplateID: null.Int{},
 		},
 		{
 			StepNumber: 2,
@@ -378,6 +380,8 @@ func installSequence(coldListID, campTplID, archiveTplID, schedID int, q *models
 			Condition:  models.SequenceConditionAlways,
 			Subject:    "Step 2: Platform Overview & Demo Link",
 			Body:       "<p>Hi {{ .Subscriber.FirstName }}!</p><p>Here is Step 2 with your personalized platform link:</p><p><a href=\"https://listmonk.app@TrackLink\">👉 Click here to explore the platform 👈</a></p><p>We will check in with you shortly on WhatsApp!</p>",
+			EmailType:  models.EmailTypeNewThread,
+			TemplateID: null.IntFrom(campTplID),
 		},
 		{
 			StepNumber: 3,
@@ -386,11 +390,17 @@ func installSequence(coldListID, campTplID, archiveTplID, schedID int, q *models
 			Condition:  models.SequenceConditionAlways,
 			Subject:    "Step 3: Follow-Up Check",
 			Body:       "👋 *Hi {{ .Subscriber.FirstName }}!*\n\nJust following up on the email we sent you. Let us know if you have any questions or reply directly here to chat with us!",
+			EmailType:  "",
+			TemplateID: null.Int{},
 		},
 	}
 
 	for _, s := range steps {
-		if _, err := q.CreateSequenceStep.Exec(seq.ID, s.StepNumber, s.Delay, s.Messenger, s.Condition, s.Subject, s.Body, models.EmailTypeNewThread, campTplID); err != nil {
+		var tplVal *int
+		if s.TemplateID.Valid {
+			tplVal = &s.TemplateID.Int
+		}
+		if _, err := q.CreateSequenceStep.Exec(seq.ID, s.StepNumber, s.Delay, s.Messenger, s.Condition, s.Subject, s.Body, s.EmailType, tplVal); err != nil {
 			lo.Fatalf("error creating sample sequence step %d: %v", s.StepNumber, err)
 		}
 	}
