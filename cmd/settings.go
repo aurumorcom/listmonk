@@ -86,6 +86,9 @@ func (a *App) GetSettings(c echo.Context) error {
 	for i := range s.WAHASettings {
 		s.WAHASettings[i].APIKey = strings.Repeat(pwdMask, utf8.RuneCountInString(s.WAHASettings[i].APIKey))
 	}
+	for i := range s.Webhooks {
+		s.Webhooks[i].Secret = strings.Repeat(pwdMask, utf8.RuneCountInString(s.Webhooks[i].Secret))
+	}
 
 	s.UploadS3AwsSecretAccessKey = strings.Repeat(pwdMask, utf8.RuneCountInString(s.UploadS3AwsSecretAccessKey))
 	s.SendgridKey = strings.Repeat(pwdMask, utf8.RuneCountInString(s.SendgridKey))
@@ -299,6 +302,17 @@ func (a *App) UpdateSettings(c echo.Context) error {
 
 		set.WAHASettings[i].Name = name
 		names[name] = true
+	}
+
+	for i, w := range set.Webhooks {
+		if w.Secret == "" || strings.Contains(w.Secret, pwdMask) {
+			for _, c := range cur.Webhooks {
+				if (w.ID > 0 && w.ID == c.ID) || (w.URL != "" && w.URL == c.URL) {
+					set.Webhooks[i].Secret = c.Secret
+					break
+				}
+			}
+		}
 	}
 
 	// S3 password?
