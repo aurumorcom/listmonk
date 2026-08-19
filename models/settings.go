@@ -101,6 +101,7 @@ type Settings struct {
 	} `json:"messengers"`
 
 	WAHASettings []WAHASettings `json:"waha"`
+	Webhooks     []Webhook      `json:"webhooks"`
 
 	BounceEnabled        bool `json:"bounce.enabled"`
 	BounceEnableWebhooks bool `json:"bounce.webhooks_enabled"`
