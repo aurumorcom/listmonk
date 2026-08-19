@@ -526,7 +526,55 @@ func TestWAHAWebhook_LID_Resolution_Cassette(t *testing.T) {
 	}
 
 	logged := logBuf.String()
-	if !strings.Contains(logged, "[WAHA WEBHOOK LID RESOLVED]") || !strings.Contains(logged, "919472380340") {
-		t.Errorf("expected log output to confirm LID resolution to phone 919472380340, got: %s", logged)
+	if !strings.Contains(logged, "[WAHA WEBHOOK LID RESOLVED]") || !strings.Contains(logged, "14155552671") {
+		t.Errorf("expected log output to confirm LID resolution to phone 14155552671, got: %s", logged)
+	}
+}
+
+func TestWAHAWebhook_LID_PN_Resolution_Cassette(t *testing.T) {
+	rec, vcrClient := testutil.NewVCRRecorder(t, "waha/lid_resolution_pn")
+
+	wmsgr, err := waha.GetWAHAMessenger(waha.Options{
+		Name:    "waha",
+		Session: "aquiveal",
+		Host:    "http://localhost:3000",
+	})
+	if err != nil {
+		t.Fatalf("failed initializing WAHA messenger: %v", err)
+	}
+	if rec != nil {
+		wmsgr.SetHTTPClient(vcrClient)
+	}
+
+	var logBuf bytes.Buffer
+	testLogger := log.New(&logBuf, "[TEST] ", 0)
+
+	app := &App{log: testLogger}
+	e := echo.New()
+
+	payload := map[string]any{
+		"event":   "message.ack",
+		"session": "aquiveal",
+		"payload": map[string]any{
+			"id":      "true_210556493537459@lid_A586AF1159FE67F12752F51F57C40229",
+			"ack":     3,
+			"ackName": "READ",
+			"to":      "210556493537459@lid",
+		},
+	}
+	pBytes, _ := json.Marshal(payload)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/webhooks/waha", bytes.NewReader(pBytes))
+	req.Header.Set("Content-Type", "application/json")
+	recHTTP := httptest.NewRecorder()
+	c := e.NewContext(req, recHTTP)
+
+	if err := app.WAHAWebhook(c); err != nil {
+		t.Fatalf("WAHAWebhook returned unexpected error: %v", err)
+	}
+
+	logged := logBuf.String()
+	if !strings.Contains(logged, "[WAHA WEBHOOK LID RESOLVED]") || !strings.Contains(logged, "14155552672") {
+		t.Errorf("expected log output to confirm LID resolution to real phone 14155552672, got: %s", logged)
 	}
 }

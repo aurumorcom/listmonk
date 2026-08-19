@@ -383,19 +383,10 @@ func (a *App) WAHAWebhook(c echo.Context) error {
 		c.Request().Body = io.NopCloser(bytes.NewReader(rawBody))
 	}
 
-	if a.log != nil {
-		contentType := ""
-		if c.Request() != nil {
-			contentType = c.Request().Header.Get("Content-Type")
-		}
-		a.log.Printf("[WAHA WEBHOOK] Incoming POST /api/webhooks/waha | Content-Type: %s | Content-Length: %d | Body: %s",
-			contentType, len(rawBody), string(rawBody))
-	}
-
 	var req wahaPayload
 	if err := c.Bind(&req); err != nil {
 		if a.log != nil {
-			a.log.Printf("[WAHA WEBHOOK ERROR] JSON bind failed: %v | Raw Body: %s", err, string(rawBody))
+			a.log.Printf("[WAHA WEBHOOK ERROR] JSON bind failed: %v", err)
 		}
 		return c.NoContent(http.StatusOK)
 	}
@@ -434,15 +425,10 @@ func (a *App) WAHAWebhook(c echo.Context) error {
 		lid = req.Payload.From
 	}
 
-	if a.log != nil {
-		a.log.Printf("[WAHA WEBHOOK PARSED] Event: %s | FromMe: %v | AckLevel: %d (Ack: %v, AckName: %s) | MsgID: %s | StanzaID: %s | RawRecipient: %s | LID: %s | Body: %q",
-			req.Event, req.Payload.FromMe, ackLevel, req.Payload.Ack, req.Payload.AckName, msgID, stanzaID, rawRecipient, lid, req.Payload.Body)
-	}
-
 	if req.Event == "message.ack" && ackLevel == -1 {
 		if a.log != nil {
 			target := rawRecipient
-			a.log.Printf("[WAHA WEBHOOK FAILURE] WAHA delivery failure for %s: %s", target, req.Payload.Error)
+			a.log.Printf("WAHA delivery failure for %s: %s", target, req.Payload.Error)
 		}
 	} else if req.Event == "message.ack" && ackLevel >= 3 {
 		targetPhone := rawRecipient
@@ -458,7 +444,7 @@ func (a *App) WAHAWebhook(c echo.Context) error {
 		if lid != "" {
 			if resolved, err := waha.ResolveLID(req.Session, lid); err == nil && resolved != "" {
 				if a.log != nil {
-					a.log.Printf("[WAHA WEBHOOK LID RESOLVED] Successfully resolved LID %s -> Phone %s via WAHA API", lid, resolved)
+					a.log.Printf("[WAHA WEBHOOK LID RESOLVED] Resolved LID %s -> Phone %s", lid, resolved)
 				}
 				if a.core != nil {
 					_ = a.core.LinkSubscriberLIDByPhone(resolved, lid)
@@ -466,31 +452,20 @@ func (a *App) WAHAWebhook(c echo.Context) error {
 				if targetPhone == "" || strings.Contains(targetPhone, "@lid") {
 					targetPhone = resolved
 				}
-			} else if a.log != nil && err != nil {
-				a.log.Printf("[WAHA WEBHOOK LID RESOLUTION WARN] Could not resolve LID %s via WAHA API: %v", lid, err)
 			}
 		}
 
 		if a.log != nil {
-			a.log.Printf("[WAHA WEBHOOK READ ACK] Blue Tick received (ackLevel=%d) for msgID=%s stanzaID=%s targetPhone=%s lid=%s",
-				ackLevel, msgID, stanzaID, targetPhone, lid)
+			a.log.Printf("[WAHA WEBHOOK READ ACK] Blue Tick received (ackLevel=%d) for msgID=%s targetPhone=%s", ackLevel, msgID, targetPhone)
 		}
 
 		if a.core != nil {
 			if msgID != "" || stanzaID != "" {
-				errMsg := a.core.RecordSequenceReadByMessageID(msgID, stanzaID, lid)
-				if a.log != nil {
-					a.log.Printf("[WAHA WEBHOOK EXEC] RecordSequenceReadByMessageID(%s, %s, %s) result: %v", msgID, stanzaID, lid, errMsg)
-				}
+				_ = a.core.RecordSequenceReadByMessageID(msgID, stanzaID, lid)
 			}
 			if targetPhone != "" || lid != "" {
-				errPhone := a.core.RecordSequenceReadByPhone(targetPhone, lid)
-				if a.log != nil {
-					a.log.Printf("[WAHA WEBHOOK EXEC] RecordSequenceReadByPhone(%s, %s) result: %v", targetPhone, lid, errPhone)
-				}
+				_ = a.core.RecordSequenceReadByPhone(targetPhone, lid)
 			}
-		} else if a.log != nil {
-			a.log.Printf("[WAHA WEBHOOK ERROR] a.core is nil, skipping sequence read updates")
 		}
 	} else if req.Event == "message" && !req.Payload.FromMe && req.Payload.From != "" {
 		fromIdentifier := req.Payload.From
@@ -500,28 +475,21 @@ func (a *App) WAHAWebhook(c echo.Context) error {
 		if lid != "" {
 			if resolved, err := waha.ResolveLID(req.Session, lid); err == nil && resolved != "" {
 				if a.log != nil {
-					a.log.Printf("[WAHA WEBHOOK LID RESOLVED] Successfully resolved LID %s -> Phone %s via WAHA API", lid, resolved)
+					a.log.Printf("[WAHA WEBHOOK LID RESOLVED] Resolved LID %s -> Phone %s", lid, resolved)
 				}
 				if a.core != nil {
 					_ = a.core.LinkSubscriberLIDByPhone(resolved, lid)
 				}
 				fromIdentifier = resolved
-			} else if a.log != nil && err != nil {
-				a.log.Printf("[WAHA WEBHOOK LID RESOLUTION WARN] Could not resolve LID %s via WAHA API: %v", lid, err)
 			}
 		}
 
 		if a.log != nil {
-			a.log.Printf("[WAHA WEBHOOK INBOUND REPLY] Incoming message from %s (resolvedFrom: %s, quotedMsgID: %s, body: %q)", req.Payload.From, fromIdentifier, quotedID, req.Payload.Body)
+			a.log.Printf("[WAHA WEBHOOK INBOUND REPLY] Incoming message from %s (quotedMsgID: %s)", fromIdentifier, quotedID)
 		}
 		if a.core != nil {
 			l := sequence.NewReplyListener(a.core, a.log)
-			errReply := l.ProcessReplyWithQuotedID(fromIdentifier, true, req.Payload.Body, quotedID)
-			if a.log != nil {
-				a.log.Printf("[WAHA WEBHOOK EXEC] ProcessReplyWithQuotedID(%s, body: %q, quotedID: %s) result: %v", fromIdentifier, req.Payload.Body, quotedID, errReply)
-			}
-		} else if a.log != nil {
-			a.log.Printf("[WAHA WEBHOOK ERROR] a.core is nil, skipping reply listener processing")
+			_ = l.ProcessReplyWithQuotedID(fromIdentifier, true, req.Payload.Body, quotedID)
 		}
 	}
 
