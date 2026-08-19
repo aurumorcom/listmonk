@@ -9,6 +9,7 @@ import (
 	"math"
 	"math/rand"
 	"net/http"
+	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -63,6 +64,51 @@ func GetWAHAMessenger(o Options) (*Waha, error) {
 	}
 	wahaInstances[sessKey] = inst
 	return inst, nil
+}
+
+// ResolveLID looks up an active WAHA instance (or falls back to WAHA_HOST/localhost:3000) and resolves a WhatsApp Linked Device ID (@lid) to a phone number.
+func ResolveLID(session string, lid string) (string, error) {
+	if lid == "" || !strings.Contains(lid, "@lid") {
+		return "", fmt.Errorf("invalid lid identifier: %s", lid)
+	}
+
+	wahaMutex.RLock()
+	sessKey := session
+	if sessKey == "" {
+		sessKey = "default"
+	}
+
+	if inst, ok := wahaInstances[sessKey]; ok && inst != nil && inst.o.RootURL != "" {
+		wahaMutex.RUnlock()
+		return inst.ResolveLIDToPhone(session, lid)
+	}
+
+	// Fallback to any active instance
+	for _, inst := range wahaInstances {
+		if inst != nil && inst.o.RootURL != "" {
+			wahaMutex.RUnlock()
+			return inst.ResolveLIDToPhone(session, lid)
+		}
+	}
+	wahaMutex.RUnlock()
+
+	// Fallback to default local dev host if no instance registered
+	host := os.Getenv("WAHA_HOST")
+	if host == "" {
+		host = "http://localhost:3000"
+	}
+	apiKey := os.Getenv("WAHA_API_KEY")
+
+	ephemeral, err := New(Options{
+		RootURL: host,
+		APIKey:  apiKey,
+		Session: session,
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed creating fallback WAHA client for LID resolution: %w", err)
+	}
+
+	return ephemeral.ResolveLIDToPhone(session, lid)
 }
 
 // Waha represents a WAHA messenger backend.
@@ -131,7 +177,7 @@ func New(o Options) (*Waha, error) {
 		o.Timeout = 10 * time.Second
 	}
 
-	return &Waha{
+	w := &Waha{
 		o: o,
 		c: &http.Client{
 			Timeout: o.Timeout,
@@ -142,7 +188,19 @@ func New(o Options) (*Waha, error) {
 				IdleConnTimeout:       o.Timeout,
 			},
 		},
-	}, nil
+	}
+
+	wahaMutex.Lock()
+	if o.Session != "" {
+		wahaInstances[o.Session] = w
+	}
+	if o.Name != "" {
+		wahaInstances[o.Name] = w
+	}
+	wahaInstances["default"] = w
+	wahaMutex.Unlock()
+
+	return w, nil
 }
 
 // SetHTTPClient sets a custom HTTP client for testing / VCR transport.
@@ -379,6 +437,94 @@ func (w *Waha) SyncWebhook(publicURL string) error {
 		return nil
 	}
 	return err
+}
+
+type wahaContactResponse struct {
+	ID     any    `json:"id"`
+	Number string `json:"number"`
+	PN     string `json:"pn"`
+}
+
+// ResolveLIDToPhone queries WAHA API to resolve a WhatsApp Linked Device ID (@lid) to a canonical phone number.
+func (w *Waha) ResolveLIDToPhone(session string, lid string) (string, error) {
+	if lid == "" || !strings.Contains(lid, "@lid") {
+		return "", fmt.Errorf("invalid lid identifier: %s", lid)
+	}
+	if session == "" {
+		session = w.o.Session
+	}
+	if session == "" {
+		session = "default"
+	}
+
+	url := fmt.Sprintf("%s/api/contacts?contactId=%s&session=%s",
+		strings.TrimRight(w.o.RootURL, "/"),
+		lid,
+		session,
+	)
+
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if w.o.APIKey != "" {
+		req.Header.Set("X-Api-Key", w.o.APIKey)
+	}
+
+	resp, err := w.c.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("error querying WAHA contact resolution API: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		return "", fmt.Errorf("WAHA contact API returned status %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("error reading WAHA contact response: %w", err)
+	}
+
+	var contact wahaContactResponse
+	if err := json.Unmarshal(body, &contact); err != nil {
+		return "", fmt.Errorf("error unmarshaling WAHA contact response: %w", err)
+	}
+
+	lidDigits := regexp.MustCompile(`[^\d]`).ReplaceAllString(lid, "")
+
+	cleanPN := regexp.MustCompile(`[^\d]`).ReplaceAllString(contact.PN, "")
+	cleanNum := regexp.MustCompile(`[^\d]`).ReplaceAllString(contact.Number, "")
+
+	rawNum := ""
+	if cleanPN != "" && cleanPN != lidDigits {
+		rawNum = cleanPN
+	} else if cleanNum != "" && cleanNum != lidDigits {
+		rawNum = cleanNum
+	} else if cleanPN != "" {
+		rawNum = cleanPN
+	}
+
+	if rawNum == "" {
+		switch v := contact.ID.(type) {
+		case string:
+			if strings.HasSuffix(v, "@c.us") || strings.HasSuffix(v, "@s.whatsapp.net") {
+				rawNum = v
+			}
+		case map[string]any:
+			if ser, ok := v["_serialized"].(string); ok && (strings.HasSuffix(ser, "@c.us") || strings.HasSuffix(ser, "@s.whatsapp.net")) {
+				rawNum = ser
+			}
+		}
+	}
+
+	cleaned := regexp.MustCompile(`[^\d]`).ReplaceAllString(rawNum, "")
+	if cleaned == "" {
+		return "", fmt.Errorf("unable to resolve phone number for LID %s (raw response: %s)", lid, string(body))
+	}
+
+	return cleaned, nil
 }
 
 // --- HUMAN TYPING MARKOV SIMULATION MODEL ---
