@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/gofrs/uuid/v5"
@@ -731,5 +732,21 @@ func (c *Core) LinkSubscriberLID(subscriberID int, lid string) error {
 	_, err := c.db.Exec(`UPDATE subscribers
 		SET attribs = jsonb_set(COALESCE(attribs, '{}'::jsonb), '{whatsapp_lid}', to_jsonb($2::text), true)
 		WHERE id = $1 AND (attribs->>'whatsapp_lid' IS NULL OR attribs->>'whatsapp_lid' != $2)`, subscriberID, lid)
+	return err
+}
+
+// LinkSubscriberLIDByPhone binds a WhatsApp Linked Device ID (@lid) to a subscriber's attributes using phone number.
+func (c *Core) LinkSubscriberLIDByPhone(phone string, lid string) error {
+	if c == nil || c.db == nil || lid == "" {
+		return nil
+	}
+	cleaned := regexp.MustCompile(`[^\d]`).ReplaceAllString(phone, "")
+	if cleaned == "" {
+		return nil
+	}
+	_, err := c.db.Exec(`UPDATE subscribers
+		SET attribs = jsonb_set(COALESCE(attribs, '{}'::jsonb), '{whatsapp_lid}', to_jsonb($2::text), true)
+		WHERE (REGEXP_REPLACE(phone, '[^\d]', '', 'g') = $1 OR REGEXP_REPLACE(attribs->>'phone', '[^\d]', '', 'g') = $1)
+		  AND (attribs->>'whatsapp_lid' IS NULL OR attribs->>'whatsapp_lid' != $2)`, cleaned, lid)
 	return err
 }
