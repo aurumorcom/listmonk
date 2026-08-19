@@ -121,6 +121,16 @@ func (c *Core) GetSettings() (models.Settings, error) {
 		out.SMTP = smtpList
 	}
 
+	// Populate Webhooks settings from the webhooks table
+	if webhooks, err := c.GetWebhooks(); err == nil {
+		if webhooks == nil {
+			webhooks = make([]models.Webhook, 0)
+		}
+		out.Webhooks = webhooks
+	} else {
+		out.Webhooks = make([]models.Webhook, 0)
+	}
+
 	return out, nil
 }
 
@@ -211,6 +221,42 @@ func (c *Core) UpdateSettings(s models.Settings) error {
 		for _, e := range existingEmails {
 			if !activeEmails[strings.ToLower(e.Email)] {
 				_ = c.DeleteEmail(e.ID)
+			}
+		}
+	}
+
+	// Synchronize s.Webhooks with the webhooks table
+	existingWebhooks, err := c.GetWebhooks()
+	if err == nil {
+		activeIDs := make(map[int]bool)
+
+		for _, item := range s.Webhooks {
+			if item.Events == nil {
+				item.Events = make([]string, 0)
+			}
+
+			if item.ID > 0 {
+				activeIDs[item.ID] = true
+				if _, err := c.UpdateWebhook(item.ID, item); err != nil {
+					c.log.Printf("error updating webhook %d in settings sync: %v", item.ID, err)
+				}
+			} else {
+				// New webhook endpoint created in settings UI
+				created, err := c.CreateWebhook(item)
+				if err == nil {
+					activeIDs[created.ID] = true
+				} else {
+					c.log.Printf("error creating webhook in settings sync: %v", err)
+				}
+			}
+		}
+
+		// Delete webhooks removed from the settings UI
+		for _, w := range existingWebhooks {
+			if !activeIDs[w.ID] {
+				if err := c.DeleteWebhook(w.ID); err != nil {
+					c.log.Printf("error deleting webhook %d in settings sync: %v", w.ID, err)
+				}
 			}
 		}
 	}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/knadh/listmonk/internal/auth"
+	"github.com/knadh/listmonk/internal/messenger/waha"
 	"github.com/knadh/listmonk/internal/sequence"
 	"github.com/knadh/listmonk/models"
 	"github.com/labstack/echo/v4"
@@ -350,6 +352,7 @@ func ParseWAHAAckLevel(ack any, ackName string) int {
 func (a *App) WAHAWebhook(c echo.Context) error {
 	type wahaPayload struct {
 		Event   string `json:"event"`
+		Session string `json:"session"`
 		Payload struct {
 			ID          string `json:"id"`
 			FromMe      bool   `json:"fromMe"`
@@ -373,8 +376,18 @@ func (a *App) WAHAWebhook(c echo.Context) error {
 		} `json:"payload"`
 	}
 
+	// Read raw request body safely without consuming reader destructively
+	var rawBody []byte
+	if c.Request() != nil && c.Request().Body != nil {
+		rawBody, _ = io.ReadAll(c.Request().Body)
+		c.Request().Body = io.NopCloser(bytes.NewReader(rawBody))
+	}
+
 	var req wahaPayload
 	if err := c.Bind(&req); err != nil {
+		if a.log != nil {
+			a.log.Printf("[WAHA WEBHOOK ERROR] JSON bind failed: %v", err)
+		}
 		return c.NoContent(http.StatusOK)
 	}
 
@@ -422,6 +435,28 @@ func (a *App) WAHAWebhook(c echo.Context) error {
 		if targetPhone != "" {
 			targetPhone = strings.TrimSuffix(targetPhone, "@c.us")
 			targetPhone = strings.TrimSuffix(targetPhone, "@s.whatsapp.net")
+			if idx := strings.Index(targetPhone, ":"); idx >= 0 {
+				targetPhone = targetPhone[:idx]
+			}
+		}
+
+		// Attempt WAHA API LID resolution to convert @lid JID to real phone number
+		if lid != "" {
+			if resolved, err := waha.ResolveLID(req.Session, lid); err == nil && resolved != "" {
+				if a.log != nil {
+					a.log.Printf("[WAHA WEBHOOK LID RESOLVED] Resolved LID %s -> Phone %s", lid, resolved)
+				}
+				if a.core != nil {
+					_ = a.core.LinkSubscriberLIDByPhone(resolved, lid)
+				}
+				if targetPhone == "" || strings.Contains(targetPhone, "@lid") {
+					targetPhone = resolved
+				}
+			}
+		}
+
+		if a.log != nil {
+			a.log.Printf("[WAHA WEBHOOK READ ACK] Blue Tick received (ackLevel=%d) for msgID=%s targetPhone=%s", ackLevel, msgID, targetPhone)
 		}
 
 		if a.core != nil {
@@ -433,10 +468,28 @@ func (a *App) WAHAWebhook(c echo.Context) error {
 			}
 		}
 	} else if req.Event == "message" && !req.Payload.FromMe && req.Payload.From != "" {
+		fromIdentifier := req.Payload.From
+		quotedID := req.Payload.Data.QuotedMsg.ID
+
+		// Attempt WAHA API LID resolution to convert @lid JID to real phone number
+		if lid != "" {
+			if resolved, err := waha.ResolveLID(req.Session, lid); err == nil && resolved != "" {
+				if a.log != nil {
+					a.log.Printf("[WAHA WEBHOOK LID RESOLVED] Resolved LID %s -> Phone %s", lid, resolved)
+				}
+				if a.core != nil {
+					_ = a.core.LinkSubscriberLIDByPhone(resolved, lid)
+				}
+				fromIdentifier = resolved
+			}
+		}
+
+		if a.log != nil {
+			a.log.Printf("[WAHA WEBHOOK INBOUND REPLY] Incoming message from %s (quotedMsgID: %s)", fromIdentifier, quotedID)
+		}
 		if a.core != nil {
 			l := sequence.NewReplyListener(a.core, a.log)
-			quotedID := req.Payload.Data.QuotedMsg.ID
-			_ = l.ProcessReplyWithQuotedID(req.Payload.From, true, req.Payload.Body, quotedID)
+			_ = l.ProcessReplyWithQuotedID(fromIdentifier, true, req.Payload.Body, quotedID)
 		}
 	}
 

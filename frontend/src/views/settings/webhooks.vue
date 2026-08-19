@@ -20,12 +20,12 @@
           <div class="column" :class="{ disabled: !item.enabled }">
             <div class="columns">
               <div class="column is-4">
-                <b-field label="Webhook Name" label-position="on-border" message="Name identifier for this outbound endpoint">
+                <b-field label="Name" label-position="on-border" message="Name identifier for this outbound endpoint">
                   <b-input v-model="item.name" name="name" placeholder="n8n Production Sync" :maxlength="100" />
                 </b-field>
               </div>
               <div class="column is-8">
-                <b-field label="Target URL" label-position="on-border" message="HTTP(S) target endpoint receiving JSON event snapshots">
+                <b-field label="Request URL" label-position="on-border" message="HTTP(S) target endpoint receiving JSON event snapshots">
                   <b-input v-model="item.url" name="url" type="url" placeholder="https://n8n.example.com/webhook/listmonk" :maxlength="500" />
                 </b-field>
               </div>
@@ -33,7 +33,7 @@
 
             <div class="columns">
               <div class="column is-6">
-                <b-field label="Secret Key (HMAC SHA256)" label-position="on-border" message="Secret key used for Listmonk-Signature HTTP header verification">
+                <b-field label="Webhook Secret" label-position="on-border" message="Secret key used for Listmonk-Signature HTTP header verification">
                   <b-input v-model="item.secret" name="secret" type="password" password-reveal placeholder="whsec_..." :maxlength="200" />
                 </b-field>
               </div>
@@ -59,7 +59,7 @@
 
               <div class="columns is-multiline">
                 <!-- Subscribers -->
-                <div class="column is-3">
+                <div class="column is-6">
                   <div class="label is-size-7 mb-2"><strong>Subscribers</strong></div>
                   <div class="field" v-for="evt in subscriberEvents" :key="evt.value">
                     <b-checkbox v-model="item.events" :native-value="evt.value">
@@ -69,7 +69,7 @@
                 </div>
 
                 <!-- Contacts -->
-                <div class="column is-3">
+                <div class="column is-6">
                   <div class="label is-size-7 mb-2"><strong>Contacts</strong></div>
                   <div class="field" v-for="evt in contactEvents" :key="evt.value">
                     <b-checkbox v-model="item.events" :native-value="evt.value">
@@ -79,7 +79,7 @@
                 </div>
 
                 <!-- Sequences -->
-                <div class="column is-3">
+                <div class="column is-6">
                   <div class="label is-size-7 mb-2"><strong>Sequences</strong></div>
                   <div class="field" v-for="evt in sequenceEvents" :key="evt.value">
                     <b-checkbox v-model="item.events" :native-value="evt.value">
@@ -89,7 +89,7 @@
                 </div>
 
                 <!-- Campaigns -->
-                <div class="column is-3">
+                <div class="column is-6">
                   <div class="label is-size-7 mb-2"><strong>Campaigns</strong></div>
                   <div class="field" v-for="evt in campaignEvents" :key="evt.value">
                     <b-checkbox v-model="item.events" :native-value="evt.value">
@@ -116,7 +116,7 @@
                     </b-select>
                   </div>
                   <div class="column is-4">
-                    <b-field label="Target URL" label-position="on-border">
+                    <b-field label="Request URL" label-position="on-border">
                       <b-input type="url" required v-model="item.url" placeholder="https://..." :custom-class="`test-url-${n}`" />
                     </b-field>
                   </div>

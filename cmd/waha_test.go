@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -415,5 +416,165 @@ func TestWAHAWebhook_ACK_Parsing_And_PhoneExtraction(t *testing.T) {
 				t.Errorf("expected HTTP 200, got %d", rec.Code)
 			}
 		})
+	}
+}
+
+func TestWAHAWebhook_DeepLogging_Resilience(t *testing.T) {
+	// Logger capturing logs in memory buffer to verify deep logging
+	var logBuf bytes.Buffer
+	testLogger := log.New(&logBuf, "[TEST] ", 0)
+
+	app := &App{log: testLogger}
+	e := echo.New()
+
+	testCases := []struct {
+		name         string
+		contentType  string
+		body         string
+		expectSubstr string
+	}{
+		{
+			name:         "Empty request body",
+			contentType:  "application/json",
+			body:         "",
+			expectSubstr: "[WAHA WEBHOOK] Incoming POST /api/webhooks/waha",
+		},
+		{
+			name:         "Malformed JSON body",
+			contentType:  "application/json",
+			body:         "{invalid-json-payload",
+			expectSubstr: "[WAHA WEBHOOK ERROR] JSON bind failed",
+		},
+		{
+			name:         "Valid message.ack payload",
+			contentType:  "application/json",
+			body:         `{"event":"message.ack","payload":{"id":"true_14155552671@c.us_MSG123","ack":3,"ackName":"READ","to":"14155552671@c.us"}}`,
+			expectSubstr: "[WAHA WEBHOOK READ ACK]",
+		},
+		{
+			name:         "Valid inbound message payload",
+			contentType:  "application/json",
+			body:         `{"event":"message","payload":{"from":"14155552671@c.us","fromMe":false,"body":"Hello there","_data":{"quotedMsg":{"id":"MSG123"}}}}`,
+			expectSubstr: "[WAHA WEBHOOK INBOUND REPLY]",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			logBuf.Reset()
+			req := httptest.NewRequest(http.MethodPost, "/api/webhooks/waha", strings.NewReader(tc.body))
+			req.Header.Set("Content-Type", tc.contentType)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+
+			err := app.WAHAWebhook(c)
+			if err != nil {
+				t.Fatalf("WAHAWebhook returned unexpected error: %v", err)
+			}
+			if rec.Code != http.StatusOK {
+				t.Errorf("expected HTTP 200, got %d", rec.Code)
+			}
+
+			loggedOutput := logBuf.String()
+			if !strings.Contains(loggedOutput, tc.expectSubstr) {
+				t.Errorf("expected log output to contain %q, got: %s", tc.expectSubstr, loggedOutput)
+			}
+		})
+	}
+}
+
+func TestWAHAWebhook_LID_Resolution_Cassette(t *testing.T) {
+	rec, vcrClient := testutil.NewVCRRecorder(t, "waha/lid_resolution")
+
+	wmsgr, err := waha.GetWAHAMessenger(waha.Options{
+		Name:    "waha",
+		Session: "aquiveal",
+		Host:    "http://localhost:3000",
+	})
+	if err != nil {
+		t.Fatalf("failed initializing WAHA messenger: %v", err)
+	}
+	if rec != nil {
+		wmsgr.SetHTTPClient(vcrClient)
+	}
+
+	var logBuf bytes.Buffer
+	testLogger := log.New(&logBuf, "[TEST] ", 0)
+
+	app := &App{log: testLogger}
+	e := echo.New()
+
+	payload := map[string]any{
+		"event":   "message.ack",
+		"session": "aquiveal",
+		"payload": map[string]any{
+			"id":      "true_210556493537459@lid_A5584986A985A536363A45CDFF7FDBD9",
+			"ack":     3,
+			"ackName": "READ",
+			"to":      "210556493537459@lid",
+		},
+	}
+	pBytes, _ := json.Marshal(payload)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/webhooks/waha", bytes.NewReader(pBytes))
+	req.Header.Set("Content-Type", "application/json")
+	recHTTP := httptest.NewRecorder()
+	c := e.NewContext(req, recHTTP)
+
+	if err := app.WAHAWebhook(c); err != nil {
+		t.Fatalf("WAHAWebhook returned unexpected error: %v", err)
+	}
+
+	logged := logBuf.String()
+	if !strings.Contains(logged, "[WAHA WEBHOOK LID RESOLVED]") || !strings.Contains(logged, "14155552671") {
+		t.Errorf("expected log output to confirm LID resolution to phone 14155552671, got: %s", logged)
+	}
+}
+
+func TestWAHAWebhook_LID_PN_Resolution_Cassette(t *testing.T) {
+	rec, vcrClient := testutil.NewVCRRecorder(t, "waha/lid_resolution_pn")
+
+	wmsgr, err := waha.GetWAHAMessenger(waha.Options{
+		Name:    "waha",
+		Session: "aquiveal",
+		Host:    "http://localhost:3000",
+	})
+	if err != nil {
+		t.Fatalf("failed initializing WAHA messenger: %v", err)
+	}
+	if rec != nil {
+		wmsgr.SetHTTPClient(vcrClient)
+	}
+
+	var logBuf bytes.Buffer
+	testLogger := log.New(&logBuf, "[TEST] ", 0)
+
+	app := &App{log: testLogger}
+	e := echo.New()
+
+	payload := map[string]any{
+		"event":   "message.ack",
+		"session": "aquiveal",
+		"payload": map[string]any{
+			"id":      "true_210556493537459@lid_A586AF1159FE67F12752F51F57C40229",
+			"ack":     3,
+			"ackName": "READ",
+			"to":      "210556493537459@lid",
+		},
+	}
+	pBytes, _ := json.Marshal(payload)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/webhooks/waha", bytes.NewReader(pBytes))
+	req.Header.Set("Content-Type", "application/json")
+	recHTTP := httptest.NewRecorder()
+	c := e.NewContext(req, recHTTP)
+
+	if err := app.WAHAWebhook(c); err != nil {
+		t.Fatalf("WAHAWebhook returned unexpected error: %v", err)
+	}
+
+	logged := logBuf.String()
+	if !strings.Contains(logged, "[WAHA WEBHOOK LID RESOLVED]") || !strings.Contains(logged, "14155552672") {
+		t.Errorf("expected log output to confirm LID resolution to real phone 14155552672, got: %s", logged)
 	}
 }

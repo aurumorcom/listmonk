@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/knadh/listmonk/internal/testutil"
 	"github.com/knadh/listmonk/models"
 )
 
@@ -257,5 +258,76 @@ func TestWahaSyncWebhook(t *testing.T) {
 	}
 	if len(wh.Events) != 2 || wh.Events[0] != "message.ack" || wh.Events[1] != "message" {
 		t.Errorf("expected events ['message.ack', 'message'], got %v", wh.Events)
+	}
+}
+
+func TestWAHAResolveLIDToPhone_MockServer(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("contactId") == "210556493537459@lid" {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"id": "210556493537459@lid", "number": "14155552671", "pushname": "Demo User"}`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"error": "not found"}`))
+	}))
+	defer server.Close()
+
+	w, err := New(Options{
+		Name:    "waha-test",
+		RootURL: server.URL,
+		Session: "aquiveal",
+	})
+	if err != nil {
+		t.Fatalf("failed initializing WAHA messenger: %v", err)
+	}
+
+	// Register instance in GetWAHAMessenger singleton map so ResolveLID can locate it
+	_, _ = GetWAHAMessenger(Options{
+		Name:    "waha-test",
+		RootURL: server.URL,
+		Session: "aquiveal",
+	})
+
+	phone, err := w.ResolveLIDToPhone("aquiveal", "210556493537459@lid")
+	if err != nil {
+		t.Fatalf("ResolveLIDToPhone returned unexpected error: %v", err)
+	}
+	if phone != "14155552671" {
+		t.Errorf("expected resolved phone '14155552671', got '%s'", phone)
+	}
+
+	// Test ResolveLID global helper
+	resolvedGlobal, errGlobal := ResolveLID("aquiveal", "210556493537459@lid")
+	if errGlobal != nil {
+		t.Fatalf("ResolveLID returned unexpected error: %v", errGlobal)
+	}
+	if resolvedGlobal != "14155552671" {
+		t.Errorf("expected ResolveLID to return '14155552671', got '%s'", resolvedGlobal)
+	}
+}
+
+func TestIntegration_WAHAResolveLIDToPhone(t *testing.T) {
+	testutil.LoadDotEnv()
+	rec, vcrClient := testutil.NewVCRRecorder(t, "waha/lid_resolution_pn")
+
+	w, err := New(Options{
+		Name:    "waha-cassette-test",
+		RootURL: "http://localhost:3000",
+		Session: "aquiveal",
+	})
+	if err != nil {
+		t.Fatalf("failed initializing WAHA messenger: %v", err)
+	}
+	if rec != nil {
+		w.SetHTTPClient(vcrClient)
+	}
+
+	phone, err := w.ResolveLIDToPhone("aquiveal", "210556493537459@lid")
+	if err != nil {
+		t.Fatalf("ResolveLIDToPhone returned unexpected error: %v", err)
+	}
+	if phone != "14155552672" {
+		t.Errorf("expected resolved PN phone '14155552672', got '%s'", phone)
 	}
 }

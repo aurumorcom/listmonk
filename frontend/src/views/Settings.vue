@@ -228,6 +228,14 @@ export default Vue.extend({
         }
       }
 
+      for (let i = 0; i < (form.webhooks || []).length; i += 1) {
+        if (this.isDummy(form.webhooks[i].secret)) {
+          form.webhooks[i].secret = '';
+        } else if (this.hasDummy(form.webhooks[i].secret)) {
+          hasDummy = `webhook #${i + 1}`;
+        }
+      }
+
       if (hasDummy) {
         this.$utils.toast(this.$t('globals.messages.passwordChangeFull', { name: hasDummy }), 'is-danger');
         return false;
@@ -313,18 +321,14 @@ export default Vue.extend({
           });
         }
 
-        // Ensure webhooks exists and has default item if empty
-        if (!d.webhooks || !Array.isArray(d.webhooks) || d.webhooks.length === 0) {
-          d.webhooks = [
-            {
-              name: '',
-              enabled: true,
-              url: '',
-              secret: '',
-              events: ['subscriber.created', 'subscriber.updated', 'contact.created', 'contact.updated'],
-              strHeaders: '',
-            },
-          ];
+        // Ensure webhooks exists and events array is initialized
+        if (!d.webhooks || !Array.isArray(d.webhooks)) {
+          d.webhooks = [];
+        } else {
+          d.webhooks = d.webhooks.map((w) => ({
+            ...w,
+            events: w.events || [],
+          }));
         }
 
         // Domain blocklist array to multi-line string.
