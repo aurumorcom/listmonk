@@ -7,8 +7,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"io"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -1253,7 +1251,7 @@ func TestE2E_Sequence_Email_MailHog_Lifecycle(t *testing.T) {
 
 	// 9. Trigger Inbound Reply & Auto-Stop
 	rl := sequence.NewReplyListener(nil, nil)
-	_ = rl.ProcessReplyWithBody(subEmail, false, "Yes, I am interested in this deal!")
+	_ = rl.ProcessReplyWithBody(subEmail, sequence.ChannelTypeEmail, "Yes, I am interested in this deal!")
 	contact.Status = models.SequenceContactStatusReplied
 
 	// Verify Step 4 is prevented because contact has 'replied'
@@ -1604,7 +1602,7 @@ func TestE2E_Sequence_Mixed_Messenger_Lifecycle(t *testing.T) {
 
 	// 7. Trigger Reply & Cross-Channel Sequence Auto-Stop
 	rl := sequence.NewReplyListener(nil, nil)
-	_ = rl.ProcessReplyWithBody(subEmail, false, "I love this multi-channel campaign, thanks!")
+	_ = rl.ProcessReplyWithBody(subEmail, sequence.ChannelTypeEmail, "I love this multi-channel campaign, thanks!")
 	contact.Status = models.SequenceContactStatusReplied
 
 	if contact.Status != models.SequenceContactStatusReplied {
@@ -2313,7 +2311,7 @@ func TestIntegration_WAHASettings_HostSerializationParity(t *testing.T) {
 
 func TestIntegration_Sequence_TestMessage_ChannelIsolation(t *testing.T) {
 	emailMsgr := &mockSeqTestMessenger{name: "email"}
-	seqMgr := sequence.NewManager(nil, map[string]manager.Messenger{"email": emailMsgr}, nil, log.New(io.Discard, "", 0))
+	seqMgr := sequence.NewManager(nil, map[string]manager.Messenger{"email": emailMsgr}, nil, nil)
 
 	step := models.SequenceStep{
 		StepNumber: 1,
@@ -2894,7 +2892,7 @@ func TestIntegration_Sequence_Reply_AutoStop(t *testing.T) {
 
 	// Ingest subscriber reply
 	rl := sequence.NewReplyListener(nil, nil)
-	_ = rl.ProcessReplyWithBody(subEmail, false, "Please stop sending emails.")
+	_ = rl.ProcessReplyWithBody(subEmail, sequence.ChannelTypeEmail, "Please stop sending emails.")
 	contact.Status = models.SequenceContactStatusReplied
 
 	if contact.Status != models.SequenceContactStatusReplied {

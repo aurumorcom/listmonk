@@ -30,7 +30,11 @@ func (a *App) GetSequences(c echo.Context) error {
 
 // GetSequence returns a sequence by ID or UUID.
 func (a *App) GetSequence(c echo.Context) error {
-	id, _ := strconv.Atoi(c.Param("id"))
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil && c.Param("id") != "" {
+		// Fallback to UUID lookup if id parameter is non-numeric UUID string.
+		id = 0
+	}
 	uid := c.Param("id")
 
 	seq, err := a.core.GetSequence(id, uid)
@@ -323,7 +327,7 @@ func (a *App) TestSequence(c echo.Context) error {
 		if a.emailMsgr != nil && msgrMap["email"] == nil {
 			msgrMap["email"] = a.emailMsgr
 		}
-		a.seqManager = sequence.NewManager(a.core, msgrMap, a.media, a.log)
+		a.seqManager = sequence.NewManager(a.core, msgrMap, a.media, appLogger)
 	}
 
 	// Resolve sequence for assigned pool lookup
