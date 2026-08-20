@@ -4,6 +4,13 @@ import (
 	"testing"
 )
 
+func TestDefaultSqids(t *testing.T) {
+	s := DefaultSqids()
+	if s == nil {
+		t.Fatalf("expected DefaultSqids() to return non-nil sqids instance")
+	}
+}
+
 func TestSqidsCodec_Roundtrip(t *testing.T) {
 	testCases := []struct {
 		name       string
