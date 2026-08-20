@@ -1,0 +1,72 @@
+---
+version: 2
+interactions:
+  - request:
+      proto: HTTP/1.1
+      proto_major: 1
+      proto_minor: 1
+      method: GET
+      host: localhost:3000
+      url: http://localhost:3000/api/contacts?contactId=210556493537459@lid&session=aquiveal
+      headers:
+        Content-Type:
+          - application/json
+        X-Api-Key:
+          - "[REDACTED]"
+      body: ""
+    response:
+      proto: HTTP/1.1
+      proto_major: 1
+      proto_minor: 1
+      status: 200 OK
+      code: 200
+      headers:
+        Content-Type:
+          - application/json
+      body: '{"id":"210556493537459@lid","number":"14155552671","pushname":"Demo User"}'
+  - request:
+      proto: HTTP/1.1
+      proto_major: 1
+      proto_minor: 1
+      method: GET
+      host: localhost:3000
+      url: http://localhost:3000/api/contacts?contactId=210556493537459%40lid&session=aquiveal
+      headers:
+        Content-Type:
+          - application/json
+        X-Api-Key:
+          - "[REDACTED]"
+      body: ""
+    response:
+      proto: HTTP/1.1
+      proto_major: 1
+      proto_minor: 1
+      status: 200 OK
+      code: 200
+      headers:
+        Content-Type:
+          - application/json
+      body: '{"id":"210556493537459@lid","number":"14155552671","pushname":"Demo User"}'
+  - request:
+      proto: HTTP/1.1
+      proto_major: 1
+      proto_minor: 1
+      method: GET
+      host: localhost:3000
+      url: http://localhost:3000/api/contacts?contactId=114499566714976@lid&session=aquiveal
+      headers:
+        Content-Type:
+          - application/json
+        X-Api-Key:
+          - "[REDACTED]"
+      body: ""
+    response:
+      proto: HTTP/1.1
+      proto_major: 1
+      proto_minor: 1
+      status: 200 OK
+      code: 200
+      headers:
+        Content-Type:
+          - application/json
+      body: '{"id":"114499566714976@lid","number":"14155552671","pushname":"Demo User"}'
