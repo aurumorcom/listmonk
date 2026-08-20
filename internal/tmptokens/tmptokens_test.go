@@ -3,6 +3,7 @@
 package tmptokens
 
 import (
+	"context"
 	"testing"
 	"time"
 )
@@ -92,7 +93,10 @@ func TestDeleteAndClean(t *testing.T) {
 		t.Fatalf("expected Get to fail for deleted token")
 	}
 
-	Clean()
+	purged := Clean()
+	if purged != 1 {
+		t.Fatalf("expected 1 token to be purged, got %d", purged)
+	}
 
 	// Expired token should be purged
 	_, err = Get(id3)
@@ -105,4 +109,23 @@ func TestDeleteAndClean(t *testing.T) {
 	if err != nil || val != "valid" {
 		t.Fatalf("expected valid token to persist after Clean(), got %v, err: %v", val, err)
 	}
+}
+
+func TestStartCleanup_Cancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	StartCleanup(ctx, 10*time.Millisecond)
+
+	Set("cancel_test_token", -1*time.Second, "expired")
+
+	// Allow one ticker run
+	time.Sleep(25 * time.Millisecond)
+
+	_, err := Get("cancel_test_token")
+	if err == nil {
+		t.Fatalf("expected token to be cleaned up by background worker")
+	}
+
+	// Cancel context to stop cleanup
+	cancel()
+	time.Sleep(10 * time.Millisecond)
 }
