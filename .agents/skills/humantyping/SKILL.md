@@ -10,7 +10,7 @@ description: Provides specialized context, rules, and tools for implementing, co
 humantyping/
 ├── assets
 ├── modules
-│   └── HumanTyping (https://github.com/Lax3n/HumanTypin)
+│   └── HumanTyping (https://github.com/Lax3n/HumanTyping)
 ├── references
 ├── scripts
 └── SKILL.md
