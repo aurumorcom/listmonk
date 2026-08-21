@@ -1750,7 +1750,7 @@ func IsInsideSchedule(sched *models.Schedule, contactLoc *time.Location, now tim
 		return true, now
 	}
 
-	loc := time.UTC
+	loc := time.Local
 	if sched.UseSubscriberTimezone && contactLoc != nil {
 		loc = contactLoc
 	} else if sched.Timezone != "" {
