@@ -169,38 +169,7 @@ export const getSubscribers = async (params) => http.get(
   },
 );
 
-// Contacts.
-export const getContacts = async (params) => http.get(
-  '/api/contacts',
-  {
-    params,
-    loading: models.subscribers,
-    store: models.subscribers,
-    camelCase: (keyPath) => !keyPath.startsWith('.results.*.attribs'),
-  },
-);
-
-export const getContact = async (id) => http.get(
-  `/api/contacts/${id}`,
-  { loading: models.subscribers },
-);
-
-export const createContact = (data) => http.post(
-  '/api/contacts',
-  data,
-  { loading: models.subscribers },
-);
-
-export const updateContact = (data) => http.put(
-  `/api/contacts/${data.id}`,
-  data,
-  { loading: models.subscribers },
-);
-
-export const deleteContacts = (params) => http.delete(
-  '/api/contacts',
-  { params, loading: models.subscribers },
-);
+// Subscribers.
 
 export const getSubscriber = async (id) => http.get(
   `/api/subscribers/${id}`,
@@ -645,8 +614,6 @@ export const deleteSequence = (id) => http.delete(`/api/sequences/${id}`);
 export const deleteSequences = (params) => http.delete('/api/sequences', { params });
 export const getSequenceSteps = (id) => http.get(`/api/sequences/${id}/steps`);
 export const saveSequenceSteps = (id, data) => http.post(`/api/sequences/${id}/steps`, data);
-export const manageContactLists = (data) => http.put('/api/contacts/lists', data);
-export const manageContactListsByQuery = (data) => http.put('/api/contacts/query/lists', data);
 
 // Email Accounts (PostgreSQL emails table)
 export const getEmails = () => http.get('/api/emails');

@@ -165,7 +165,7 @@ export default {
       this.curItem = {
         name: 'Normal Business Hours',
         timezone: 'UTC',
-        use_contact_timezone: true,
+        use_subscriber_timezone: true,
         skip_holidays: true,
         sending_windows: {
           mon: { start: '08:00', end: '17:00' },

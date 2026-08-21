@@ -36,8 +36,8 @@
 
         <div class="box mt-4">
           <b-field>
-            <b-checkbox v-model="form.use_contact_timezone">
-              Use the contact's local time zone instead of the schedule's time zone, if available.
+            <b-checkbox v-model="form.use_subscriber_timezone">
+              Use the subscriber's local time zone instead of the schedule's time zone, if available.
             </b-checkbox>
           </b-field>
           <b-field class="mt-3">
@@ -127,7 +127,7 @@ export default {
         uuid: '',
         name: 'Normal Business Hours',
         timezone: 'UTC',
-        use_contact_timezone: true,
+        use_subscriber_timezone: true,
         skip_holidays: true,
       },
       dayTimes: {
@@ -172,7 +172,7 @@ export default {
           uuid: inputData.uuid || '',
           name: inputData.name || 'Normal Business Hours',
           timezone: inputData.timezone || 'UTC',
-          use_contact_timezone: inputData.use_contact_timezone !== undefined ? inputData.use_contact_timezone : true,
+          use_subscriber_timezone: inputData.use_subscriber_timezone !== undefined ? inputData.use_subscriber_timezone : true,
           skip_holidays: inputData.skip_holidays !== undefined ? inputData.skip_holidays : true,
         };
 

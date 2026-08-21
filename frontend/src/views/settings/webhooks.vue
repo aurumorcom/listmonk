@@ -68,16 +68,6 @@
                   </div>
                 </div>
 
-                <!-- Contacts -->
-                <div class="column is-6">
-                  <div class="label is-size-7 mb-2"><strong>Contacts</strong></div>
-                  <div class="field" v-for="evt in contactEvents" :key="evt.value">
-                    <b-checkbox v-model="item.events" :native-value="evt.value">
-                      {{ evt.label }}
-                    </b-checkbox>
-                  </div>
-                </div>
-
                 <!-- Sequences -->
                 <div class="column is-6">
                   <div class="label is-size-7 mb-2"><strong>Sequences</strong></div>
@@ -110,7 +100,6 @@
                     <strong>Select Test Event Type</strong>
                     <b-select v-model="testEventType" expanded class="mt-1">
                       <option value="subscriber.created">subscriber.created</option>
-                      <option value="contact.created">contact.created</option>
                       <option value="sequence.step_executed">sequence.step_executed</option>
                       <option value="campaign.status_changed">campaign.status_changed</option>
                     </b-select>
@@ -154,31 +143,31 @@ const presetTemplates = {
   n8n: {
     name: 'n8n Production Sync',
     url: 'https://n8n.example.com/webhook/listmonk',
-    events: ['contact.created', 'contact.updated', 'sequence.step_executed'],
+    events: ['subscriber.created', 'subscriber.updated', 'sequence.step_executed'],
   },
   zapier: {
     name: 'Zapier Catch Webhook',
     url: 'https://hooks.zapier.com/hooks/catch/...',
-    events: ['contact.created', 'contact.unsubscribed'],
+    events: ['subscriber.created', 'subscriber.unsubscribed'],
   },
   make: {
     name: 'Make Scenario Hook',
     url: 'https://hook.eu1.make.com/...',
-    events: ['contact.created', 'campaign.status_changed'],
+    events: ['subscriber.created', 'campaign.status_changed'],
   },
   hubspot: {
-    name: 'HubSpot Contact Sync',
+    name: 'HubSpot Subscriber Sync',
     url: 'https://api.hubapi.com/...',
-    events: ['contact.created', 'contact.updated', 'contact.deleted'],
+    events: ['subscriber.created', 'subscriber.updated', 'subscriber.deleted'],
   },
   custom: {
     name: 'Custom Outbound Receiver',
     url: 'https://api.yourdomain.com/webhooks/listmonk',
     events: [
-      'contact.created',
-      'contact.updated',
-      'contact.unsubscribed',
-      'contact.bounced',
+      'subscriber.created',
+      'subscriber.updated',
+      'subscriber.unsubscribed',
+      'subscriber.bounced',
       'sequence.step_executed',
       'campaign.status_changed',
     ],
@@ -199,26 +188,12 @@ export default Vue.extend({
       webhookTestItem: null,
       testEventType: 'subscriber.created',
       errMsg: '',
-      subscriberEvents: [
-        { value: 'subscriber.created', label: 'subscriber.created' },
-        { value: 'subscriber.updated', label: 'subscriber.updated' },
-        { value: 'subscriber.unsubscribed', label: 'subscriber.unsubscribed' },
-        { value: 'subscriber.deleted', label: 'subscriber.deleted' },
-        { value: 'subscriber.bounced', label: 'subscriber.bounced' },
-      ],
-      contactEvents: [
-        { value: 'contact.created', label: 'contact.created' },
-        { value: 'contact.updated', label: 'contact.updated' },
-        { value: 'contact.unsubscribed', label: 'contact.unsubscribed' },
-        { value: 'contact.deleted', label: 'contact.deleted' },
-        { value: 'contact.bounced', label: 'contact.bounced' },
-      ],
       sequenceEvents: [
         { value: 'sequence.created', label: 'sequence.created' },
-        { value: 'sequence.contact_enrolled', label: 'sequence.contact_enrolled' },
+        { value: 'sequence.subscriber_enrolled', label: 'sequence.subscriber_enrolled' },
         { value: 'sequence.step_executed', label: 'sequence.step_executed' },
-        { value: 'sequence.contact_replied', label: 'sequence.contact_replied' },
-        { value: 'sequence.contact_completed', label: 'sequence.contact_completed' },
+        { value: 'sequence.subscriber_replied', label: 'sequence.subscriber_replied' },
+        { value: 'sequence.subscriber_completed', label: 'sequence.subscriber_completed' },
       ],
       campaignEvents: [
         { value: 'campaign.status_changed', label: 'campaign.status_changed' },
@@ -235,7 +210,7 @@ export default Vue.extend({
           enabled: true,
           url: '',
           secret: '',
-          events: ['subscriber.created', 'subscriber.updated', 'contact.created', 'contact.updated'],
+          events: ['subscriber.created', 'subscriber.updated'],
           strHeaders: '',
         },
       ]);
@@ -252,7 +227,7 @@ export default Vue.extend({
         enabled: true,
         url: '',
         secret: '',
-        events: ['contact.created', 'contact.updated'],
+        events: ['subscriber.created', 'subscriber.updated'],
         strHeaders: '',
       });
 

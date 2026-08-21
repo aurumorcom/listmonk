@@ -24,18 +24,6 @@
         data-cy="bounces" icon="email-bounce" :label="$t('globals.terms.bounces')" />
     </b-menu-item><!-- subscribers -->
 
-    <b-menu-item v-if="$can('subscribers:*')" :expanded="activeGroup.contacts" :active="activeGroup.contacts"
-      data-cy="contacts" @update:active="(state) => toggleGroup('contacts', state)" icon="account-box-outline"
-      :label="$t('globals.terms.contacts')">
-      <b-menu-item v-if="$can('subscribers:get_all', 'subscribers:get')" :to="{ name: 'contacts' }" tag="router-link"
-        :active="activeItem.contacts" data-cy="all-contacts" icon="account-box-outline"
-        :label="$t('menu.allContacts')" />
-      <b-menu-item v-if="$can('subscribers:import')" :to="{ name: 'importContacts' }" tag="router-link"
-        :active="activeItem.importContacts" data-cy="import-contacts" icon="file-upload-outline" :label="$t('menu.import')" />
-      <b-menu-item v-if="$can('bounces:get')" :to="{ name: 'bouncesContacts' }" tag="router-link" :active="activeItem.bouncesContacts"
-        data-cy="bounces-contacts" icon="email-bounce" :label="$t('globals.terms.bounces')" />
-    </b-menu-item><!-- contacts -->
-
     <b-menu-item v-if="$can('campaigns:*')" :expanded="activeGroup.sequences" :active="activeGroup.sequences"
       data-cy="sequences" @update:active="(state) => toggleGroup('sequences', state)" icon="run"
       :label="$t('globals.terms.sequences')">

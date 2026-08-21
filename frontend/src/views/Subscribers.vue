@@ -3,7 +3,7 @@
     <header class="columns page-header">
       <div class="column is-10">
         <h1 class="title is-4">
-          {{ isContacts ? $t('menu.allContacts') : $t('globals.terms.subscribers') }}
+          {{ $t('globals.terms.subscribers') }}
           <span v-if="!isNaN(subscribers.total)">
             (<span data-cy="count">{{ subscribers.total }}</span>)
           </span>
@@ -507,10 +507,6 @@ export default Vue.extend({
 
   computed: {
     ...mapState(['subscribers', 'lists', 'loading']),
-
-    isContacts() {
-      return this.$route.path.startsWith('/contacts') || this.$route.name === 'contacts';
-    },
 
     numSelectedSubscribers() {
       if (this.bulk.all) {
