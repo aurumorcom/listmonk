@@ -137,16 +137,6 @@ func initHTTPHandlers(e *echo.Echo, a *App) {
 		g.DELETE("/api/subscribers/:id", pm(hasID(a.DeleteSubscriber), "subscribers:manage"))
 		g.DELETE("/api/subscribers", pm(a.DeleteSubscribers, "subscribers:manage"))
 
-		g.GET("/api/contacts", pm(a.GetContacts, "contacts:get_all", "contacts:get", "subscribers:get_all", "subscribers:get"))
-		g.GET("/api/contacts/:id", pm(hasID(a.GetContact), "contacts:get_all", "contacts:get", "subscribers:get_all", "subscribers:get"))
-		g.POST("/api/contacts", pm(a.CreateContact, "contacts:manage", "subscribers:manage"))
-		g.PUT("/api/contacts/lists/:id", pm(a.ManageSubscriberLists, "contacts:manage", "subscribers:manage"))
-		g.PUT("/api/contacts/lists", pm(a.ManageSubscriberLists, "contacts:manage", "subscribers:manage"))
-		g.PUT("/api/contacts/query/lists", pm(a.ManageSubscriberListsByQuery, "contacts:manage", "subscribers:manage"))
-		g.PUT("/api/contacts/:id", pm(hasID(a.UpdateContact), "contacts:manage", "subscribers:manage"))
-		g.DELETE("/api/contacts/:id", pm(hasID(a.DeleteSubscriber), "contacts:manage", "subscribers:manage"))
-		g.DELETE("/api/contacts", pm(a.DeleteContacts, "contacts:manage", "subscribers:manage"))
-
 		g.GET("/api/bounces", pm(a.GetBounces, "bounces:get"))
 		g.PUT("/api/bounces/blocklist", pm(a.BlocklistBouncedSubscribers, "bounces:manage"))
 		g.GET("/api/bounces/:id", pm(hasID(a.GetBounce), "bounces:get"))

@@ -53,7 +53,7 @@ func TestCampaignAndSequenceAnalytics_SupersetJSON(t *testing.T) {
 	}
 
 	seqAnalytics := models.SequenceAnalytics{
-		ActiveContacts:      45,
+		ActiveSubscribers:   45,
 		StepCompletions:     120,
 		ReplyRate:           18.5,
 		ConversionRate:      12.0,
