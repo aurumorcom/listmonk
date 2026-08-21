@@ -29,31 +29,21 @@ func V6_3_0(db *sqlx.DB, fs stuffbin.FileSystem, ko *koanf.Koanf, lo *log.Logger
 		);
 		CREATE INDEX IF NOT EXISTS idx_emails_user_id ON emails(user_id);
 
-		-- 2. Sequences & Sequence Subscribers
-		ALTER TABLE sequences
-			ADD COLUMN IF NOT EXISTS email_ids INTEGER[] NOT NULL DEFAULT '{}',
-			ADD COLUMN IF NOT EXISTS waha_sessions TEXT[] NOT NULL DEFAULT '{}',
-			ADD COLUMN IF NOT EXISTS description TEXT NOT NULL DEFAULT '',
-			ADD COLUMN IF NOT EXISTS archive BOOLEAN NOT NULL DEFAULT false,
-			ADD COLUMN IF NOT EXISTS archive_template_id INTEGER NULL REFERENCES templates(id) ON DELETE SET NULL,
-			ADD COLUMN IF NOT EXISTS archive_slug TEXT NULL,
-			ADD COLUMN IF NOT EXISTS archive_meta JSONB NOT NULL DEFAULT '{}';
-		ALTER TABLE sequences DROP COLUMN IF EXISTS load_balance_mode;
+		-- 2. Subscriber Timezone
+		ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS tz TEXT NOT NULL DEFAULT '';
+		UPDATE subscribers SET tz = COALESCE(NULLIF(attribs->>'tz', ''), NULLIF(attribs->>'timezone', ''), '') WHERE tz = '';
 
-		ALTER TABLE sequence_subscribers
-			ADD COLUMN IF NOT EXISTS email_id INTEGER NULL REFERENCES emails(id) ON DELETE SET NULL,
-			ADD COLUMN IF NOT EXISTS from_address TEXT NULL,
-			ADD COLUMN IF NOT EXISTS waha_session TEXT NULL,
-			ADD COLUMN IF NOT EXISTS last_thread_msg_id TEXT NULL;
-		CREATE INDEX IF NOT EXISTS idx_seq_subscribers_sender ON sequence_subscribers(sequence_id, email_id, waha_session);
+		-- 3. Unified Campaign Schema Updates
+		ALTER TYPE campaign_type ADD VALUE IF NOT EXISTS 'sequence';
 
-		-- 3. Templates & Sequence Steps
-		ALTER TYPE template_type ADD VALUE IF NOT EXISTS 'prompt';
-		ALTER TABLE templates ADD COLUMN IF NOT EXISTS parent_template_id INTEGER NULL REFERENCES templates(id) ON DELETE SET NULL;
-		ALTER TABLE templates DROP COLUMN IF EXISTS system_prompt;
-		ALTER TABLE sequence_steps ADD COLUMN IF NOT EXISTS email_type TEXT NOT NULL DEFAULT '';
+		-- Drop unreleased sequence tables if they exist
+		DROP TABLE IF EXISTS sequence_step_media CASCADE;
+		DROP TABLE IF EXISTS sequence_subscribers CASCADE;
+		DROP TABLE IF EXISTS sequence_steps CASCADE;
+		DROP TABLE IF EXISTS sequence_lists CASCADE;
+		DROP TABLE IF EXISTS sequences CASCADE;
 
-		-- 4. Schedules Table
+		-- Create Schedules table
 		CREATE TABLE IF NOT EXISTS schedules (
 			id                      SERIAL PRIMARY KEY,
 			uuid                    UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
@@ -67,7 +57,59 @@ func V6_3_0(db *sqlx.DB, fs stuffbin.FileSystem, ko *koanf.Koanf, lo *log.Logger
 			updated_at              TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 		);
 		CREATE UNIQUE INDEX IF NOT EXISTS idx_schedules_default ON schedules (is_default) WHERE is_default = true;
-		ALTER TABLE sequences ADD COLUMN IF NOT EXISTS schedule_id INTEGER NULL REFERENCES schedules(id) ON DELETE SET NULL;
+
+		ALTER TABLE campaigns
+			ADD COLUMN IF NOT EXISTS schedule_id INTEGER NULL REFERENCES schedules(id) ON DELETE SET NULL,
+			ADD COLUMN IF NOT EXISTS send_window JSONB NOT NULL DEFAULT '{}',
+			ADD COLUMN IF NOT EXISTS email_ids INTEGER[] NOT NULL DEFAULT '{}',
+			ADD COLUMN IF NOT EXISTS waha_sessions TEXT[] NOT NULL DEFAULT '{}';
+
+		CREATE TABLE IF NOT EXISTS campaign_steps (
+			id           SERIAL PRIMARY KEY,
+			campaign_id  INTEGER NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+			step_number  INTEGER NOT NULL DEFAULT 1,
+			delay        TEXT NOT NULL DEFAULT '0s',
+			messenger    TEXT NOT NULL DEFAULT 'email',
+			condition    TEXT NOT NULL DEFAULT 'always',
+			subject      TEXT NOT NULL DEFAULT '',
+			body         TEXT NOT NULL DEFAULT '',
+			email_type   TEXT NOT NULL DEFAULT '',
+			template_id  INTEGER NULL REFERENCES templates(id) ON DELETE SET NULL,
+			created_at   TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+		);
+		CREATE INDEX IF NOT EXISTS idx_camp_steps_camp_id ON campaign_steps(campaign_id);
+
+		CREATE TABLE IF NOT EXISTS campaign_step_media (
+			campaign_step_id INTEGER REFERENCES campaign_steps(id) ON DELETE CASCADE ON UPDATE CASCADE,
+			media_id         INTEGER NULL REFERENCES media(id) ON DELETE SET NULL ON UPDATE CASCADE,
+			filename         TEXT NOT NULL DEFAULT ''
+		);
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_campaign_step_media_id ON campaign_step_media (campaign_step_id, media_id);
+		CREATE INDEX IF NOT EXISTS idx_campaign_step_media_step_id ON campaign_step_media(campaign_step_id);
+
+		CREATE TABLE IF NOT EXISTS campaign_subscribers (
+			campaign_id        INTEGER NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+			subscriber_id      INTEGER NOT NULL REFERENCES subscribers(id) ON DELETE CASCADE,
+			email_id           INTEGER NULL REFERENCES emails(id) ON DELETE SET NULL,
+			from_address       TEXT NULL,
+			waha_session       TEXT NULL,
+			status             TEXT NOT NULL DEFAULT 'scheduled',
+			current_step       INTEGER NOT NULL DEFAULT 1,
+			next_send_at       TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+			last_read_at       TIMESTAMP WITH TIME ZONE NULL,
+			last_clicked_at    TIMESTAMP WITH TIME ZONE NULL,
+			last_message_id    TEXT NULL,
+			last_thread_msg_id TEXT NULL,
+			created_at         TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+			PRIMARY KEY (campaign_id, subscriber_id)
+		);
+		CREATE INDEX IF NOT EXISTS idx_camp_subscribers_next_send ON campaign_subscribers(status, next_send_at);
+		CREATE INDEX IF NOT EXISTS idx_camp_subscribers_sender ON campaign_subscribers(campaign_id, email_id, waha_session);
+
+		-- 4. Templates
+		ALTER TYPE template_type ADD VALUE IF NOT EXISTS 'prompt';
+		ALTER TABLE templates ADD COLUMN IF NOT EXISTS parent_template_id INTEGER NULL REFERENCES templates(id) ON DELETE SET NULL;
+		ALTER TABLE templates DROP COLUMN IF EXISTS system_prompt;
 
 		-- 5. Users table
 		ALTER TABLE users
