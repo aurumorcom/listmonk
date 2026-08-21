@@ -258,14 +258,14 @@ func (m *Manager) Stop() {
 	m.wg.Wait()
 }
 
-// ProcessBatch processes due sequence contacts sequentially based on step delays.
+// ProcessBatch processes due sequence subscribers sequentially based on step delays.
 func (m *Manager) ProcessBatch() error {
-	subs, err := m.core.GetDueSequenceContacts(100)
+	subs, err := m.core.GetDueSequenceSubscribers(100)
 	if err != nil {
 		return err
 	}
 
-	m.logger.Debug("executing sequence step processing batch", slog.Int("due_contacts_count", len(subs)))
+	m.logger.Debug("executing sequence step processing batch", slog.Int("due_subscribers_count", len(subs)))
 
 	for _, sub := range subs {
 		steps, err := m.core.GetSequenceSteps(sub.SequenceID)
@@ -275,33 +275,33 @@ func (m *Manager) ProcessBatch() error {
 		}
 
 		if len(steps) == 0 || sub.CurrentStep > len(steps) {
-			_ = m.core.UpdateSequenceContactStatus(sub.SequenceID, sub.SubscriberID, models.SequenceContactStatusFinished, sub.CurrentStep, null.Time{}, sub.LastMessageID, sub.LastThreadMsgID)
+			_ = m.core.UpdateSequenceSubscriberStatus(sub.SequenceID, sub.SubscriberID, models.SequenceSubscriberStatusFinished, sub.CurrentStep, null.Time{}, sub.LastMessageID, sub.LastThreadMsgID)
 			continue
 		}
 
 		step := steps[sub.CurrentStep-1]
 
-		// Resolve contact details
-		contact, err := m.core.GetContact(sub.SubscriberID, "", "")
+		// Resolve subscriber details
+		subscriber, err := m.core.GetSubscriber(sub.SubscriberID, "", "")
 		if err != nil {
-			m.logger.Error("failed resolving contact for sequence step", slog.Int("contact_id", sub.SubscriberID), slog.String("error", err.Error()))
+			m.logger.Error("failed resolving subscriber for sequence step", slog.Int("subscriber_id", sub.SubscriberID), slog.String("error", err.Error()))
 			continue
 		}
 
-		if err := m.PrepareAndDispatchStep(sub, contact, step, ""); err != nil {
-			m.logger.Error("failed to dispatch sequence step", slog.Int("step_id", step.ID), slog.Int("contact_id", sub.SubscriberID), slog.String("error", err.Error()))
+		if err := m.PrepareAndDispatchStep(sub, subscriber, step, ""); err != nil {
+			m.logger.Error("failed to dispatch sequence step", slog.Int("step_id", step.ID), slog.Int("subscriber_id", sub.SubscriberID), slog.String("error", err.Error()))
 			continue
 		}
-		m.logger.Info("dispatched sequence step to contact", slog.Int("sequence_id", sub.SequenceID), slog.Int("step_id", step.ID), slog.Int("contact_id", sub.SubscriberID))
+		m.logger.Info("dispatched sequence step to subscriber", slog.Int("sequence_id", sub.SequenceID), slog.Int("step_id", step.ID), slog.Int("subscriber_id", sub.SubscriberID))
 	}
 
 	return nil
 }
 
-// PrepareAndDispatchStep compiles and dispatches a sequence step for a contact.
+// PrepareAndDispatchStep compiles and dispatches a sequence step for a subscriber.
 // If overrideRecipient is non-empty, it runs in test mode (dispatches with overridden recipient
-// and avoids mutating contact state or recording history).
-func (m *Manager) PrepareAndDispatchStep(sub models.SequenceContact, contact models.Subscriber, step models.SequenceStep, overrideRecipient string) error {
+// and avoids mutating subscriber state or recording history).
+func (m *Manager) PrepareAndDispatchStep(sub models.SequenceSubscriber, subscriber models.Subscriber, step models.SequenceStep, overrideRecipient string) error {
 	// Pick messenger
 	msgr, ok := m.messengers[step.Messenger]
 	if !ok {
@@ -389,7 +389,7 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceContact, contact mod
 					m.logger.Warn("mailbox sending threshold approaching", slog.Int("mailbox_id", activeEmail.ID), slog.String("email", activeEmail.Email), slog.String("from", fromEmail), slog.Int("sent_today", sentForAddr), slog.Int("max_per_day", maxPerDay), slog.Int("contact_id", sub.SubscriberID))
 					deferSend := null.TimeFrom(time.Now().Add(24 * time.Hour))
 					if m.core != nil {
-						_ = m.core.UpdateSequenceContactStatus(sub.SequenceID, sub.SubscriberID, sub.Status, sub.CurrentStep, deferSend, sub.LastMessageID, sub.LastThreadMsgID)
+						_ = m.core.UpdateSequenceSubscriberStatus(sub.SequenceID, sub.SubscriberID, sub.Status, sub.CurrentStep, deferSend, sub.LastMessageID, sub.LastThreadMsgID)
 					}
 					return fmt.Errorf("email account %d address %s reached daily limit", activeEmail.ID, fromEmail)
 				}
@@ -398,11 +398,11 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceContact, contact mod
 	}
 
 	isWhatsApp := step.Messenger == "whatsapp" || step.Messenger == "waha" || strings.HasPrefix(step.Messenger, "whatsapp-") || strings.HasPrefix(step.Messenger, "waha-")
-	toEmails, toPhone := ResolveTargetRecipient(contact, overrideRecipient, isWhatsApp)
+	toEmails, toPhone := ResolveTargetRecipient(subscriber, overrideRecipient, isWhatsApp)
 
 	msgID := fmt.Sprintf("<sequence-%d-%d-%s@listmonk>", sub.SequenceID, step.StepNumber, uuid.Must(uuid.NewV4()).String())
 	msg := models.Message{
-		Subscriber: contact,
+		Subscriber: subscriber,
 		Subject:    step.Subject,
 		Body:       []byte(step.Body),
 		Messenger:  msgr.Name(),
@@ -411,7 +411,7 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceContact, contact mod
 	}
 
 	// Resolve Sender Display Name & From Header via modular helper functions
-	displayName, assignedUser := ResolveSenderDisplayName(contact, activeEmail, overrideRecipient != "", m.core)
+	displayName, assignedUser := ResolveSenderDisplayName(subscriber, activeEmail, overrideRecipient != "", m.core)
 	msg.From = FormatSenderFromHeader(displayName, fromEmail)
 
 	var seqUUID string
@@ -421,7 +421,7 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceContact, contact mod
 		}
 	}
 
-	scope := manager.ExtractTemplateScope(contact)
+	scope := manager.ExtractTemplateScope(subscriber)
 	if seqUUID != "" {
 		if rawCamp, ok := scope["Campaign"].(map[string]any); ok {
 			rawCamp["UUID"] = seqUUID
@@ -461,9 +461,9 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceContact, contact mod
 				cancel()
 				if err != nil {
 					if overrideRecipient == "" {
-						m.logger.Error("Bifrost AI prompt generation failed for step", slog.Int("step_id", step.ID), slog.Int("contact_id", contact.ID), slog.String("error", err.Error()))
+						m.logger.Error("Bifrost AI prompt generation failed for step", slog.Int("step_id", step.ID), slog.Int("subscriber_id", subscriber.ID), slog.String("error", err.Error()))
 						deferSend := null.TimeFrom(time.Now().Add(1 * time.Hour))
-						_ = m.core.UpdateSequenceContactStatus(sub.SequenceID, sub.SubscriberID, sub.Status, sub.CurrentStep, deferSend, sub.LastMessageID, sub.LastThreadMsgID)
+						_ = m.core.UpdateSequenceSubscriberStatus(sub.SequenceID, sub.SubscriberID, sub.Status, sub.CurrentStep, deferSend, sub.LastMessageID, sub.LastThreadMsgID)
 					}
 					return fmt.Errorf("bifrost AI generation failed: %w", err)
 				}
@@ -484,7 +484,7 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceContact, contact mod
 							msg.Subject = emailOut.Subject
 						}
 						sig := manager.ResolveSignatureAdvanced(manager.SignatureOpts{
-							Subscriber: contact,
+							Subscriber: subscriber,
 							Email:      activeEmail,
 							User:       assignedUser,
 						})
@@ -502,7 +502,7 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceContact, contact mod
 								TemplateBody: parentTpl.Body,
 								Body:         finalContent,
 							}
-							funcs := m.TemplateFuncsWithContext(seqUUID, contact.UUID, step.ID)
+							funcs := m.TemplateFuncsWithContext(seqUUID, subscriber.UUID, step.ID)
 							if err := camp.CompileTemplate(funcs); err == nil {
 								var buf bytes.Buffer
 								if err := camp.Tpl.ExecuteTemplate(&buf, models.BaseTpl, scope); err == nil {
@@ -525,7 +525,7 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceContact, contact mod
 			isWhatsApp := step.Messenger == "whatsapp" || step.Messenger == "waha" || msgr.Name() == "whatsapp" || msgr.Name() == "waha" || strings.HasPrefix(msgr.Name(), "whatsapp-") || strings.HasPrefix(msgr.Name(), "waha-")
 			if isWhatsApp {
 				// WhatsApp steps bypass HTML email layout templates. Render step body directly and sanitize HTML/CSS.
-				funcs := txttpl.FuncMap(m.TemplateFuncsWithContext(seqUUID, contact.UUID, step.ID))
+				funcs := txttpl.FuncMap(m.TemplateFuncsWithContext(seqUUID, subscriber.UUID, step.ID))
 				bodyStr := models.SubstituteTplShorthand(step.Body)
 				subjStr := models.SubstituteTplShorthand(msg.Subject)
 
@@ -553,22 +553,22 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceContact, contact mod
 					TemplateBody: tpl.Body,
 					Body:         step.Body,
 				}
-				funcs := m.TemplateFuncsWithContext(seqUUID, contact.UUID, step.ID)
+				funcs := m.TemplateFuncsWithContext(seqUUID, subscriber.UUID, step.ID)
 				if err := camp.CompileTemplate(funcs); err == nil {
 					var buf bytes.Buffer
 					if err := camp.Tpl.ExecuteTemplate(&buf, models.BaseTpl, scope); err == nil {
 						msg.Body = buf.Bytes()
 					} else if m.logger != nil {
-						m.logger.Error("sequence step HTML template execution error", slog.Int("step_id", step.ID), slog.Int("contact_id", contact.ID), slog.String("error", err.Error()))
+						m.logger.Error("sequence step HTML template execution error", slog.Int("step_id", step.ID), slog.Int("subscriber_id", subscriber.ID), slog.String("error", err.Error()))
 					}
 				} else if m.logger != nil {
-					m.logger.Error("sequence step HTML template compilation error", slog.Int("step_id", step.ID), slog.Int("contact_id", contact.ID), slog.String("error", err.Error()))
+					m.logger.Error("sequence step HTML template compilation error", slog.Int("step_id", step.ID), slog.Int("subscriber_id", subscriber.ID), slog.String("error", err.Error()))
 				}
 			}
 		}
 	} else {
 		// Plain text / standard template interpolation with full FuncMap and shorthand tags replacement
-		funcs := txttpl.FuncMap(m.TemplateFuncsWithContext(seqUUID, contact.UUID, step.ID))
+		funcs := txttpl.FuncMap(m.TemplateFuncsWithContext(seqUUID, subscriber.UUID, step.ID))
 		bodyStr := models.SubstituteTplShorthand(string(msg.Body))
 		subjStr := models.SubstituteTplShorthand(msg.Subject)
 
@@ -581,10 +581,10 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceContact, contact mod
 				}
 				msg.Body = []byte(rendered)
 			} else if m.logger != nil {
-				m.logger.Error("sequence step text template execution error", slog.Int("step_id", step.ID), slog.Int("contact_id", contact.ID), slog.String("error", err.Error()))
+				m.logger.Error("sequence step text template execution error", slog.Int("step_id", step.ID), slog.Int("subscriber_id", subscriber.ID), slog.String("error", err.Error()))
 			}
 		} else if m.logger != nil {
-			m.logger.Error("sequence step text template parse error", slog.Int("step_id", step.ID), slog.Int("contact_id", contact.ID), slog.String("error", err.Error()))
+			m.logger.Error("sequence step text template parse error", slog.Int("step_id", step.ID), slog.Int("subscriber_id", subscriber.ID), slog.String("error", err.Error()))
 		}
 		if st, err := txttpl.New("subj").Funcs(funcs).Parse(subjStr); err == nil {
 			var sb bytes.Buffer
@@ -669,16 +669,16 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceContact, contact mod
 		if err == nil {
 			nextStep := sub.CurrentStep + 1
 			var nextSend null.Time
-			status := models.SequenceContactStatusInProgress
+			status := models.SequenceSubscriberStatusInProgress
 
 			if nextStep > len(steps) {
-				status = models.SequenceContactStatusFinished
+				status = models.SequenceSubscriberStatusFinished
 			} else {
 				delayDur, _ := utils.ParseDuration(steps[nextStep-1].Delay)
 				nextSend = null.TimeFrom(time.Now().Add(delayDur))
 			}
 
-			_ = m.core.UpdateSequenceContactStatus(sub.SequenceID, sub.SubscriberID, status, nextStep, nextSend, null.StringFrom(msgID), nextLastThreadMsgID)
+			_ = m.core.UpdateSequenceSubscriberStatus(sub.SequenceID, sub.SubscriberID, status, nextStep, nextSend, null.StringFrom(msgID), nextLastThreadMsgID)
 		}
 	}
 

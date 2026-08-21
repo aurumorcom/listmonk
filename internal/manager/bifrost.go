@@ -379,9 +379,7 @@ func ExtractTemplateScope(sub models.Subscriber) map[string]any {
 
 	scope := map[string]any{
 		"Subscriber": sub,
-		"Contact":    sub,
 		"subscriber": subMap,
-		"contact":    subMap,
 		"Sub":        subMap,
 		"sub":        subMap,
 		"Context":    ctxObj,

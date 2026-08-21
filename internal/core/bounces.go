@@ -84,7 +84,7 @@ func (c *Core) RecordBounce(b models.Bounce) error {
 	}
 
 	if err == nil {
-		_ = c.DispatchWebhookEvent("contact.bounced", b)
+		_ = c.DispatchWebhookEvent("subscriber.bounced", b)
 	}
 
 	return err

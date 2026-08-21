@@ -29,7 +29,7 @@ func V6_3_0(db *sqlx.DB, fs stuffbin.FileSystem, ko *koanf.Koanf, lo *log.Logger
 		);
 		CREATE INDEX IF NOT EXISTS idx_emails_user_id ON emails(user_id);
 
-		-- 2. Sequences & Sequence Contacts
+		-- 2. Sequences & Sequence Subscribers
 		ALTER TABLE sequences
 			ADD COLUMN IF NOT EXISTS email_ids INTEGER[] NOT NULL DEFAULT '{}',
 			ADD COLUMN IF NOT EXISTS waha_sessions TEXT[] NOT NULL DEFAULT '{}',
@@ -40,12 +40,12 @@ func V6_3_0(db *sqlx.DB, fs stuffbin.FileSystem, ko *koanf.Koanf, lo *log.Logger
 			ADD COLUMN IF NOT EXISTS archive_meta JSONB NOT NULL DEFAULT '{}';
 		ALTER TABLE sequences DROP COLUMN IF EXISTS load_balance_mode;
 
-		ALTER TABLE sequence_contacts
+		ALTER TABLE sequence_subscribers
 			ADD COLUMN IF NOT EXISTS email_id INTEGER NULL REFERENCES emails(id) ON DELETE SET NULL,
 			ADD COLUMN IF NOT EXISTS from_address TEXT NULL,
 			ADD COLUMN IF NOT EXISTS waha_session TEXT NULL,
 			ADD COLUMN IF NOT EXISTS last_thread_msg_id TEXT NULL;
-		CREATE INDEX IF NOT EXISTS idx_seq_contacts_sender ON sequence_contacts(sequence_id, email_id, waha_session);
+		CREATE INDEX IF NOT EXISTS idx_seq_subscribers_sender ON sequence_subscribers(sequence_id, email_id, waha_session);
 
 		-- 3. Templates & Sequence Steps
 		ALTER TYPE template_type ADD VALUE IF NOT EXISTS 'prompt';
@@ -55,16 +55,16 @@ func V6_3_0(db *sqlx.DB, fs stuffbin.FileSystem, ko *koanf.Koanf, lo *log.Logger
 
 		-- 4. Schedules Table
 		CREATE TABLE IF NOT EXISTS schedules (
-			id                   SERIAL PRIMARY KEY,
-			uuid                 UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
-			name                 TEXT NOT NULL,
-			timezone             TEXT NOT NULL DEFAULT 'UTC',
-			use_contact_timezone BOOLEAN NOT NULL DEFAULT TRUE,
-			skip_holidays        BOOLEAN NOT NULL DEFAULT TRUE,
-			sending_windows      JSONB NOT NULL DEFAULT '{}',
-			is_default           BOOLEAN NOT NULL DEFAULT false,
-			created_at           TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-			updated_at           TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+			id                      SERIAL PRIMARY KEY,
+			uuid                    UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
+			name                    TEXT NOT NULL,
+			timezone                TEXT NOT NULL DEFAULT 'UTC',
+			use_subscriber_timezone BOOLEAN NOT NULL DEFAULT TRUE,
+			skip_holidays           BOOLEAN NOT NULL DEFAULT TRUE,
+			sending_windows         JSONB NOT NULL DEFAULT '{}',
+			is_default              BOOLEAN NOT NULL DEFAULT false,
+			created_at              TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+			updated_at              TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 		);
 		CREATE UNIQUE INDEX IF NOT EXISTS idx_schedules_default ON schedules (is_default) WHERE is_default = true;
 		ALTER TABLE sequences ADD COLUMN IF NOT EXISTS schedule_id INTEGER NULL REFERENCES schedules(id) ON DELETE SET NULL;

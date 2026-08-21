@@ -61,11 +61,6 @@ func (c *Core) GetSubscriber(id int, uuid, email string) (models.Subscriber, err
 	return out[0], nil
 }
 
-// GetContact fetches a contact (subscriber domain alias) by one of the given params.
-func (c *Core) GetContact(id int, uuid, email string) (models.Contact, error) {
-	return c.GetSubscriber(id, uuid, email)
-}
-
 // GetSubscriberByPhone fetches a subscriber matching the given phone number.
 func (c *Core) GetSubscriberByPhone(phone string) (models.Subscriber, error) {
 	clean := strings.TrimSpace(phone)
@@ -396,7 +391,7 @@ func (c *Core) InsertSubscriber(sub models.Subscriber, listIDs []int, listUUIDs 
 		_ = c.EnrollSubscribersByList([]int{out.ID}, listIDs, userContext...)
 	}
 
-	_ = c.DispatchWebhookEvent("contact.created", out)
+	_ = c.DispatchWebhookEvent("subscriber.created", out)
 	return out, hasOptin, nil
 }
 
@@ -432,7 +427,7 @@ func (c *Core) UpdateSubscriber(id int, sub models.Subscriber) (models.Subscribe
 		return models.Subscriber{}, err
 	}
 
-	_ = c.DispatchWebhookEvent("contact.updated", out)
+	_ = c.DispatchWebhookEvent("subscriber.updated", out)
 	return out, nil
 }
 
@@ -535,7 +530,7 @@ func (c *Core) DeleteSubscribers(subIDs []int, subUUIDs []string) error {
 			c.i18n.Ts("globals.messages.errorDeleting", "name", "{globals.terms.subscribers}", "error", pqErrMsg(err)))
 	}
 
-	_ = c.DispatchWebhookEvent("contact.deleted", map[string]any{"ids": subIDs, "uuids": subUUIDs})
+	_ = c.DispatchWebhookEvent("subscriber.deleted", map[string]any{"ids": subIDs, "uuids": subUUIDs})
 	return nil
 }
 
@@ -559,7 +554,7 @@ func (c *Core) UnsubscribeByCampaign(subUUID, campUUID string, blocklist bool) e
 			c.i18n.Ts("globals.messages.errorUpdating", "name", "{globals.terms.subscribers}", "error", pqErrMsg(err)))
 	}
 
-	_ = c.DispatchWebhookEvent("contact.unsubscribed", map[string]any{"subscriber_uuid": subUUID, "campaign_uuid": campUUID, "blocklist": blocklist})
+	_ = c.DispatchWebhookEvent("subscriber.unsubscribed", map[string]any{"subscriber_uuid": subUUID, "campaign_uuid": campUUID, "blocklist": blocklist})
 	return nil
 }
 

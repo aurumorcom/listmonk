@@ -114,10 +114,6 @@ func TestExtractTemplateScope(t *testing.T) {
 		t.Errorf("expected Subscriber ID 101, got %v", scope["Subscriber"])
 	}
 
-	if contactObj, ok := scope["Contact"].(models.Subscriber); !ok || contactObj.ID != 101 {
-		t.Errorf("expected Contact ID 101, got %v", scope["Contact"])
-	}
-
 	ctxMap, ok := scope["Context"].(map[string]any)
 	if !ok || ctxMap["company"] != "Acme Inc" {
 		t.Errorf("expected Context company 'Acme Inc', got %v", scope["Context"])

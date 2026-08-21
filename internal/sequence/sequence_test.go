@@ -256,7 +256,7 @@ func TestSequence_PrepareAndDispatchStep_FromResolution(t *testing.T) {
 			},
 		},
 	}
-	seqContact := models.SequenceContact{
+	seqContact := models.SequenceSubscriber{
 		SequenceID:   1,
 		SubscriberID: 10,
 	}
@@ -296,7 +296,7 @@ func TestSequence_PrepareAndDispatchStep_StepCompilation_TextAndPrompt(t *testin
 		Email:   "alice@leads.com",
 		Attribs: models.JSON{"company": "Acme Inc"},
 	}
-	seqContact := models.SequenceContact{
+	seqContact := models.SequenceSubscriber{
 		SequenceID:   2,
 		SubscriberID: 20,
 	}
@@ -340,7 +340,7 @@ func TestSequence_PrepareAndDispatchStep_ThreadingHeaders(t *testing.T) {
 		Name:  "Charlie",
 		Email: "charlie@client.com",
 	}
-	seqContact := models.SequenceContact{
+	seqContact := models.SequenceSubscriber{
 		SequenceID:      3,
 		SubscriberID:    30,
 		LastThreadMsgID: null.StringFrom("<thread-root-123@listmonk>"),
@@ -383,7 +383,7 @@ func TestSequence_PrepareAndDispatchStep_MissingWhatsAppMessenger_ReturnsError(t
 		Name:  "Target Contact",
 		Phone: null.StringFrom("+918935885359"),
 	}
-	seqContact := models.SequenceContact{
+	seqContact := models.SequenceSubscriber{
 		SequenceID:   10,
 		SubscriberID: 100,
 	}
@@ -453,7 +453,7 @@ func TestSequence_ContactStickyFromAddress_TestVsProdRouting(t *testing.T) {
 		},
 	}
 
-	seqContact := models.SequenceContact{
+	seqContact := models.SequenceSubscriber{
 		SequenceID:   1,
 		SubscriberID: 10,
 		FromAddress:  null.StringFrom("sticky.rep@acme.com"),
@@ -520,7 +520,7 @@ func TestSequence_PerAddressDailyLimitFailover(t *testing.T) {
 	}
 
 	// Contact assigned to primary@acme.com
-	seqContact := models.SequenceContact{
+	seqContact := models.SequenceSubscriber{
 		SequenceID:   1,
 		SubscriberID: 10,
 		FromAddress:  null.StringFrom("primary@acme.com"),
@@ -557,10 +557,10 @@ func TestSequence_TemplateScope_Interpolation(t *testing.T) {
 		StepNumber: 1,
 		Messenger:  "email",
 		Subject:    "Welcome {{ .Subscriber.FirstName }}",
-		Body:       "Hey {{ .Subscriber.FirstName }}! Email: {{ .Subscriber.Email }}, Phone: {{ .contact.phone }}",
+		Body:       "Hey {{ .Subscriber.FirstName }}! Email: {{ .Subscriber.Email }}, Phone: {{ .subscriber.phone }}",
 	}
 
-	seqContact := models.SequenceContact{
+	seqContact := models.SequenceSubscriber{
 		SequenceID:   1,
 		SubscriberID: 10,
 	}
@@ -894,7 +894,7 @@ func TestSequence_PrepareAndDispatchStep_WhatsApp_HTMLTemplateSanitization(t *te
 		Phone: null.StringFrom("+15559876543"),
 	}
 
-	seqContact := models.SequenceContact{
+	seqContact := models.SequenceSubscriber{
 		SequenceID:   1,
 		SubscriberID: 201,
 		CurrentStep:  1,
