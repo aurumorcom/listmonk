@@ -509,9 +509,9 @@ CREATE TABLE schedules (
     id                   SERIAL PRIMARY KEY,
     uuid                 UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
     name                 TEXT NOT NULL,
-    timezone             TEXT NOT NULL DEFAULT 'UTC',
-    use_contact_timezone BOOLEAN NOT NULL DEFAULT TRUE,
-    skip_holidays        BOOLEAN NOT NULL DEFAULT TRUE,
+    timezone                TEXT NOT NULL DEFAULT 'UTC',
+    use_subscriber_timezone BOOLEAN NOT NULL DEFAULT TRUE,
+    skip_holidays           BOOLEAN NOT NULL DEFAULT TRUE,
     sending_windows      JSONB NOT NULL DEFAULT '{}',
     is_default           BOOLEAN NOT NULL DEFAULT false,
     created_at           TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -576,9 +576,9 @@ CREATE TABLE sequence_step_media (
 DROP INDEX IF EXISTS idx_sequence_step_media_id; CREATE UNIQUE INDEX idx_sequence_step_media_id ON sequence_step_media (sequence_step_id, media_id);
 DROP INDEX IF EXISTS idx_sequence_step_media_step_id; CREATE INDEX idx_sequence_step_media_step_id ON sequence_step_media(sequence_step_id);
 
--- sequence_contacts
-DROP TABLE IF EXISTS sequence_contacts CASCADE;
-CREATE TABLE sequence_contacts (
+-- sequence_subscribers
+DROP TABLE IF EXISTS sequence_subscribers CASCADE;
+CREATE TABLE sequence_subscribers (
     sequence_id        INTEGER NOT NULL REFERENCES sequences(id) ON DELETE CASCADE,
     subscriber_id      INTEGER NOT NULL REFERENCES subscribers(id) ON DELETE CASCADE,
     email_id           INTEGER NULL REFERENCES emails(id) ON DELETE SET NULL,
@@ -594,8 +594,8 @@ CREATE TABLE sequence_contacts (
     created_at         TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     PRIMARY KEY (sequence_id, subscriber_id)
 );
-CREATE INDEX idx_seq_contacts_next_send ON sequence_contacts(status, next_send_at);
-CREATE INDEX idx_seq_contacts_sender ON sequence_contacts(sequence_id, email_id, waha_session);
+CREATE INDEX idx_seq_subscribers_next_send ON sequence_subscribers(status, next_send_at);
+CREATE INDEX idx_seq_subscribers_sender ON sequence_subscribers(sequence_id, email_id, waha_session);
 
 -- webhooks
 DROP TABLE IF EXISTS webhooks CASCADE;
