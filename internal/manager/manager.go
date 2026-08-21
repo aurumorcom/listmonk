@@ -443,8 +443,8 @@ func (m *Manager) GenericTemplateFuncs() template.FuncMap {
 	return m.tplFuncs
 }
 
-// SequenceTemplateFuncs returns template functions to be applied during sequence step rendering.
-func (m *Manager) SequenceTemplateFuncs() template.FuncMap {
+// StepTemplateFuncs returns template functions to be applied during sequence step rendering.
+func (m *Manager) StepTemplateFuncs() template.FuncMap {
 	f := template.FuncMap{
 		"TrackLink": func(url string, args ...any) string {
 			return url
