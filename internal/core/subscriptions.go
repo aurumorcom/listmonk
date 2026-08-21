@@ -52,30 +52,8 @@ func (c *Core) AddSubscriptionsByQuery(searchStr, queryExp string, sourceListIDs
 	}
 
 	if status != models.SubscriptionStatusUnsubscribed {
-		// Auto-enroll all subscribers in target lists into active sequences
-		for _, lID := range targetListIDs {
-			_, _ = c.db.Exec(`INSERT INTO sequence_contacts (sequence_id, subscriber_id, status, current_step, next_send_at)
-				SELECT DISTINCT sl.sequence_id, subl.subscriber_id, 'scheduled', 1, NOW()
-				FROM sequence_lists sl
-				JOIN lists l ON l.id = sl.list_id
-				JOIN subscriber_lists subl ON subl.list_id = sl.list_id
-					AND (
-						(l.optin = 'double' AND subl.status = 'confirmed') OR
-						(l.optin != 'double' AND subl.status != 'unsubscribed')
-					)
-				JOIN sequences seq ON seq.id = sl.sequence_id AND seq.status = 'active'
-				JOIN subscribers s ON s.id = subl.subscriber_id AND s.status = 'enabled'
-				WHERE sl.list_id = $1
-				ON CONFLICT (sequence_id, subscriber_id) DO UPDATE SET
-					status = CASE
-						WHEN sequence_contacts.status = 'opted_out' THEN 'scheduled'
-						ELSE sequence_contacts.status
-					END,
-					next_send_at = CASE
-						WHEN sequence_contacts.status = 'opted_out' THEN NOW()
-						ELSE sequence_contacts.next_send_at
-					END`, lID)
-		}
+		// Auto-enroll subscribers in target lists into active sequences
+		_ = c.EnrollSubscribersByList(nil, targetListIDs)
 	}
 
 	return nil
@@ -109,22 +87,7 @@ func (c *Core) DeleteSubscriptionsByQuery(searchStr, queryExp string, sourceList
 			c.i18n.Ts("globals.messages.errorUpdating", "name", "{globals.terms.subscribers}", "error", pqErrMsg(err)))
 	}
 
-	for _, lID := range targetListIDs {
-		_, _ = c.db.Exec(`UPDATE sequence_contacts sc
-			SET status = 'opted_out'
-			WHERE sc.status IN ('scheduled', 'in_progress')
-			  AND sc.sequence_id IN (SELECT sl.sequence_id FROM sequence_lists sl WHERE sl.list_id = $1)
-			  AND NOT EXISTS (
-			      SELECT 1 FROM sequence_lists sl2
-			      JOIN lists l2 ON l2.id = sl2.list_id
-			      JOIN subscriber_lists subl ON subl.list_id = sl2.list_id
-			          AND (
-			              (l2.optin = 'double' AND subl.status = 'confirmed') OR
-			              (l2.optin != 'double' AND subl.status != 'unsubscribed')
-			          )
-			      WHERE sl2.sequence_id = sc.sequence_id AND subl.subscriber_id = sc.subscriber_id
-			  )`, lID)
-	}
+	_ = c.OptOutSubscribersByList(nil, targetListIDs)
 
 	return nil
 }
