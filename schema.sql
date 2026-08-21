@@ -95,6 +95,23 @@ CREATE TABLE templates (
 CREATE UNIQUE INDEX ON templates (is_default) WHERE is_default = true;
 
 
+-- schedules
+DROP TABLE IF EXISTS schedules CASCADE;
+CREATE TABLE schedules (
+    id                   SERIAL PRIMARY KEY,
+    uuid                 UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
+    name                 TEXT NOT NULL,
+    timezone                TEXT NOT NULL DEFAULT 'UTC',
+    use_subscriber_timezone BOOLEAN NOT NULL DEFAULT TRUE,
+    skip_holidays           BOOLEAN NOT NULL DEFAULT TRUE,
+    sending_windows      JSONB NOT NULL DEFAULT '{}',
+    is_default           BOOLEAN NOT NULL DEFAULT false,
+    created_at           TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at           TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+CREATE UNIQUE INDEX idx_schedules_default ON schedules (is_default) WHERE is_default = true;
+
+
 -- campaigns
 DROP TABLE IF EXISTS campaigns CASCADE;
 CREATE TABLE campaigns (
@@ -509,22 +526,6 @@ CREATE MATERIALIZED VIEW mat_list_subscriber_stats AS
     UNION ALL
     SELECT NOW() AS updated_at, 0 AS list_id, NULL AS status, COUNT(id) AS subscriber_count FROM subscribers;
 DROP INDEX IF EXISTS mat_list_subscriber_stats_idx; CREATE UNIQUE INDEX mat_list_subscriber_stats_idx ON mat_list_subscriber_stats (list_id, status);
-
--- schedules
-DROP TABLE IF EXISTS schedules CASCADE;
-CREATE TABLE schedules (
-    id                   SERIAL PRIMARY KEY,
-    uuid                 UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
-    name                 TEXT NOT NULL,
-    timezone                TEXT NOT NULL DEFAULT 'UTC',
-    use_subscriber_timezone BOOLEAN NOT NULL DEFAULT TRUE,
-    skip_holidays           BOOLEAN NOT NULL DEFAULT TRUE,
-    sending_windows      JSONB NOT NULL DEFAULT '{}',
-    is_default           BOOLEAN NOT NULL DEFAULT false,
-    created_at           TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at           TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-CREATE UNIQUE INDEX idx_schedules_default ON schedules (is_default) WHERE is_default = true;
 
 -- campaign_steps
 DROP TABLE IF EXISTS campaign_steps CASCADE;

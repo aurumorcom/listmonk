@@ -75,11 +75,11 @@ func install(lastVer string, db *sqlx.DB, fs stuffbin.FileSystem, prompt, idempo
 	// Schedules.
 	schedID := installSchedule(q)
 
-	// Sample campaign.
-	installCampaign(defList, campTplID, archiveTplID, q)
+	// Sample broadcast campaign.
+	installBroadcastCampaign(defList, campTplID, archiveTplID, q)
 
-	// Sample sequence.
-	installSequence(coldList, campTplID, archiveTplID, schedID, q)
+	// Sample sequence campaign.
+	installSequenceCampaign(coldList, campTplID, archiveTplID, schedID, q)
 
 	// Setup admin user optionally.
 	var (
@@ -269,7 +269,7 @@ func installTemplates(q *models.Queries) (int, int) {
 	return campTplID, archiveTplID
 }
 
-func installCampaign(defListID, campTplID, archiveTplID int, q *models.Queries) {
+func installBroadcastCampaign(defListID, campTplID, archiveTplID int, q *models.Queries) {
 	// Sample campaign.
 	var campID int
 	if err := q.CreateCampaign.Get(&campID, uuid.Must(uuid.NewV4()),
@@ -300,6 +300,10 @@ func installCampaign(defListID, campTplID, archiveTplID int, q *models.Queries) 
 		json.RawMessage(`{"name": "Subscriber"}`),
 		pq.Int64Array{},
 		nil,
+		nil,
+		json.RawMessage("{}"),
+		pq.Int64Array{},
+		pq.StringArray{},
 	); err != nil {
 		lo.Fatalf("error creating sample campaign: %v", err)
 	}
@@ -335,30 +339,39 @@ func installSchedule(q *models.Queries) int {
 	return sched.ID
 }
 
-func installSequence(coldListID, campTplID, archiveTplID, schedID int, q *models.Queries) {
-	var seq models.Campaign
-	if err := q.CreateSequence.Get(&seq,
-		uuid.Must(uuid.NewV4()).String(),
+func installSequenceCampaign(coldListID, campTplID, archiveTplID, schedID int, q *models.Queries) {
+	var seqID int
+	if err := q.CreateCampaign.Get(&seqID,
+		uuid.Must(uuid.NewV4()),
+		models.CampaignTypeSequence,
 		"Test sequence",
 		"Sample multi-step outreach sequence with delivery window schedule and link tracking",
-		models.CampaignStatusPaused,
+		"No Reply <noreply@yoursite.com>",
+		"",
+		"",
+		"plain",
+		nil,
+		json.RawMessage("[]"),
+		json.RawMessage("{}"),
+		pq.StringArray{},
+		"email",
+		campTplID,
+		pq.Int64Array{int64(coldListID)},
+		false,
+		"",
+		archiveTplID,
+		json.RawMessage("{}"),
+		pq.Int64Array{},
+		nil,
 		schedID,
 		json.RawMessage(`{"days": ["mon","tue","wed","thu","fri"], "start_time": "09:00", "end_time": "17:00"}`),
 		pq.Int64Array{},
 		pq.StringArray{},
-		false,
-		archiveTplID,
-		nil,
-		json.RawMessage("{}"),
 	); err != nil {
 		lo.Fatalf("error creating sample sequence: %v", err)
 	}
 
-	if _, err := q.CreateSequenceLists.Exec(seq.ID, pq.Int64Array{int64(coldListID)}); err != nil {
-		lo.Fatalf("error associating sequence with cold list: %v", err)
-	}
-
-	if _, err := q.EnrollSequenceSubscribersByLists.Exec(seq.ID); err != nil {
+	if _, err := q.EnrollCampaignSubscribersByLists.Exec(seqID); err != nil {
 		lo.Fatalf("error auto-enrolling subscribers into sequence: %v", err)
 	}
 
@@ -400,7 +413,7 @@ func installSequence(coldListID, campTplID, archiveTplID, schedID int, q *models
 		if s.TemplateID.Valid {
 			tplVal = &s.TemplateID.Int
 		}
-		if _, err := q.CreateSequenceStep.Exec(seq.ID, s.StepNumber, s.Delay, s.Messenger, s.Condition, s.Subject, s.Body, s.EmailType, tplVal); err != nil {
+		if _, err := q.CreateCampaignStep.Exec(seqID, s.StepNumber, s.Delay, s.Messenger, s.Condition, s.Subject, s.Body, s.EmailType, tplVal); err != nil {
 			lo.Fatalf("error creating sample sequence step %d: %v", s.StepNumber, err)
 		}
 	}

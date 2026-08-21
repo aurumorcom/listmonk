@@ -474,8 +474,8 @@ clicks AS (
     ORDER BY last_clicked_at DESC
 ),
 seq_cnt AS (
-    SELECT COUNT(DISTINCT sequence_id) as cnt
-    FROM sequence_subscribers
+    SELECT COUNT(DISTINCT campaign_id) as cnt
+    FROM campaign_subscribers
     WHERE subscriber_id = $1
 )
 SELECT

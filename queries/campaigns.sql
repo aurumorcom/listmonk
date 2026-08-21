@@ -518,7 +518,7 @@ WHERE view.campaign_id IS NOT NULL;
 
 -- campaign sequence steps & subscribers
 
--- name: enroll-sequence-subscribers-by-lists
+-- name: enroll-campaign-subscribers-by-lists
 INSERT INTO campaign_subscribers (campaign_id, subscriber_id, status, current_step, next_send_at)
 SELECT DISTINCT cl.campaign_id, subl.subscriber_id, 'scheduled', 1, NOW()
 FROM campaign_lists cl
@@ -593,32 +593,32 @@ WHERE s.campaign_id = $1
 GROUP BY s.id
 ORDER BY s.step_number ASC;
 
--- name: create-sequence-step-media
+-- name: create-campaign-step-media
 INSERT INTO campaign_step_media (campaign_step_id, media_id, filename)
 SELECT $1, id, filename FROM media WHERE id = ANY($2::INT[]);
 
--- name: create-sequence-step
+-- name: create-campaign-step
 INSERT INTO campaign_steps (campaign_id, step_number, delay, messenger, condition, subject, body, email_type, template_id)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 RETURNING id, campaign_id, step_number, delay, messenger, condition, subject, body, email_type, template_id, created_at;
 
--- name: delete-sequence-steps
+-- name: delete-campaign-steps
 DELETE FROM campaign_steps WHERE campaign_id = $1;
 
--- name: enroll-sequence-subscribers
+-- name: enroll-campaign-subscribers
 INSERT INTO campaign_subscribers (campaign_id, subscriber_id, status, current_step, next_send_at)
 SELECT $1, id, 'scheduled', 1, NOW()
 FROM subscribers
 WHERE id = ANY($2::INT[])
 ON CONFLICT (campaign_id, subscriber_id) DO NOTHING;
 
--- name: get-due-sequence-subscribers
+-- name: get-due-campaign-subscribers
 SELECT campaign_id, subscriber_id, email_id, from_address, waha_session, status, current_step, next_send_at, last_read_at, last_clicked_at, last_message_id, last_thread_msg_id, created_at
 FROM campaign_subscribers
 WHERE status IN ('scheduled', 'in_progress') AND next_send_at <= NOW()
 LIMIT $1;
 
--- name: update-sequence-subscriber-status
+-- name: update-campaign-subscriber-status
 UPDATE campaign_subscribers
 SET status = $3, current_step = $4, next_send_at = $5, last_message_id = $6, last_thread_msg_id = $7
 WHERE campaign_id = $1 AND subscriber_id = $2;
