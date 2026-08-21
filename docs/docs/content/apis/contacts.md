@@ -18,7 +18,7 @@ The Contacts API allows querying, creating, updating, and deleting contacts (sub
 | `created_at` | string | ISO 8601 creation timestamp |
 | `updated_at` | string | ISO 8601 last update timestamp |
 
-### Contact Sequence Membership Object (`models.SequenceContact`)
+### Contact Campaign Membership Object (`models.CampaignSubscriber`)
 | Field | Type | Description |
 | :--- | :--- | :--- |
 | `sequence_id` | number | ID of enrolled sequence |

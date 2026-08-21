@@ -42,11 +42,7 @@ A list (or a _mailing list_) is a collection of subscribers grouped under a name
 
 ## Campaign
 
-A campaign is an e-mail (or any other kind of messages) that is sent to one or more lists.
-
-## Sequence
-
-A sequence is an automated multi-step cold outreach workflow that executes across one or more lists. When subscribers or contacts join an active sequence's target list (via UI, API, CSV Import, or webhooks), they are automatically enrolled into the sequence state machine (`sequence_contacts`). Sequences progress subscribers through scheduled steps with configurable delays, conditional branches (`always`, `if_read`, `if_not_read`, `if_clicked`), multichannel delivery (`email`, `whatsapp`), and automatic reply detection with intent classification.
+A campaign is a message broadcast or automated workflow sent to one or more lists. Campaigns can be a one-off broadcast (`regular` or `optin` type) or an automated multi-step sequence workflow (`sequence` type). Multi-step campaign workflows progress subscribers through scheduled steps with configurable delays, conditional branches (`always`, `if_read`, `if_not_read`, `if_clicked`), multichannel delivery (`email`, `whatsapp`), and automatic reply detection.
 
 ## Transactional message
 
