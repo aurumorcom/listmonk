@@ -44,8 +44,8 @@ SELECT $1, id, name FROM lists WHERE id = ANY($2::INT[]);
 -- name: delete-sequence-lists
 DELETE FROM sequence_lists WHERE sequence_id = $1;
 
--- name: enroll-sequence-contacts-by-lists
-INSERT INTO sequence_contacts (sequence_id, subscriber_id, status, current_step, next_send_at)
+-- name: enroll-sequence-subscribers-by-lists
+INSERT INTO sequence_subscribers (sequence_id, subscriber_id, status, current_step, next_send_at)
 SELECT DISTINCT sl.sequence_id, subl.subscriber_id, 'scheduled', 1, NOW()
 FROM sequence_lists sl
 JOIN lists l ON l.id = sl.list_id
@@ -58,16 +58,16 @@ JOIN subscribers s ON s.id = subl.subscriber_id AND s.status = 'enabled'
 WHERE sl.sequence_id = $1
 ON CONFLICT (sequence_id, subscriber_id) DO UPDATE SET
     status = CASE
-        WHEN sequence_contacts.status = 'opted_out' THEN 'scheduled'
-        ELSE sequence_contacts.status
+        WHEN sequence_subscribers.status = 'opted_out' THEN 'scheduled'
+        ELSE sequence_subscribers.status
     END,
     next_send_at = CASE
-        WHEN sequence_contacts.status = 'opted_out' THEN NOW()
-        ELSE sequence_contacts.next_send_at
+        WHEN sequence_subscribers.status = 'opted_out' THEN NOW()
+        ELSE sequence_subscribers.next_send_at
     END;
 
 -- name: enroll-subscribers-into-active-sequences-for-lists
-INSERT INTO sequence_contacts (sequence_id, subscriber_id, status, current_step, next_send_at)
+INSERT INTO sequence_subscribers (sequence_id, subscriber_id, status, current_step, next_send_at)
 SELECT DISTINCT sl.sequence_id, s.id, 'scheduled', 1, NOW()
 FROM subscribers s
 JOIN subscriber_lists subl ON subl.subscriber_id = s.id
@@ -81,16 +81,16 @@ JOIN sequences seq ON seq.id = sl.sequence_id AND seq.status = 'active'
 WHERE s.id = ANY($1::INT[]) AND subl.list_id = ANY($2::INT[]) AND s.status = 'enabled'
 ON CONFLICT (sequence_id, subscriber_id) DO UPDATE SET
     status = CASE
-        WHEN sequence_contacts.status = 'opted_out' THEN 'scheduled'
-        ELSE sequence_contacts.status
+        WHEN sequence_subscribers.status = 'opted_out' THEN 'scheduled'
+        ELSE sequence_subscribers.status
     END,
     next_send_at = CASE
-        WHEN sequence_contacts.status = 'opted_out' THEN NOW()
-        ELSE sequence_contacts.next_send_at
+        WHEN sequence_subscribers.status = 'opted_out' THEN NOW()
+        ELSE sequence_subscribers.next_send_at
     END;
 
 -- name: optout-subscribers-from-sequences-for-removed-lists
-UPDATE sequence_contacts sc
+UPDATE sequence_subscribers sc
 SET status = 'opted_out'
 WHERE sc.subscriber_id = ANY($1::INT[])
   AND sc.status IN ('scheduled', 'in_progress')
@@ -132,7 +132,7 @@ RETURNING id, sequence_id, step_number, delay, messenger, condition, subject, bo
 DELETE FROM sequence_steps WHERE sequence_id = $1;
 
 -- name: enroll-sequence-subscribers
-INSERT INTO sequence_contacts (sequence_id, subscriber_id, status, current_step, next_send_at)
+INSERT INTO sequence_subscribers (sequence_id, subscriber_id, status, current_step, next_send_at)
 SELECT $1, id, 'scheduled', 1, NOW()
 FROM subscribers
 WHERE id = ANY($2::INT[])
@@ -140,27 +140,27 @@ ON CONFLICT (sequence_id, subscriber_id) DO NOTHING;
 
 -- name: get-due-sequence-subscribers
 SELECT sequence_id, subscriber_id, email_id, from_address, waha_session, status, current_step, next_send_at, last_read_at, last_clicked_at, last_message_id, last_thread_msg_id, created_at
-FROM sequence_contacts
+FROM sequence_subscribers
 WHERE status IN ('scheduled', 'in_progress') AND next_send_at <= NOW()
 LIMIT $1;
 
 -- name: update-sequence-subscriber-status
-UPDATE sequence_contacts
+UPDATE sequence_subscribers
 SET status = $3, current_step = $4, next_send_at = $5, last_message_id = $6, last_thread_msg_id = $7
 WHERE sequence_id = $1 AND subscriber_id = $2;
 
 -- name: update-sequence-subscriber-read
-UPDATE sequence_contacts
+UPDATE sequence_subscribers
 SET last_read_at = NOW()
 WHERE sequence_id = $1 AND subscriber_id = $2;
 
 -- name: update-sequence-subscriber-click
-UPDATE sequence_contacts
+UPDATE sequence_subscribers
 SET last_clicked_at = NOW()
 WHERE sequence_id = $1 AND subscriber_id = $2;
 
 -- name: set-sequence-subscriber-replied
-UPDATE sequence_contacts
+UPDATE sequence_subscribers
 SET status = 'replied'
 WHERE subscriber_id = (SELECT id FROM subscribers WHERE email = $1 LIMIT 1)
   AND status IN ('scheduled', 'in_progress');
