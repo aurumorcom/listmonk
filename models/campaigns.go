@@ -24,11 +24,26 @@ const (
 	CampaignStatusCancelled     = "cancelled"
 	CampaignTypeRegular         = "regular"
 	CampaignTypeOptin           = "optin"
+	CampaignTypeSequence        = "sequence"
 	CampaignContentTypeRichtext = "richtext"
 	CampaignContentTypeHTML     = "html"
 	CampaignContentTypeMarkdown = "markdown"
 	CampaignContentTypePlain    = "plain"
 	CampaignContentTypeVisual   = "visual"
+
+	CampaignSubscriberStatusScheduled  = "scheduled"
+	CampaignSubscriberStatusInProgress = "in_progress"
+	CampaignSubscriberStatusReplied    = "replied"
+	CampaignSubscriberStatusFinished   = "finished"
+	CampaignSubscriberStatusOptedOut   = "opted_out"
+
+	CampaignConditionAlways    = "always"
+	CampaignConditionIfRead    = "if_read"
+	CampaignConditionIfNotRead = "if_not_read"
+	CampaignConditionIfClicked = "if_clicked"
+
+	EmailTypeNewThread = "New Thread"
+	EmailTypeReply     = "Reply"
 )
 
 // Campaigns represents a slice of Campaigns.
@@ -59,6 +74,13 @@ type Campaign struct {
 	ArchiveSlug       null.String     `db:"archive_slug" json:"archive_slug"`
 	ArchiveTemplateID null.Int        `db:"archive_template_id" json:"archive_template_id"`
 	ArchiveMeta       json.RawMessage `db:"archive_meta" json:"archive_meta"`
+
+	ScheduleID   null.Int       `db:"schedule_id" json:"schedule_id"`
+	Schedule     *Schedule      `db:"-" json:"schedule,omitempty"`
+	SendWindow   JSON           `db:"send_window" json:"send_window"`
+	EmailIDs     pq.Int64Array  `db:"email_ids" json:"email_ids"`
+	WahaSessions pq.StringArray `db:"waha_sessions" json:"waha_sessions"`
+	Steps        []CampaignStep `db:"-" json:"steps,omitempty"`
 
 	// TemplateBody is joined in from templates by the next-campaigns query.
 	TemplateBody        string             `db:"template_body" json:"-"`
@@ -399,4 +421,62 @@ func (c *Campaign) ConvertContent(from, to string) (string, error) {
 	}
 
 	return out, nil
+}
+
+// CampaignSteps represents a slice of CampaignStep.
+type CampaignSteps []CampaignStep
+
+// CampaignStep represents an individual step in a sequence campaign.
+type CampaignStep struct {
+	ID         int           `db:"id" json:"id"`
+	CampaignID int           `db:"campaign_id" json:"campaign_id"`
+	StepNumber int           `db:"step_number" json:"step_number"`
+	Delay      string        `db:"delay" json:"delay"`
+	Messenger  string        `db:"messenger" json:"messenger"`
+	Condition  string        `db:"condition" json:"condition"`
+	Subject    string        `db:"subject" json:"subject"`
+	Body       string        `db:"body" json:"body"`
+	EmailType  string        `db:"email_type" json:"email_type"`
+	TemplateID null.Int      `db:"template_id" json:"template_id"`
+	MediaIDs   pq.Int64Array `db:"media_ids" json:"media_ids"`
+}
+
+// CampaignSubscribers represents a slice of CampaignSubscriber.
+type CampaignSubscribers []CampaignSubscriber
+
+// CampaignSubscriber tracks the state machine position of a subscriber within a sequence campaign.
+type CampaignSubscriber struct {
+	CampaignID      int         `db:"campaign_id" json:"campaign_id"`
+	SubscriberID    int         `db:"subscriber_id" json:"subscriber_id"`
+	EmailID         null.Int    `db:"email_id" json:"email_id"`
+	FromAddress     null.String `db:"from_address" json:"from_address"`
+	WahaSession     null.String `db:"waha_session" json:"waha_session"`
+	Status          string      `db:"status" json:"status"`
+	CurrentStep     int         `db:"current_step" json:"current_step"`
+	NextSendAt      null.Time   `db:"next_send_at" json:"next_send_at"`
+	LastReadAt      null.Time   `db:"last_read_at" json:"last_read_at"`
+	LastClickedAt   null.Time   `db:"last_clicked_at" json:"last_clicked_at"`
+	LastMessageID   null.String `db:"last_message_id" json:"last_message_id"`
+	LastThreadMsgID null.String `db:"last_thread_msg_id" json:"last_thread_msg_id"`
+	CreatedAt       null.Time   `db:"created_at" json:"created_at"`
+}
+
+// CampaignStepFunnel represents metrics for an individual sequence step in the conversion funnel.
+type CampaignStepFunnel struct {
+	StepNumber int               `json:"step_number"`
+	Subject    string            `json:"subject"`
+	Messenger  string            `json:"messenger"`
+	Reached    int               `json:"reached"`
+	Replied    int               `json:"replied"`
+	Analytics  CampaignAnalytics `json:"analytics"`
+}
+
+// CampaignSequenceAnalytics aggregates metrics across sequence campaigns.
+type CampaignSequenceAnalytics struct {
+	ActiveSubscribers   int                  `json:"active_subscribers"`
+	StepCompletions     int                  `json:"step_completions"`
+	ReplyRate           float64              `json:"reply_rate"`
+	ConversionRate      float64              `json:"conversion_rate"`
+	AggregatedAnalytics CampaignAnalytics    `json:"aggregated_analytics"`
+	Funnel              []CampaignStepFunnel `json:"funnel"`
 }

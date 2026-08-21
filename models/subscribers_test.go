@@ -71,29 +71,35 @@ func TestSubscriberCompany(t *testing.T) {
 }
 
 func TestTimezoneResolutionHierarchy(t *testing.T) {
-	seq := Sequence{
-		Timezone: "America/New_York",
-	}
+	fallbackTZ := "America/New_York"
 
-	// Case 1: Subscriber specific timezone takes precedence
+	// Case 1: Subscriber dedicated TZ takes precedence
 	c1 := Subscriber{
-		Attribs: JSON{"tz": "Asia/Tokyo"},
+		TZ:      "Asia/Tokyo",
+		Attribs: JSON{"tz": "Europe/London"},
 	}
-	if loc := c1.ResolveTimezone(seq); loc.String() != "Asia/Tokyo" {
+	if loc := c1.ResolveTimezone(fallbackTZ); loc.String() != "Asia/Tokyo" {
 		t.Errorf("expected Asia/Tokyo, got %s", loc.String())
 	}
 
-	// Case 2: Sequence default timezone used when subscriber tz is missing
+	// Case 2: Subscriber specific timezone attribute used when TZ column empty
 	c2 := Subscriber{
+		Attribs: JSON{"tz": "Europe/London"},
+	}
+	if loc := c2.ResolveTimezone(fallbackTZ); loc.String() != "Europe/London" {
+		t.Errorf("expected Europe/London, got %s", loc.String())
+	}
+
+	// Case 3: Fallback timezone used when subscriber tz is missing
+	c3 := Subscriber{
 		Attribs: JSON{},
 	}
-	if loc := c2.ResolveTimezone(seq); loc.String() != "America/New_York" {
+	if loc := c3.ResolveTimezone(fallbackTZ); loc.String() != "America/New_York" {
 		t.Errorf("expected America/New_York, got %s", loc.String())
 	}
 
-	// Case 3: UTC fallback when both are missing
-	emptySeq := Sequence{}
-	if loc := c2.ResolveTimezone(emptySeq); loc.String() != "UTC" {
+	// Case 4: UTC fallback when all are missing
+	if loc := c3.ResolveTimezone(""); loc.String() != "UTC" {
 		t.Errorf("expected UTC, got %s", loc.String())
 	}
 }

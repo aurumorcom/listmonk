@@ -33,6 +33,7 @@ type Subscriber struct {
 	Email   string         `db:"email" json:"email" form:"email"`
 	Name    string         `db:"name" json:"name" form:"name"`
 	Phone   null.String    `db:"phone" json:"phone" form:"phone"`
+	TZ      string         `db:"tz" json:"tz" form:"tz"`
 	Attribs JSON           `db:"attribs" json:"attribs"`
 	Status  string         `db:"status" json:"status"`
 	Lists   types.JSONText `db:"lists" json:"lists"`
@@ -103,11 +104,17 @@ func (s Subscriber) LastName() string {
 	return s.Name
 }
 
-// ResolveTimezone resolves the subscriber's timezone location using a 3-tier hierarchy:
-// 1. Contact specific attribute (`Attribs["tz"]` or `Attribs["timezone"]`)
-// 2. User-configured sequence default timezone (`seq.Timezone`)
-// 3. Fallback to UTC (`time.UTC`)
-func (s Subscriber) ResolveTimezone(seq Sequence) *time.Location {
+// ResolveTimezone resolves the subscriber's timezone location using a 4-tier hierarchy:
+// 1. Dedicated subscriber column (`s.TZ`)
+// 2. Contact specific attribute (`Attribs["tz"]` or `Attribs["timezone"]`)
+// 3. Campaign/Schedule default timezone (`fallbackTZ`)
+// 4. Fallback to UTC (`time.UTC`)
+func (s Subscriber) ResolveTimezone(fallbackTZ string) *time.Location {
+	if strings.TrimSpace(s.TZ) != "" {
+		if loc, err := time.LoadLocation(strings.TrimSpace(s.TZ)); err == nil {
+			return loc
+		}
+	}
 	if s.Attribs != nil {
 		if tzVal, ok := s.Attribs["tz"].(string); ok && strings.TrimSpace(tzVal) != "" {
 			if loc, err := time.LoadLocation(strings.TrimSpace(tzVal)); err == nil {
@@ -121,8 +128,8 @@ func (s Subscriber) ResolveTimezone(seq Sequence) *time.Location {
 		}
 	}
 
-	if strings.TrimSpace(seq.Timezone) != "" {
-		if loc, err := time.LoadLocation(strings.TrimSpace(seq.Timezone)); err == nil {
+	if strings.TrimSpace(fallbackTZ) != "" {
+		if loc, err := time.LoadLocation(strings.TrimSpace(fallbackTZ)); err == nil {
 			return loc
 		}
 	}
@@ -166,6 +173,7 @@ type SubscriberSummary struct {
 	Name  string `json:"name"`
 	Email string `json:"email"`
 	Phone string `json:"phone,omitempty"`
+	TZ    string `json:"tz,omitempty"`
 }
 
 // PrimaryIdentifier returns email if non-empty, otherwise returns phone if valid, or empty string.
@@ -213,6 +221,7 @@ func (s Subscriber) ToSubscriberSummary() SubscriberSummary {
 		Name:  s.Name,
 		Email: s.Email,
 		Phone: pStr,
+		TZ:    s.TZ,
 	}
 }
 
