@@ -159,8 +159,66 @@ type SubscriberExportProfile struct {
 	LinkClicks    json.RawMessage `db:"link_clicks" json:"link_clicks,omitempty"`
 }
 
-// SubscriberActivity represents a subscriber's campaign views and link clicks for the Activity tab.
+// SubscriberSummary provides a lightweight representation of a subscriber for outreach lists.
+type SubscriberSummary struct {
+	ID    int    `json:"id"`
+	UUID  string `json:"uuid"`
+	Name  string `json:"name"`
+	Email string `json:"email"`
+	Phone string `json:"phone,omitempty"`
+}
+
+// PrimaryIdentifier returns email if non-empty, otherwise returns phone if valid, or empty string.
+func (s Subscriber) PrimaryIdentifier() string {
+	if strings.TrimSpace(s.Email) != "" {
+		return strings.TrimSpace(s.Email)
+	}
+	if s.Phone.Valid && strings.TrimSpace(s.Phone.String) != "" {
+		return strings.TrimSpace(s.Phone.String)
+	}
+	return ""
+}
+
+// ChannelAddress returns recipient address string based on target messenger.
+func (s Subscriber) ChannelAddress(messenger string) string {
+	switch strings.ToLower(strings.TrimSpace(messenger)) {
+	case "whatsapp", "waha", "sms":
+		if s.Phone.Valid && strings.TrimSpace(s.Phone.String) != "" {
+			return strings.TrimSpace(s.Phone.String)
+		}
+	}
+	return s.Email
+}
+
+// Company extracts company name from custom JSON attributes if available.
+func (s Subscriber) Company() string {
+	if s.Attribs == nil {
+		return ""
+	}
+	if v, ok := s.Attribs["company"].(string); ok {
+		return strings.TrimSpace(v)
+	}
+	return ""
+}
+
+// ToSubscriberSummary converts a Subscriber into a SubscriberSummary.
+func (s Subscriber) ToSubscriberSummary() SubscriberSummary {
+	pStr := ""
+	if s.Phone.Valid {
+		pStr = s.Phone.String
+	}
+	return SubscriberSummary{
+		ID:    s.ID,
+		UUID:  s.UUID,
+		Name:  s.Name,
+		Email: s.Email,
+		Phone: pStr,
+	}
+}
+
+// SubscriberActivity represents a subscriber's campaign views, link clicks, and sequence enrollment count for the Activity tab.
 type SubscriberActivity struct {
 	CampaignViews json.RawMessage `db:"campaign_views" json:"campaign_views"`
 	LinkClicks    json.RawMessage `db:"link_clicks" json:"link_clicks"`
+	SequenceCount int             `db:"sequence_count" json:"sequence_count"`
 }

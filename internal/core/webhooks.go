@@ -254,7 +254,7 @@ func (c *Core) TestWebhook(url, secret, eventType string) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "URL is required for test")
 	}
 	if eventType == "" {
-		eventType = "contact.created"
+		eventType = "subscriber.created"
 	}
 	if secret == "" {
 		secret = "test_secret"

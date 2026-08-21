@@ -205,7 +205,7 @@
             <!-- IMAP Settings -->
             <div>
               <p class="is-size-7 has-text-grey mb-3">
-                Listmonk monitors this inbox via IMAP to automatically mark contacts as Replied and stop sequences upon response. Leave host empty to disable.
+                Listmonk monitors this inbox via IMAP to automatically mark subscribers as Replied and stop sequences upon response. Leave host empty to disable.
               </p>
               <div class="columns">
                 <div class="column is-9">

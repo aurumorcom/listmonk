@@ -30,7 +30,7 @@ func TestE2E_JIT_AI_Sequence_Contact(t *testing.T) {
 	// Scope extraction
 	scope := manager.ExtractTemplateScope(contact)
 
-	promptTemplate := "Write a friendly pitch for {{ .Contact.Name }} at {{ .Contact.Attribs.company }}"
+	promptTemplate := "Write a friendly pitch for {{ .Subscriber.Name }} at {{ .Subscriber.Attribs.company }}"
 	tmpl, err := template.New("prompt").Parse(promptTemplate)
 	if err != nil {
 		t.Fatalf("Failed to parse prompt template: %v", err)

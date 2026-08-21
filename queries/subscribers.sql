@@ -472,7 +472,13 @@ clicks AS (
     WHERE lc.subscriber_id = $1
     GROUP BY l.id, l.url, c.id, c.uuid, c.name, c.subject
     ORDER BY last_clicked_at DESC
+),
+seq_cnt AS (
+    SELECT COUNT(DISTINCT sequence_id) as cnt
+    FROM sequence_subscribers
+    WHERE subscriber_id = $1
 )
 SELECT
     COALESCE((SELECT JSON_AGG(v) FROM views v), '[]') as campaign_views,
-    COALESCE((SELECT JSON_AGG(c) FROM clicks c), '[]') as link_clicks;
+    COALESCE((SELECT JSON_AGG(c) FROM clicks c), '[]') as link_clicks,
+    COALESCE((SELECT cnt FROM seq_cnt), 0) as sequence_count;

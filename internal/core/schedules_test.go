@@ -16,10 +16,10 @@ func TestIsInsideSchedule_Apollo(t *testing.T) {
 	}
 
 	sched := &models.Schedule{
-		Timezone:           "America/New_York",
-		UseContactTimezone: false,
-		SkipHolidays:       true,
-		SendingWindows:     models.JSON{"mon": []map[string]string{{"start": "08:00", "end": "17:00"}}},
+		Timezone:              "America/New_York",
+		UseSubscriberTimezone: false,
+		SkipHolidays:          true,
+		SendingWindows:        models.JSON{"mon": []map[string]string{{"start": "08:00", "end": "17:00"}}},
 	}
 
 	// Mon March 10, 2025 at 10:00 AM NY time

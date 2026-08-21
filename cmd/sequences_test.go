@@ -37,7 +37,7 @@ func TestE2E_Sequence_MultiStep_Execution(t *testing.T) {
 		StepNumber: 1,
 		Messenger:  "whatsapp",
 		Subject:    "Welcome WhatsApp Step 1",
-		Body:       "Hi {{ .Contact.Name }}, welcome! Tracked link: http://localhost:9000/r/sample-link",
+		Body:       "Hi {{ .Subscriber.Name }}, welcome! Tracked link: http://localhost:9000/r/sample-link",
 		Delay:      "0s",
 	}
 
@@ -55,16 +55,16 @@ func TestE2E_Sequence_MultiStep_Execution(t *testing.T) {
 		StepNumber: 3,
 		Messenger:  "email",
 		Subject:    "Followup Email Step 3",
-		Body:       "Hi {{ .Contact.Name }}, following up via email.",
+		Body:       "Hi {{ .Subscriber.Name }}, following up via email.",
 		Delay:      "0s",
 	}
 
 	steps := []models.SequenceStep{step1, step2, step3}
 
-	contact := models.SequenceContact{
+	contact := models.SequenceSubscriber{
 		SequenceID:   100,
 		SubscriberID: 101,
-		Status:       models.SequenceContactStatusScheduled,
+		Status:       models.SequenceSubscriberStatusScheduled,
 		CurrentStep:  1,
 	}
 
@@ -86,10 +86,10 @@ func TestE2E_Sequence_ConditionalRouting_IfRead(t *testing.T) {
 		Delay:      "0s",
 	}
 
-	contactRead := models.SequenceContact{
+	contactRead := models.SequenceSubscriber{
 		SequenceID:    200,
 		SubscriberID:  202,
-		Status:        models.SequenceContactStatusInProgress,
+		Status:        models.SequenceSubscriberStatusInProgress,
 		CurrentStep:   2,
 		NextSendAt:    null.TimeFrom(now),
 		LastReadAt:    null.TimeFrom(now),
@@ -123,12 +123,12 @@ func TestE2E_Sequence_LinearProgression_And_LinkRedirection(t *testing.T) {
 }
 
 func TestE2E_Sequence_Sender_Reassignment_And_Limits(t *testing.T) {
-	contact := models.SequenceContact{
+	contact := models.SequenceSubscriber{
 		SequenceID:   400,
 		SubscriberID: 401,
 		EmailID:      null.IntFrom(10),
 		WahaSession:  null.StringFrom("aryans-whatsapp"),
-		Status:       models.SequenceContactStatusInProgress,
+		Status:       models.SequenceSubscriberStatusInProgress,
 		CurrentStep:  1,
 	}
 
@@ -280,10 +280,10 @@ func TestE2E_Sequence_MultiStep_LLM_Lifecycle(t *testing.T) {
 
 func TestSequenceAnalytics_DataStructure(t *testing.T) {
 	analytics := models.SequenceAnalytics{
-		ActiveContacts:  15,
-		StepCompletions: 45,
-		ReplyRate:       12.5,
-		ConversionRate:  8.3,
+		ActiveSubscribers: 15,
+		StepCompletions:   45,
+		ReplyRate:         12.5,
+		ConversionRate:    8.3,
 		AggregatedAnalytics: models.CampaignAnalytics{
 			Sent:    100,
 			ToSend:  20,
@@ -333,8 +333,8 @@ func TestSequenceAnalytics_DataStructure(t *testing.T) {
 		},
 	}
 
-	if analytics.ActiveContacts != 15 {
-		t.Fatalf("expected 15 active contacts, got %d", analytics.ActiveContacts)
+	if analytics.ActiveSubscribers != 15 {
+		t.Fatalf("expected 15 active subscribers, got %d", analytics.ActiveSubscribers)
 	}
 	if len(analytics.Funnel) != 2 {
 		t.Fatalf("expected 2 funnel steps, got %d", len(analytics.Funnel))
@@ -366,7 +366,7 @@ func TestUserChannelOwnership_And_CrossChannelLock(t *testing.T) {
 		t.Fatalf("expected WahaSession 'session_user1', got %v", u.WahaSession)
 	}
 
-	contact := models.SequenceContact{
+	contact := models.SequenceSubscriber{
 		SequenceID:   1,
 		SubscriberID: 501,
 		EmailID:      u.EmailID,
@@ -381,7 +381,7 @@ func TestUserChannelOwnership_And_CrossChannelLock(t *testing.T) {
 
 func TestEmailThreading_LastNewThread_Resolution(t *testing.T) {
 	// Step 1: Initial email sent (msg_1)
-	contact := models.SequenceContact{
+	contact := models.SequenceSubscriber{
 		SequenceID:      1,
 		SubscriberID:    1001,
 		LastMessageID:   null.StringFrom("msg_1"),
@@ -468,19 +468,19 @@ func TestE2E_Sequence_REST_API_Pipeline(t *testing.T) {
 	}
 
 	// Verify contact enrollment struct mapping
-	contacts := []models.SequenceContact{
+	contacts := []models.SequenceSubscriber{
 		{
 			SequenceID:   101,
 			SubscriberID: 501,
 			EmailID:      null.IntFrom(1),
-			Status:       models.SequenceContactStatusScheduled,
+			Status:       models.SequenceSubscriberStatusScheduled,
 			CurrentStep:  1,
 		},
 		{
 			SequenceID:   101,
 			SubscriberID: 502,
 			EmailID:      null.IntFrom(2),
-			Status:       models.SequenceContactStatusScheduled,
+			Status:       models.SequenceSubscriberStatusScheduled,
 			CurrentStep:  1,
 		},
 	}
@@ -503,10 +503,10 @@ func TestE2E_Sequence_Outside_Window_Schedule_Deferral(t *testing.T) {
 		Base: models.Base{
 			ID: 1,
 		},
-		Name:               "Business Hours NY",
-		Timezone:           "America/New_York",
-		UseContactTimezone: true,
-		SendingWindows:     models.JSON{"mon": []map[string]string{{"start": "09:00", "end": "17:00"}}},
+		Name:                  "Business Hours NY",
+		Timezone:              "America/New_York",
+		UseSubscriberTimezone: true,
+		SendingWindows:        models.JSON{"mon": []map[string]string{{"start": "09:00", "end": "17:00"}}},
 	}
 
 	// Test timestamp: Monday 22:00 NY time (Outside sending window)
@@ -663,13 +663,13 @@ func TestSeededTeamDemoSequence_Structure(t *testing.T) {
 }
 
 func TestSeededTeamDemoSequence_InstantStep2Condition(t *testing.T) {
-	contactUnread := models.SequenceContact{
+	contactUnread := models.SequenceSubscriber{
 		SequenceID:   1,
 		SubscriberID: 10,
 		CurrentStep:  2,
 		LastReadAt:   null.Time{},
 	}
-	contactRead := models.SequenceContact{
+	contactRead := models.SequenceSubscriber{
 		SequenceID:   1,
 		SubscriberID: 11,
 		CurrentStep:  2,
@@ -683,13 +683,13 @@ func TestSeededTeamDemoSequence_InstantStep2Condition(t *testing.T) {
 }
 
 func TestSeededTeamDemoSequence_InstantStep4Condition(t *testing.T) {
-	contactUnclicked := models.SequenceContact{
+	contactUnclicked := models.SequenceSubscriber{
 		SequenceID:    1,
 		SubscriberID:  20,
 		CurrentStep:   4,
 		LastClickedAt: null.Time{},
 	}
-	contactClicked := models.SequenceContact{
+	contactClicked := models.SequenceSubscriber{
 		SequenceID:    1,
 		SubscriberID:  21,
 		CurrentStep:   4,
@@ -798,20 +798,20 @@ func TestE2E_Sequence_ListBasedTrigger_Enrollment(t *testing.T) {
 	}
 
 	// 2. Contact subscribing to List 101 triggers scheduled state
-	contact := models.SequenceContact{
+	contact := models.SequenceSubscriber{
 		SequenceID:   1,
 		SubscriberID: 501,
-		Status:       models.SequenceContactStatusScheduled,
+		Status:       models.SequenceSubscriberStatusScheduled,
 		CurrentStep:  1,
 		NextSendAt:   null.TimeFrom(time.Now()),
 	}
 
-	if contact.Status != models.SequenceContactStatusScheduled || contact.CurrentStep != 1 {
+	if contact.Status != models.SequenceSubscriberStatusScheduled || contact.CurrentStep != 1 {
 		t.Fatalf("expected contact status 'scheduled' at step 1, got status '%s' step %d", contact.Status, contact.CurrentStep)
 	}
 
 	// 3. Contact unsubscription from list transitions to opted_out
-	contact.Status = models.SequenceContactStatusOptedOut
+	contact.Status = models.SequenceSubscriberStatusOptedOut
 	if contact.Status != "opted_out" {
 		t.Fatalf("expected contact status opted_out upon list removal")
 	}
@@ -1153,10 +1153,10 @@ func TestE2E_Sequence_Email_MailHog_Lifecycle(t *testing.T) {
 	}
 
 	steps := []models.SequenceStep{step1, step2, step3, step4}
-	contact := models.SequenceContact{
+	contact := models.SequenceSubscriber{
 		SequenceID:   seqID,
 		SubscriberID: subID,
-		Status:       models.SequenceContactStatusScheduled,
+		Status:       models.SequenceSubscriberStatusScheduled,
 		CurrentStep:  1,
 	}
 
@@ -1205,7 +1205,7 @@ func TestE2E_Sequence_Email_MailHog_Lifecycle(t *testing.T) {
 	}
 
 	contact.CurrentStep = 2
-	contact.Status = models.SequenceContactStatusInProgress
+	contact.Status = models.SequenceSubscriberStatusInProgress
 
 	// 4. Trigger Real / Open Tracking
 	contact.LastReadAt = null.TimeFrom(time.Now())
@@ -1252,10 +1252,10 @@ func TestE2E_Sequence_Email_MailHog_Lifecycle(t *testing.T) {
 	// 9. Trigger Inbound Reply & Auto-Stop
 	rl := sequence.NewReplyListener(nil, nil)
 	_ = rl.ProcessReplyWithBody(subEmail, sequence.ChannelTypeEmail, "Yes, I am interested in this deal!")
-	contact.Status = models.SequenceContactStatusReplied
+	contact.Status = models.SequenceSubscriberStatusReplied
 
 	// Verify Step 4 is prevented because contact has 'replied'
-	if contact.Status == models.SequenceContactStatusReplied {
+	if contact.Status == models.SequenceSubscriberStatusReplied {
 		t.Logf("Sequence contact %d successfully transitioned to 'replied' status; Step 4 automatically halted", subID)
 	} else {
 		t.Errorf("expected contact status 'replied', got %s", contact.Status)
@@ -1335,10 +1335,10 @@ func TestE2E_Sequence_WAHA_WhatsApp_Lifecycle(t *testing.T) {
 		Delay:      "0s",
 	}
 
-	contact := models.SequenceContact{
+	contact := models.SequenceSubscriber{
 		SequenceID:   seqID,
 		SubscriberID: subID,
-		Status:       models.SequenceContactStatusScheduled,
+		Status:       models.SequenceSubscriberStatusScheduled,
 		CurrentStep:  1,
 	}
 
@@ -1377,7 +1377,7 @@ func TestE2E_Sequence_WAHA_WhatsApp_Lifecycle(t *testing.T) {
 	}
 
 	contact.CurrentStep = 2
-	contact.Status = models.SequenceContactStatusInProgress
+	contact.Status = models.SequenceSubscriberStatusInProgress
 
 	// Simulate WAHA Read ACK
 	ackPayload := map[string]any{
@@ -1425,10 +1425,10 @@ func TestE2E_Sequence_WAHA_WhatsApp_Lifecycle(t *testing.T) {
 	cReply := e.NewContext(reqReply, recReply)
 	_ = app.WAHAWebhook(cReply)
 
-	contact.Status = models.SequenceContactStatusReplied
+	contact.Status = models.SequenceSubscriberStatusReplied
 
 	// Verify Step 4 is halted
-	if contact.Status != models.SequenceContactStatusReplied {
+	if contact.Status != models.SequenceSubscriberStatusReplied {
 		t.Errorf("expected contact status 'replied', got %s", contact.Status)
 	}
 
@@ -1508,10 +1508,10 @@ func TestE2E_Sequence_Mixed_Messenger_Lifecycle(t *testing.T) {
 		Delay:      "0s",
 	}
 
-	contact := models.SequenceContact{
+	contact := models.SequenceSubscriber{
 		SequenceID:   seqID,
 		SubscriberID: subID,
-		Status:       models.SequenceContactStatusScheduled,
+		Status:       models.SequenceSubscriberStatusScheduled,
 		CurrentStep:  1,
 	}
 
@@ -1548,7 +1548,7 @@ func TestE2E_Sequence_Mixed_Messenger_Lifecycle(t *testing.T) {
 	}
 
 	contact.CurrentStep = 2
-	contact.Status = models.SequenceContactStatusInProgress
+	contact.Status = models.SequenceSubscriberStatusInProgress
 
 	// 3. Trigger Email Read
 	contact.LastReadAt = null.TimeFrom(time.Now())
@@ -1603,9 +1603,9 @@ func TestE2E_Sequence_Mixed_Messenger_Lifecycle(t *testing.T) {
 	// 7. Trigger Reply & Cross-Channel Sequence Auto-Stop
 	rl := sequence.NewReplyListener(nil, nil)
 	_ = rl.ProcessReplyWithBody(subEmail, sequence.ChannelTypeEmail, "I love this multi-channel campaign, thanks!")
-	contact.Status = models.SequenceContactStatusReplied
+	contact.Status = models.SequenceSubscriberStatusReplied
 
-	if contact.Status != models.SequenceContactStatusReplied {
+	if contact.Status != models.SequenceSubscriberStatusReplied {
 		t.Errorf("expected contact status 'replied', got %s", contact.Status)
 	}
 
@@ -1660,12 +1660,12 @@ func TestE2E_UI_User_Assigned_Sender_CrossChannel_Continuity(t *testing.T) {
 	}
 
 	// 4. Enroll Bob into Sequence with User Alice's locked channels
-	contactBob := models.SequenceContact{
+	contactBob := models.SequenceSubscriber{
 		SequenceID:   50,
 		SubscriberID: 1001,
 		EmailID:      null.IntFrom(userCtx["email_id"].(int)),
 		WahaSession:  null.StringFrom(userCtx["waha_session"].(string)),
-		Status:       models.SequenceContactStatusScheduled,
+		Status:       models.SequenceSubscriberStatusScheduled,
 		CurrentStep:  1,
 	}
 
@@ -2064,7 +2064,7 @@ func TestE2E_Sequence_StepCompilation_And_FromEmail_MailHog(t *testing.T) {
 		},
 	}
 
-	seqContact := models.SequenceContact{
+	seqContact := models.SequenceSubscriber{
 		SequenceID:   101,
 		SubscriberID: 4004,
 	}
@@ -2166,7 +2166,7 @@ func TestE2E_Campaign_And_Sequence_DispatchParity(t *testing.T) {
 
 	msgr := &mockCmdMessenger{name: "email"}
 	seqMgr := sequence.NewManager(nil, map[string]manager.Messenger{"email": msgr}, nil, nil)
-	seqContact := models.SequenceContact{
+	seqContact := models.SequenceSubscriber{
 		SequenceID:   1,
 		SubscriberID: 1,
 	}
@@ -2209,7 +2209,7 @@ func TestResilience_SequenceWorker_ConcurrentTickContention(t *testing.T) {
 		Subject:    "Resilience Check",
 		Body:       "Concurrent dispatch test",
 	}
-	seqContact := models.SequenceContact{
+	seqContact := models.SequenceSubscriber{
 		SequenceID:   100,
 		SubscriberID: 1001,
 	}
@@ -2325,7 +2325,7 @@ func TestIntegration_Sequence_TestMessage_ChannelIsolation(t *testing.T) {
 		Phone: null.StringFrom("+918935885359"),
 	}
 
-	seqContact := models.SequenceContact{
+	seqContact := models.SequenceSubscriber{
 		SequenceID:   100,
 		SubscriberID: 1000,
 	}
@@ -2362,12 +2362,12 @@ func TestGetDueSequenceContacts_FiltersPausedSequences(t *testing.T) {
 		t.Fatalf("paused sequence should not equal active status: %s", pausedSeq.Status)
 	}
 
-	contacts := []models.SequenceContact{
-		{SequenceID: activeSeq.ID, SubscriberID: 101, Status: models.SequenceContactStatusScheduled},
-		{SequenceID: pausedSeq.ID, SubscriberID: 102, Status: models.SequenceContactStatusScheduled},
+	contacts := []models.SequenceSubscriber{
+		{SequenceID: activeSeq.ID, SubscriberID: 101, Status: models.SequenceSubscriberStatusScheduled},
+		{SequenceID: pausedSeq.ID, SubscriberID: 102, Status: models.SequenceSubscriberStatusScheduled},
 	}
 
-	var dueForActive []models.SequenceContact
+	var dueForActive []models.SequenceSubscriber
 	for _, c := range contacts {
 		if c.SequenceID == activeSeq.ID {
 			dueForActive = append(dueForActive, c)
@@ -2412,7 +2412,7 @@ func TestE2E_Sequence_TestMessage_ActiveUserRouting_And_ShorthandTemplateRenderi
 	mockMsgr := &mockCmdMessenger{name: "email"}
 	seqMgr := sequence.NewManager(nil, map[string]manager.Messenger{"email": mockMsgr}, nil, nil)
 
-	seqContact := models.SequenceContact{
+	seqContact := models.SequenceSubscriber{
 		SequenceID:   5,
 		SubscriberID: contactSub.ID,
 		CurrentStep:  step.StepNumber,
@@ -2479,7 +2479,7 @@ func TestE2E_Sequence_ProductionMessage_Routing_And_ContactRendering(t *testing.
 	mockMsgr := &mockCmdMessenger{name: "email"}
 	seqMgr := sequence.NewManager(nil, map[string]manager.Messenger{"email": mockMsgr}, nil, nil)
 
-	seqContact := models.SequenceContact{
+	seqContact := models.SequenceSubscriber{
 		SequenceID:   5,
 		SubscriberID: contactSub.ID,
 		CurrentStep:  step.StepNumber,
@@ -2544,7 +2544,7 @@ func TestE2E_Sequence_RealWorld_Pooled_LoadBalancing(t *testing.T) {
 	}
 
 	for _, c := range contacts {
-		seqContact := models.SequenceContact{
+		seqContact := models.SequenceSubscriber{
 			SequenceID:   10,
 			SubscriberID: c.ID,
 			CurrentStep:  1,
@@ -2598,7 +2598,7 @@ func TestE2E_Sequence_BaseTemplate_L_Function_Integration(t *testing.T) {
 		Name:  "Daniel",
 		Email: "daniel@example.com",
 	}
-	seqContact := models.SequenceContact{
+	seqContact := models.SequenceSubscriber{
 		SequenceID:   1,
 		SubscriberID: 101,
 		CurrentStep:  1,
@@ -2640,7 +2640,7 @@ func TestE2E_Sequence_WhatsApp_HTMLTemplate_BypassAndSanitization(t *testing.T) 
 		Phone: null.StringFrom("+919472380340"),
 	}
 
-	seqContact := models.SequenceContact{
+	seqContact := models.SequenceSubscriber{
 		SequenceID:   1,
 		SubscriberID: 202,
 		CurrentStep:  1,
@@ -2694,7 +2694,7 @@ func TestE2E_Sequence_TeamDemo_RealTimeClickTrigger(t *testing.T) {
 	steps := []models.SequenceStep{step1, step2, step3, step4, step5, step6}
 
 	now := time.Now()
-	contact := models.SequenceContact{
+	contact := models.SequenceSubscriber{
 		SequenceID:   1,
 		SubscriberID: 10,
 		CurrentStep:  4,
@@ -2766,10 +2766,10 @@ func TestIntegration_Sequence_LinearProgression_With_Delays(t *testing.T) {
 	step3 := models.SequenceStep{ID: 3, SequenceID: 100, StepNumber: 3, Delay: "20s", Messenger: "email", Subject: "Step 3"}
 	steps := []models.SequenceStep{step1, step2, step3}
 
-	contact := models.SequenceContact{
+	contact := models.SequenceSubscriber{
 		SequenceID:   100,
 		SubscriberID: 501,
-		Status:       models.SequenceContactStatusScheduled,
+		Status:       models.SequenceSubscriberStatusScheduled,
 		CurrentStep:  1,
 	}
 
@@ -2779,7 +2779,7 @@ func TestIntegration_Sequence_LinearProgression_With_Delays(t *testing.T) {
 	now := time.Now()
 	contact.CurrentStep = nextStep
 	contact.NextSendAt = null.TimeFrom(now.Add(d2))
-	contact.Status = models.SequenceContactStatusInProgress
+	contact.Status = models.SequenceSubscriberStatusInProgress
 
 	if contact.CurrentStep != 2 || d2 != 10*time.Second {
 		t.Fatalf("expected step 2 with 10s delay, got step %d and %v", contact.CurrentStep, d2)
@@ -2799,11 +2799,11 @@ func TestIntegration_Sequence_LinearProgression_With_Delays(t *testing.T) {
 	nextStep = contact.CurrentStep + 1
 	if nextStep > len(steps) {
 		contact.CurrentStep = nextStep
-		contact.Status = models.SequenceContactStatusFinished
+		contact.Status = models.SequenceSubscriberStatusFinished
 		contact.NextSendAt = null.Time{}
 	}
 
-	if contact.Status != models.SequenceContactStatusFinished {
+	if contact.Status != models.SequenceSubscriberStatusFinished {
 		t.Fatalf("expected status 'finished', got %s", contact.Status)
 	}
 	t.Log("Successfully verified TestIntegration_Sequence_LinearProgression_With_Delays")
@@ -2865,8 +2865,8 @@ func TestIntegration_Sequence_PerStep_Analytics_Funnel(t *testing.T) {
 	}
 
 	analytics := models.SequenceAnalytics{
-		ActiveContacts: 60,
-		Funnel:         funnel,
+		ActiveSubscribers: 60,
+		Funnel:            funnel,
 	}
 
 	if len(analytics.Funnel) != 2 {
@@ -2883,25 +2883,25 @@ func TestIntegration_Sequence_PerStep_Analytics_Funnel(t *testing.T) {
 
 func TestIntegration_Sequence_Reply_AutoStop(t *testing.T) {
 	subEmail := "contact@example.com"
-	contact := models.SequenceContact{
+	contact := models.SequenceSubscriber{
 		SequenceID:   10,
 		SubscriberID: 101,
-		Status:       models.SequenceContactStatusInProgress,
+		Status:       models.SequenceSubscriberStatusInProgress,
 		CurrentStep:  1,
 	}
 
 	// Ingest subscriber reply
 	rl := sequence.NewReplyListener(nil, nil)
 	_ = rl.ProcessReplyWithBody(subEmail, sequence.ChannelTypeEmail, "Please stop sending emails.")
-	contact.Status = models.SequenceContactStatusReplied
+	contact.Status = models.SequenceSubscriberStatusReplied
 
-	if contact.Status != models.SequenceContactStatusReplied {
+	if contact.Status != models.SequenceSubscriberStatusReplied {
 		t.Fatalf("expected status 'replied', got %s", contact.Status)
 	}
 
 	// Verify that ProcessBatch ignores 'replied' contacts
 	// (Due query only fetches status IN ('scheduled', 'in_progress'))
-	isDue := contact.Status == models.SequenceContactStatusScheduled || contact.Status == models.SequenceContactStatusInProgress
+	isDue := contact.Status == models.SequenceSubscriberStatusScheduled || contact.Status == models.SequenceSubscriberStatusInProgress
 	if isDue {
 		t.Fatalf("replied contact must not be considered due for batch processing")
 	}

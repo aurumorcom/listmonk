@@ -363,19 +363,19 @@ func TestInstall_CreateSequenceListsParameterMapping(t *testing.T) {
 	t.Log("Successfully verified create-sequence-lists 2-parameter mapping")
 }
 
-func TestInstall_EnrollSequenceContactsByListsParameterMapping(t *testing.T) {
-	// Verify enroll-sequence-contacts-by-lists positional parameter alignment with queries/sequences.sql:
-	// INSERT INTO sequence_contacts (sequence_id, subscriber_id, status, current_step, next_send_at)
+func TestInstall_EnrollSequenceSubscribersByListsParameterMapping(t *testing.T) {
+	// Verify enroll-sequence-subscribers-by-lists positional parameter alignment with queries/sequences.sql:
+	// INSERT INTO sequence_subscribers (sequence_id, subscriber_id, status, current_step, next_send_at)
 	// SELECT DISTINCT sl.sequence_id, subl.subscriber_id, 'scheduled', 1, NOW()
 	// FROM sequence_lists sl ... WHERE sl.sequence_id = $1 ...
 
 	seqID := 1
 	args := []any{seqID}
 	if len(args) != 1 || args[0] != 1 {
-		t.Fatalf("expected 1 parameter with seqID=1 for enroll-sequence-contacts-by-lists, got %v", args)
+		t.Fatalf("expected 1 parameter with seqID=1 for enroll-sequence-subscribers-by-lists, got %v", args)
 	}
 
-	t.Log("Successfully verified enroll-sequence-contacts-by-lists parameter mapping")
+	t.Log("Successfully verified enroll-sequence-subscribers-by-lists parameter mapping")
 }
 
 func TestInstall_SequenceRETURNINGStructScanAlignment(t *testing.T) {

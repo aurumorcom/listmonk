@@ -42,30 +42,6 @@ const routes = [
     component: () => import('../views/Subscribers.vue'),
   },
   {
-    path: '/contacts',
-    name: 'contacts',
-    meta: { title: 'globals.terms.contacts', group: 'contacts' },
-    component: () => import('../views/Contacts.vue'),
-  },
-  {
-    path: '/contacts/import',
-    name: 'importContacts',
-    meta: { title: 'import.title', group: 'contacts' },
-    component: () => import('../views/Import.vue'),
-  },
-  {
-    path: '/contacts/bounces',
-    name: 'bouncesContacts',
-    meta: { title: 'globals.terms.bounces', group: 'contacts' },
-    component: () => import('../views/Bounces.vue'),
-  },
-  {
-    path: '/contacts/:id',
-    name: 'contact',
-    meta: { title: 'globals.terms.contacts', group: 'contacts' },
-    component: () => import('../views/Contacts.vue'),
-  },
-  {
     path: '/subscribers/import',
     name: 'import',
     meta: { title: 'import.title', group: 'subscribers' },

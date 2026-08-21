@@ -106,10 +106,10 @@ type Queries struct {
 	SetDefaultSchedule *sqlx.Stmt `query:"set-default-schedule"`
 	DeleteTemplate     *sqlx.Stmt `query:"delete-template"`
 
-	CreateSequence                *sqlx.Stmt `query:"create-sequence"`
-	CreateSequenceStep            *sqlx.Stmt `query:"create-sequence-step"`
-	CreateSequenceLists           *sqlx.Stmt `query:"create-sequence-lists"`
-	EnrollSequenceContactsByLists *sqlx.Stmt `query:"enroll-sequence-contacts-by-lists"`
+	CreateSequence                   *sqlx.Stmt `query:"create-sequence"`
+	CreateSequenceStep               *sqlx.Stmt `query:"create-sequence-step"`
+	CreateSequenceLists              *sqlx.Stmt `query:"create-sequence-lists"`
+	EnrollSequenceSubscribersByLists *sqlx.Stmt `query:"enroll-sequence-subscribers-by-lists"`
 
 	CreateLink        *sqlx.Stmt `query:"create-link"`
 	GetLinkURL        *sqlx.Stmt `query:"get-link-url"`

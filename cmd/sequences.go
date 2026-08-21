@@ -383,7 +383,7 @@ func (a *App) TestSequence(c echo.Context) error {
 				}
 			}
 
-			seqContact := models.SequenceContact{
+			seqSub := models.SequenceSubscriber{
 				SequenceID:   id,
 				SubscriberID: sub.ID,
 				CurrentStep:  req.StepNumber,
@@ -391,7 +391,7 @@ func (a *App) TestSequence(c echo.Context) error {
 				WahaSession:  assignedWahaSession,
 			}
 
-			if err := a.seqManager.PrepareAndDispatchStep(seqContact, sub, testStep, target); err != nil {
+			if err := a.seqManager.PrepareAndDispatchStep(seqSub, sub, testStep, target); err != nil {
 				a.log.Printf("error sending test sequence message: %v", err)
 				return echo.NewHTTPError(http.StatusInternalServerError,
 					a.i18n.Ts("campaigns.errorSendTest", "error", err.Error()))

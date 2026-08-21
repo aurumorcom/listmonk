@@ -7,19 +7,25 @@
     <div v-else>
       <!-- Summary Stats -->
       <div class="columns">
-        <div class="column is-4">
+        <div class="column is-3">
           <div class="box has-text-centered">
-            <p class="heading">{{ $t('globals.terms.sequences') }}</p>
+            <p class="heading">{{ $t('globals.terms.campaigns') }}</p>
             <p class="title">{{ activity.campaignViews ? activity.campaignViews.length : 0 }}</p>
           </div>
         </div>
-        <div class="column is-4">
+        <div class="column is-3">
+          <div class="box has-text-centered">
+            <p class="heading">{{ $t('globals.terms.sequences') }}</p>
+            <p class="title">{{ activity.sequenceCount || 0 }}</p>
+          </div>
+        </div>
+        <div class="column is-3">
           <div class="box has-text-centered">
             <p class="heading">{{ $t('campaigns.views') }}</p>
             <p class="title">{{ totalViews }}</p>
           </div>
         </div>
-        <div class="column is-4">
+        <div class="column is-3">
           <div class="box has-text-centered">
             <p class="heading">{{ $t('campaigns.clicks') }}</p>
             <p class="title">{{ totalClicks }}</p>
@@ -127,6 +133,7 @@ export default Vue.extend({
       activity: {
         campaignViews: [],
         linkClicks: [],
+        sequenceCount: 0,
       },
     };
   },

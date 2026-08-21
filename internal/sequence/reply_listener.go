@@ -83,7 +83,7 @@ func (r *ReplyListener) ProcessReplyWithQuotedID(fromIdentifier string, channel 
 		// 1A. Fast Opt-Out Regex
 		if _reOptOut.MatchString(trimmedBody) {
 			r.logger.Info("fast-path reply classification matched", slog.String("from", fromIdentifier), slog.String("intent", "opt_out"))
-			return r.core.CancelSequenceContactForOptOut(fromIdentifier, isPhone)
+			return r.core.CancelSequenceSubscriberForOptOut(fromIdentifier, isPhone)
 		}
 
 		// 1B. Fast Interested Regex
@@ -113,7 +113,7 @@ func (r *ReplyListener) ProcessReplyWithQuotedID(fromIdentifier string, channel 
 				returnDate = time.Now().Add(72 * time.Hour)
 			}
 
-			return r.core.DeferSequenceContactOOO(fromIdentifier, isPhone, returnDate)
+			return r.core.DeferSequenceSubscriberOOO(fromIdentifier, isPhone, returnDate)
 		}
 	}
 
@@ -128,7 +128,7 @@ func (r *ReplyListener) ProcessReplyWithQuotedID(fromIdentifier string, channel 
 			switch intentResult.Intent {
 			case "opt_out":
 				r.logger.Info("Bifrost AI classified reply intent", slog.String("from", fromIdentifier), slog.String("intent", "opt_out"), slog.String("reason", intentResult.Reason))
-				return r.core.CancelSequenceContactForOptOut(fromIdentifier, isPhone)
+				return r.core.CancelSequenceSubscriberForOptOut(fromIdentifier, isPhone)
 
 			case "out_of_office":
 				var returnDate time.Time
@@ -139,7 +139,7 @@ func (r *ReplyListener) ProcessReplyWithQuotedID(fromIdentifier string, channel 
 					returnDate = time.Now().Add(72 * time.Hour)
 				}
 				r.logger.Info("Bifrost AI classified reply intent", slog.String("from", fromIdentifier), slog.String("intent", "out_of_office"), slog.Time("return_date", returnDate))
-				return r.core.DeferSequenceContactOOO(fromIdentifier, isPhone, returnDate)
+				return r.core.DeferSequenceSubscriberOOO(fromIdentifier, isPhone, returnDate)
 
 			case "interested", "other":
 				r.logger.Info("Bifrost AI classified reply intent", slog.String("from", fromIdentifier), slog.String("intent", intentResult.Intent))

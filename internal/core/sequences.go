@@ -205,22 +205,22 @@ func (c *Core) syncSequenceLists(seqID int, listIDs []int, status string) error 
 	return err
 }
 
-// EnrollListContactsInActiveSequences enrolls active contacts from targeted lists into active sequences.
-func EnrollListContactsInActiveSequences(c *Core, subIDs []int, listIDs []int, userContext map[string]any) error {
+// EnrollListSubscribersInActiveSequences enrolls active subscribers from targeted lists into active sequences.
+func EnrollListSubscribersInActiveSequences(c *Core, subIDs []int, listIDs []int, userContext map[string]any) error {
 	if userContext == nil {
 		return c.EnrollSubscribersByList(subIDs, listIDs)
 	}
 	return c.EnrollSubscribersByList(subIDs, listIDs, userContext)
 }
 
-// DisenrollListContactsFromSequences marks contacts as opted_out when removed from active sequence lists.
-func DisenrollListContactsFromSequences(c *Core, subIDs []int, listIDs []int) error {
+// DisenrollListSubscribersFromSequences marks subscribers as opted_out when removed from active sequence lists.
+func DisenrollListSubscribersFromSequences(c *Core, subIDs []int, listIDs []int) error {
 	return c.OptOutSubscribersByList(subIDs, listIDs)
 }
 
-// LockSequenceChannelSender locks assigned email account or WAHA session for sequence contacts.
+// LockSequenceChannelSender locks assigned email account or WAHA session for sequence subscribers.
 func LockSequenceChannelSender(c *Core, sequenceID int, subscriberIDs []int, userContext map[string]any) error {
-	return c.EnrollSequenceContacts(sequenceID, subscriberIDs, userContext)
+	return c.EnrollSequenceSubscribers(sequenceID, subscriberIDs, userContext)
 }
 
 // EnrollSubscribersByList enrolls active subscribers for given list IDs into all active sequences targeting those lists.
@@ -428,40 +428,40 @@ func (c *Core) DeleteSequences(ids []int) error {
 	return nil
 }
 
-// ManageContactSequences modifies contact sequence memberships (enroll, disenroll, pause).
-func (c *Core) ManageContactSequences(contactIDs []int, sequenceIDs []int, action string, status string) error {
-	if len(contactIDs) == 0 || len(sequenceIDs) == 0 {
+// ManageSubscriberSequences modifies subscriber sequence memberships (enroll, disenroll, pause).
+func (c *Core) ManageSubscriberSequences(subscriberIDs []int, sequenceIDs []int, action string, status string) error {
+	if len(subscriberIDs) == 0 || len(sequenceIDs) == 0 {
 		return nil
 	}
 	switch action {
 	case "add", "enroll":
 		if status == "" {
-			status = models.SequenceContactStatusScheduled
+			status = models.SequenceSubscriberStatusScheduled
 		}
 		for _, seqID := range sequenceIDs {
-			_, err := c.db.Exec(`INSERT INTO sequence_contacts (sequence_id, subscriber_id, status, current_step, next_send_at)
+			_, err := c.db.Exec(`INSERT INTO sequence_subscribers (sequence_id, subscriber_id, status, current_step, next_send_at)
 				SELECT $1, id, $3, 1, NOW()
 				FROM subscribers
 				WHERE id = ANY($2)
 				ON CONFLICT (sequence_id, subscriber_id) DO UPDATE SET status = EXCLUDED.status`,
-				seqID, pq.Array(contactIDs), status)
+				seqID, pq.Array(subscriberIDs), status)
 			if err != nil {
-				c.log.Printf("error enrolling contacts into sequence %d: %v", seqID, err)
+				c.log.Printf("error enrolling subscribers into sequence %d: %v", seqID, err)
 				return echo.NewHTTPError(http.StatusInternalServerError, c.i18n.Ts("public.errorProcessingRequest"))
 			}
 		}
 	case "remove", "disenroll":
-		_, err := c.db.Exec("DELETE FROM sequence_contacts WHERE subscriber_id = ANY($1) AND sequence_id = ANY($2)",
-			pq.Array(contactIDs), pq.Array(sequenceIDs))
+		_, err := c.db.Exec("DELETE FROM sequence_subscribers WHERE subscriber_id = ANY($1) AND sequence_id = ANY($2)",
+			pq.Array(subscriberIDs), pq.Array(sequenceIDs))
 		if err != nil {
-			c.log.Printf("error disenrolling contacts: %v", err)
+			c.log.Printf("error disenrolling subscribers: %v", err)
 			return echo.NewHTTPError(http.StatusInternalServerError, c.i18n.Ts("public.errorProcessingRequest"))
 		}
 	case "pause":
-		_, err := c.db.Exec("UPDATE sequence_contacts SET status = 'paused' WHERE subscriber_id = ANY($1) AND sequence_id = ANY($2)",
-			pq.Array(contactIDs), pq.Array(sequenceIDs))
+		_, err := c.db.Exec("UPDATE sequence_subscribers SET status = 'paused' WHERE subscriber_id = ANY($1) AND sequence_id = ANY($2)",
+			pq.Array(subscriberIDs), pq.Array(sequenceIDs))
 		if err != nil {
-			c.log.Printf("error pausing contacts in sequence: %v", err)
+			c.log.Printf("error pausing subscribers in sequence: %v", err)
 			return echo.NewHTTPError(http.StatusInternalServerError, c.i18n.Ts("public.errorProcessingRequest"))
 		}
 	default:
@@ -470,13 +470,13 @@ func (c *Core) ManageContactSequences(contactIDs []int, sequenceIDs []int, actio
 	return nil
 }
 
-// GetContactSequences returns sequence memberships for a given contact ID.
-func (c *Core) GetContactSequences(contactID int) ([]models.SequenceContact, error) {
-	var out []models.SequenceContact
+// GetSubscriberSequences returns sequence memberships for a given subscriber ID.
+func (c *Core) GetSubscriberSequences(subscriberID int) ([]models.SequenceSubscriber, error) {
+	var out []models.SequenceSubscriber
 	err := c.db.Select(&out, `SELECT sequence_id, subscriber_id, email_id, waha_session, status, current_step, next_send_at, last_read_at, last_clicked_at, last_message_id, created_at
-		FROM sequence_contacts WHERE subscriber_id = $1 ORDER BY sequence_id ASC`, contactID)
+		FROM sequence_subscribers WHERE subscriber_id = $1 ORDER BY sequence_id ASC`, subscriberID)
 	if err != nil {
-		c.log.Printf("error getting contact sequences: %v", err)
+		c.log.Printf("error getting subscriber sequences: %v", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, c.i18n.Ts("public.errorProcessingRequest"))
 	}
 	return out, nil
@@ -685,8 +685,8 @@ func AllocateSendersCapacityWeighted(subIDs []int, emails []models.Email) map[in
 	return alloc
 }
 
-// EnrollSequenceContacts enrolls contacts into a sequence with automatic channel locking and optional User context.
-func (c *Core) EnrollSequenceContacts(sequenceID int, subscriberIDs []int, userContext map[string]any) error {
+// EnrollSequenceSubscribers enrolls subscribers into a sequence with automatic channel locking and optional User context.
+func (c *Core) EnrollSequenceSubscribers(sequenceID int, subscriberIDs []int, userContext map[string]any) error {
 	if len(subscriberIDs) == 0 {
 		return nil
 	}
@@ -794,24 +794,24 @@ func (c *Core) EnrollSequenceContacts(sequenceID int, subscriberIDs []int, userC
 	return tx.Commit()
 }
 
-// GetDueSequenceContacts returns sequence contacts due for sending for active sequences.
-func (c *Core) GetDueSequenceContacts(limit int) ([]models.SequenceContact, error) {
-	var out []models.SequenceContact
+// GetDueSequenceSubscribers returns sequence subscribers due for sending for active sequences.
+func (c *Core) GetDueSequenceSubscribers(limit int) ([]models.SequenceSubscriber, error) {
+	var out []models.SequenceSubscriber
 	err := c.db.Select(&out, `SELECT sc.sequence_id, sc.subscriber_id, sc.email_id, sc.waha_session, sc.status, sc.current_step, sc.next_send_at, sc.last_read_at, sc.last_clicked_at, sc.last_message_id, sc.last_thread_msg_id, sc.created_at
-		FROM sequence_contacts sc
+		FROM sequence_subscribers sc
 		JOIN sequences s ON s.id = sc.sequence_id
 		WHERE s.status = $1 AND sc.status IN ('scheduled', 'in_progress') AND sc.next_send_at <= NOW()
 		LIMIT $2`, models.SequenceStatusActive, limit)
 	if err != nil {
-		c.log.Printf("error getting due sequence contacts: %v", err)
+		c.log.Printf("error getting due sequence subscribers: %v", err)
 		return nil, err
 	}
 	return out, nil
 }
 
-// UpdateSequenceContactStatus updates progress of a contact in a sequence.
-func (c *Core) UpdateSequenceContactStatus(sequenceID, subID int, status string, currentStep int, nextSendAt null.Time, lastMsgID null.String, lastThreadMsgID null.String) error {
-	_, err := c.db.Exec(`UPDATE sequence_contacts
+// UpdateSequenceSubscriberStatus updates progress of a subscriber in a sequence.
+func (c *Core) UpdateSequenceSubscriberStatus(sequenceID, subID int, status string, currentStep int, nextSendAt null.Time, lastMsgID null.String, lastThreadMsgID null.String) error {
+	_, err := c.db.Exec(`UPDATE sequence_subscribers
 		SET status = $3, current_step = $4, next_send_at = $5, last_message_id = $6, last_thread_msg_id = $7
 		WHERE sequence_id = $1 AND subscriber_id = $2`,
 		sequenceID, subID, status, currentStep, nextSendAt, lastMsgID, lastThreadMsgID)
@@ -823,7 +823,7 @@ func (c *Core) RecordSequenceRead(sequenceID, subID int) error {
 	if c == nil || c.db == nil {
 		return nil
 	}
-	_, err := c.db.Exec(`UPDATE sequence_contacts SET last_read_at = NOW() WHERE sequence_id = $1 AND subscriber_id = $2`, sequenceID, subID)
+	_, err := c.db.Exec(`UPDATE sequence_subscribers SET last_read_at = NOW() WHERE sequence_id = $1 AND subscriber_id = $2`, sequenceID, subID)
 	return err
 }
 
@@ -950,8 +950,8 @@ func (c *Core) RecordSequenceReplyByPhone(identifier string, lids ...string) err
 	return err
 }
 
-// CancelSequenceContactForOptOut cancels active sequence contacts and unsubscribes the subscriber upon explicit opt-out.
-func (c *Core) CancelSequenceContactForOptOut(identifier string, isPhone bool, lids ...string) error {
+// CancelSequenceSubscriberForOptOut cancels active sequence subscribers and unsubscribes the subscriber upon explicit opt-out.
+func (c *Core) CancelSequenceSubscriberForOptOut(identifier string, isPhone bool, lids ...string) error {
 	if identifier == "" {
 		return nil
 	}
@@ -969,7 +969,7 @@ func (c *Core) CancelSequenceContactForOptOut(identifier string, isPhone bool, l
 		if cleaned == "" && lid == "" {
 			return nil
 		}
-		_, err := c.db.Exec(`UPDATE sequence_contacts
+		_, err := c.db.Exec(`UPDATE sequence_subscribers
 			SET status = 'cancelled'
 			WHERE subscriber_id IN (
 				SELECT id FROM subscribers
@@ -986,7 +986,7 @@ func (c *Core) CancelSequenceContactForOptOut(identifier string, isPhone bool, l
 		return err
 	}
 
-	_, err := c.db.Exec(`UPDATE sequence_contacts
+	_, err := c.db.Exec(`UPDATE sequence_subscribers
 		SET status = 'cancelled'
 		WHERE subscriber_id = (SELECT id FROM subscribers WHERE email = $1 LIMIT 1)
 		  AND status IN ('scheduled', 'in_progress')`, identifier)
@@ -997,8 +997,8 @@ func (c *Core) CancelSequenceContactForOptOut(identifier string, isPhone bool, l
 	return err
 }
 
-// DeferSequenceContactOOO defers active sequence contacts to a future return date for Out-Of-Office replies.
-func (c *Core) DeferSequenceContactOOO(identifier string, isPhone bool, returnDate time.Time, lids ...string) error {
+// DeferSequenceSubscriberOOO defers active sequence subscribers to a future return date for Out-Of-Office replies.
+func (c *Core) DeferSequenceSubscriberOOO(identifier string, isPhone bool, returnDate time.Time, lids ...string) error {
 	if identifier == "" {
 		return nil
 	}
@@ -1104,7 +1104,7 @@ func IsInsideSchedule(sched *models.Schedule, contactLoc *time.Location, now tim
 	}
 
 	loc := time.UTC
-	if sched.UseContactTimezone && contactLoc != nil {
+	if sched.UseSubscriberTimezone && contactLoc != nil {
 		loc = contactLoc
 	} else if sched.Timezone != "" {
 		if l, err := time.LoadLocation(sched.Timezone); err == nil {
@@ -1320,23 +1320,23 @@ func (c *Core) GetSequenceAnalytics() (*models.SequenceAnalytics, error) {
 		},
 	}
 
-	// 1. Query active contacts (status 'scheduled' or 'in_progress')
-	err := c.db.Get(&out.ActiveContacts, `SELECT COALESCE(COUNT(*), 0) FROM sequence_contacts WHERE status IN ('scheduled', 'in_progress')`)
+	// 1. Query active subscribers (status 'scheduled' or 'in_progress')
+	err := c.db.Get(&out.ActiveSubscribers, `SELECT COALESCE(COUNT(*), 0) FROM sequence_subscribers WHERE status IN ('scheduled', 'in_progress')`)
 	if err != nil && err != sql.ErrNoRows {
-		c.log.Printf("error querying active sequence contacts: %v", err)
+		c.log.Printf("error querying active sequence subscribers: %v", err)
 	}
 
 	// 2. Query total step completions
-	err = c.db.Get(&out.StepCompletions, `SELECT COALESCE(SUM(current_step), 0) FROM sequence_contacts`)
+	err = c.db.Get(&out.StepCompletions, `SELECT COALESCE(SUM(current_step), 0) FROM sequence_subscribers`)
 	if err != nil && err != sql.ErrNoRows {
 		c.log.Printf("error querying sequence step completions: %v", err)
 	}
 
-	// 3. Query total enrolled contacts, replied contacts, and finished contacts
+	// 3. Query total enrolled subscribers, replied subscribers, and finished subscribers
 	var totalEnrolled, totalReplied, totalFinished int
-	_ = c.db.Get(&totalEnrolled, `SELECT COALESCE(COUNT(*), 0) FROM sequence_contacts`)
-	_ = c.db.Get(&totalReplied, `SELECT COALESCE(COUNT(*), 0) FROM sequence_contacts WHERE status = 'replied'`)
-	_ = c.db.Get(&totalFinished, `SELECT COALESCE(COUNT(*), 0) FROM sequence_contacts WHERE status IN ('replied', 'finished')`)
+	_ = c.db.Get(&totalEnrolled, `SELECT COALESCE(COUNT(*), 0) FROM sequence_subscribers`)
+	_ = c.db.Get(&totalReplied, `SELECT COALESCE(COUNT(*), 0) FROM sequence_subscribers WHERE status = 'replied'`)
+	_ = c.db.Get(&totalFinished, `SELECT COALESCE(COUNT(*), 0) FROM sequence_subscribers WHERE status IN ('replied', 'finished')`)
 
 	if totalEnrolled > 0 {
 		out.ReplyRate = (float64(totalReplied) / float64(totalEnrolled)) * 100.0

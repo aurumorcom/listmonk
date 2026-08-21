@@ -358,8 +358,8 @@ func installSequence(coldListID, campTplID, archiveTplID, schedID int, q *models
 		lo.Fatalf("error associating sequence with cold list: %v", err)
 	}
 
-	if _, err := q.EnrollSequenceContactsByLists.Exec(seq.ID); err != nil {
-		lo.Fatalf("error auto-enrolling contacts into sequence: %v", err)
+	if _, err := q.EnrollSequenceSubscribersByLists.Exec(seq.ID); err != nil {
+		lo.Fatalf("error auto-enrolling subscribers into sequence: %v", err)
 	}
 
 	steps := []models.SequenceStep{
