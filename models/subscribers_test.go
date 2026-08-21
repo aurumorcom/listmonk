@@ -4,6 +4,7 @@ package models
 
 import (
 	"testing"
+	"time"
 
 	null "gopkg.in/volatiletech/null.v6"
 )
@@ -71,14 +72,12 @@ func TestSubscriberCompany(t *testing.T) {
 }
 
 func TestTimezoneResolutionHierarchy(t *testing.T) {
-	fallbackTZ := "America/New_York"
-
 	// Case 1: Subscriber dedicated TZ takes precedence
 	c1 := Subscriber{
 		TZ:      "Asia/Tokyo",
 		Attribs: JSON{"tz": "Europe/London"},
 	}
-	if loc := c1.ResolveTimezone(fallbackTZ); loc.String() != "Asia/Tokyo" {
+	if loc := c1.ResolveTimezone(); loc.String() != "Asia/Tokyo" {
 		t.Errorf("expected Asia/Tokyo, got %s", loc.String())
 	}
 
@@ -86,21 +85,16 @@ func TestTimezoneResolutionHierarchy(t *testing.T) {
 	c2 := Subscriber{
 		Attribs: JSON{"tz": "Europe/London"},
 	}
-	if loc := c2.ResolveTimezone(fallbackTZ); loc.String() != "Europe/London" {
+	if loc := c2.ResolveTimezone(); loc.String() != "Europe/London" {
 		t.Errorf("expected Europe/London, got %s", loc.String())
 	}
 
-	// Case 3: Fallback timezone used when subscriber tz is missing
+	// Case 3: Server local timezone fallback when subscriber tz is missing
 	c3 := Subscriber{
 		Attribs: JSON{},
 	}
-	if loc := c3.ResolveTimezone(fallbackTZ); loc.String() != "America/New_York" {
-		t.Errorf("expected America/New_York, got %s", loc.String())
-	}
-
-	// Case 4: UTC fallback when all are missing
-	if loc := c3.ResolveTimezone(""); loc.String() != "UTC" {
-		t.Errorf("expected UTC, got %s", loc.String())
+	if loc := c3.ResolveTimezone(); loc.String() != time.Local.String() {
+		t.Errorf("expected %s, got %s", time.Local.String(), loc.String())
 	}
 }
 

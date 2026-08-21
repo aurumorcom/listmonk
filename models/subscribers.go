@@ -104,12 +104,11 @@ func (s Subscriber) LastName() string {
 	return s.Name
 }
 
-// ResolveTimezone resolves the subscriber's timezone location using a 4-tier hierarchy:
+// ResolveTimezone resolves the subscriber's timezone location using a 3-tier hierarchy:
 // 1. Dedicated subscriber column (`s.TZ`)
 // 2. Contact specific attribute (`Attribs["tz"]` or `Attribs["timezone"]`)
-// 3. Campaign/Schedule default timezone (`fallbackTZ`)
-// 4. Fallback to UTC (`time.UTC`)
-func (s Subscriber) ResolveTimezone(fallbackTZ string) *time.Location {
+// 3. Fallback to server local timezone (`time.Local`)
+func (s Subscriber) ResolveTimezone() *time.Location {
 	if strings.TrimSpace(s.TZ) != "" {
 		if loc, err := time.LoadLocation(strings.TrimSpace(s.TZ)); err == nil {
 			return loc
@@ -128,13 +127,7 @@ func (s Subscriber) ResolveTimezone(fallbackTZ string) *time.Location {
 		}
 	}
 
-	if strings.TrimSpace(fallbackTZ) != "" {
-		if loc, err := time.LoadLocation(strings.TrimSpace(fallbackTZ)); err == nil {
-			return loc
-		}
-	}
-
-	return time.UTC
+	return time.Local
 }
 
 // Subscription represents a list attached to a subscriber.
