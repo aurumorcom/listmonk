@@ -4,10 +4,10 @@ import (
 	"testing"
 )
 
-func TestDefaultSqids(t *testing.T) {
-	s := DefaultSqids()
+func TestSqids(t *testing.T) {
+	s := Sqids()
 	if s == nil {
-		t.Fatalf("expected DefaultSqids() to return non-nil sqids instance")
+		t.Fatalf("expected Sqids() to return non-nil sqids instance")
 	}
 }
 

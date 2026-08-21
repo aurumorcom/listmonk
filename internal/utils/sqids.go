@@ -37,15 +37,15 @@ func initDefaultSqids() {
 	_defaultSqids = s
 }
 
-// DefaultSqids returns the singleton Sqids instance with minimum length 10.
-func DefaultSqids() *sqids.Sqids {
+// Sqids returns the singleton Sqids instance with minimum length 10.
+func Sqids() *sqids.Sqids {
 	_defaultSqidsOnce.Do(initDefaultSqids)
 	return _defaultSqids
 }
 
 // EncodeSqidsLink encodes linkID, isSequence, entityID, subscriberID, and optional stepID into a compact Sqids token.
 func EncodeSqidsLink(linkID int, isSequence bool, entityID int, subscriberID int, stepID ...int) string {
-	s := DefaultSqids()
+	s := Sqids()
 	if s == nil {
 		slog.Error("sqids instance is uninitialized during link encoding")
 		return ""
@@ -72,7 +72,7 @@ func DecodeSqidsLink(token string) (ShortLinkPayload, error) {
 		slog.Warn("empty short link token received for decoding")
 		return ShortLinkPayload{}, ErrInvalidShortToken
 	}
-	s := DefaultSqids()
+	s := Sqids()
 	if s == nil {
 		slog.Error("sqids instance is uninitialized during link decoding")
 		return ShortLinkPayload{}, ErrInvalidShortToken
