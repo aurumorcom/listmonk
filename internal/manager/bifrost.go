@@ -33,8 +33,8 @@ var (
 	_bifrostOnce     sync.Once
 )
 
-// DefaultBifrostClient returns the thread-safe singleton Bifrost AI client.
-func DefaultBifrostClient(cfg BifrostConfig) *BifrostClient {
+// Bifrost returns the thread-safe singleton Bifrost AI client.
+func Bifrost(cfg BifrostConfig) *BifrostClient {
 	_bifrostOnce.Do(func() {
 		_bifrostInstance = NewBifrostClient(cfg)
 	})
