@@ -13,11 +13,11 @@ const (
 	SequenceStatusPaused   = "paused"
 	SequenceStatusArchived = "archived"
 
-	SequenceContactStatusScheduled  = "scheduled"
-	SequenceContactStatusInProgress = "in_progress"
-	SequenceContactStatusReplied    = "replied"
-	SequenceContactStatusFinished   = "finished"
-	SequenceContactStatusOptedOut   = "opted_out"
+	SequenceSubscriberStatusScheduled  = "scheduled"
+	SequenceSubscriberStatusInProgress = "in_progress"
+	SequenceSubscriberStatusReplied    = "replied"
+	SequenceSubscriberStatusFinished   = "finished"
+	SequenceSubscriberStatusOptedOut   = "opted_out"
 
 	// Sequence conditions (Deprecated: sequence progression is strictly linear based on step delays).
 	SequenceConditionAlways    = "always"
@@ -82,11 +82,11 @@ type SequenceStep struct {
 	MediaIDs   pq.Int64Array `db:"media_ids" json:"media_ids"`
 }
 
-// SequenceContacts represents a slice of SequenceContact.
-type SequenceContacts []SequenceContact
+// SequenceSubscribers represents a slice of SequenceSubscriber.
+type SequenceSubscribers []SequenceSubscriber
 
-// SequenceContact tracks the state machine position of a lead/contact within a sequence.
-type SequenceContact struct {
+// SequenceSubscriber tracks the state machine position of a subscriber within a sequence.
+type SequenceSubscriber struct {
 	SequenceID      int         `db:"sequence_id" json:"sequence_id"`
 	SubscriberID    int         `db:"subscriber_id" json:"subscriber_id"`
 	EmailID         null.Int    `db:"email_id" json:"email_id"`
@@ -112,9 +112,9 @@ type SequenceStepFunnel struct {
 	Analytics  CampaignAnalytics `json:"analytics"`
 }
 
-// SequenceAnalytics aggregates metrics across cold outreach sequences as a superset of CampaignAnalytics.
+// SequenceAnalytics aggregates metrics across outreach sequences as a superset of CampaignAnalytics.
 type SequenceAnalytics struct {
-	ActiveContacts      int                  `json:"active_contacts"`
+	ActiveSubscribers   int                  `json:"active_subscribers"`
 	StepCompletions     int                  `json:"step_completions"`
 	ReplyRate           float64              `json:"reply_rate"`
 	ConversionRate      float64              `json:"conversion_rate"`
