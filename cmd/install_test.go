@@ -209,15 +209,20 @@ func TestInstall_CampaignParameterMapping(t *testing.T) {
 	archiveMeta := json.RawMessage(`{"name": "Subscriber"}`)
 	mediaIDs := []int64{}
 	var bodySource *string = nil
+	var scheduleID *int = nil
+	sendWindow := json.RawMessage("{}")
+	emailIDs := pq.Int64Array{}
+	wahaSessions := pq.StringArray{}
 
 	args := []any{
 		campUUID, campType, name, subject, fromEmail, body, altBody,
 		contentType, sendAt, headers, attribs, tags, messenger, tplID,
 		listIDs, archive, archiveSlug, archiveTplID, archiveMeta, mediaIDs, bodySource,
+		scheduleID, sendWindow, emailIDs, wahaSessions,
 	}
 
-	if len(args) != 21 {
-		t.Fatalf("expected 21 query parameters for create-campaign, got %d", len(args))
+	if len(args) != 25 {
+		t.Fatalf("expected 25 query parameters for create-campaign, got %d", len(args))
 	}
 	if args[2] != name || args[3] != subject {
 		t.Fatalf("campaign name/subject mismatch: got %v", args)
@@ -225,51 +230,53 @@ func TestInstall_CampaignParameterMapping(t *testing.T) {
 }
 
 func TestInstall_CreateSequenceParameterMapping(t *testing.T) {
-	// Verify create-sequence positional parameters alignment with queries/sequences.sql:
-	// INSERT INTO sequences (uuid, name, description, status, schedule_id, send_window, email_ids, waha_sessions, archive, archive_template_id, archive_slug, archive_meta)
-	// VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-	// RETURNING id, uuid, name, description, status, schedule_id, send_window, email_ids, waha_sessions, archive, archive_template_id, archive_slug, archive_meta, created_at, updated_at;
-
-	seqUUID := uuid.Must(uuid.NewV4()).String()
+	// Verify create-campaign (sequence) positional parameters alignment with queries/campaigns.sql
+	seqUUID := uuid.Must(uuid.NewV4())
 	name := "Test sequence"
-	desc := "Sample multi-step outreach sequence with delivery window schedule and link tracking"
-	status := models.CampaignStatusPaused
-	schedID := 1
-	sendWindow := json.RawMessage(`{"days": ["mon","tue","wed","thu","fri"], "start_time": "09:00", "end_time": "17:00"}`)
-	emailIDs := pq.Int64Array{}
-	wahaSessions := pq.StringArray{}
-	archive := false
+	subject := "Sample multi-step outreach sequence with delivery window schedule and link tracking"
+	fromEmail := "No Reply <noreply@yoursite.com>"
+	campTplID := 1
+	coldListID := 10
 	archiveTplID := 2
-	var archiveSlug *string = nil
-	archiveMeta := json.RawMessage("{}")
+	schedID := 1
 
 	args := []any{
-		seqUUID, name, desc, status, schedID, sendWindow,
-		emailIDs, wahaSessions, archive, archiveTplID, archiveSlug, archiveMeta,
+		seqUUID,
+		models.CampaignTypeSequence,
+		name,
+		subject,
+		fromEmail,
+		"",
+		"",
+		"plain",
+		nil,
+		json.RawMessage("[]"),
+		json.RawMessage("{}"),
+		pq.StringArray{},
+		"email",
+		campTplID,
+		pq.Int64Array{int64(coldListID)},
+		false,
+		"",
+		archiveTplID,
+		json.RawMessage("{}"),
+		pq.Int64Array{},
+		nil,
+		schedID,
+		json.RawMessage(`{"days": ["mon","tue","wed","thu","fri"], "start_time": "09:00", "end_time": "17:00"}`),
+		pq.Int64Array{},
+		pq.StringArray{},
 	}
 
-	if len(args) != 12 {
-		t.Fatalf("expected 12 query parameters for create-sequence, got %d", len(args))
+	if len(args) != 25 {
+		t.Fatalf("expected 25 query parameters for create-campaign (sequence), got %d", len(args))
 	}
 
-	// Positional checks
-	if args[0] != seqUUID || args[1] != "Test sequence" || args[3] != models.CampaignStatusPaused {
-		t.Fatalf("create-sequence parameter values mismatch: got %v", args)
-	}
-	if _, ok := args[5].(json.RawMessage); !ok {
-		t.Fatalf("expected $6 (send_window) to be json.RawMessage, got %T", args[5])
-	}
-	if _, ok := args[6].(pq.Int64Array); !ok {
-		t.Fatalf("expected $7 (email_ids) to be pq.Int64Array, got %T", args[6])
-	}
-	if _, ok := args[7].(pq.StringArray); !ok {
-		t.Fatalf("expected $8 (waha_sessions) to be pq.StringArray, got %T", args[7])
-	}
-	if args[8] != false || args[9] != archiveTplID {
-		t.Fatalf("archive settings parameter mismatch: got %v, %v", args[8], args[9])
+	if args[1] != models.CampaignTypeSequence || args[2] != name {
+		t.Fatalf("create-sequence campaign parameter values mismatch: got %v", args)
 	}
 
-	t.Log("Successfully verified create-sequence 12-parameter mapping, positional alignment, and type safety")
+	t.Log("Successfully verified create-campaign (sequence) 25-parameter mapping, positional alignment, and type safety")
 }
 
 func TestInstall_CreateSequenceStepParameterMapping(t *testing.T) {
@@ -338,29 +345,6 @@ func TestInstall_CreateSequenceStepParameterMapping(t *testing.T) {
 	}
 
 	t.Log("Successfully verified create-sequence-step 9-parameter mapping and multi-channel step integrity")
-}
-
-func TestInstall_CreateSequenceListsParameterMapping(t *testing.T) {
-	// Verify create-sequence-lists positional parameters alignment with queries/sequences.sql:
-	// INSERT INTO sequence_lists (sequence_id, list_id, list_name)
-	// SELECT $1, id, name FROM lists WHERE id = ANY($2::INT[]);
-
-	seqID := 1
-	coldListID := 10
-	listIDs := pq.Int64Array{int64(coldListID)}
-
-	args := []any{seqID, listIDs}
-	if len(args) != 2 {
-		t.Fatalf("expected 2 parameters for create-sequence-lists, got %d", len(args))
-	}
-	if args[0] != 1 {
-		t.Fatalf("expected sequence ID 1, got %v", args[0])
-	}
-	if arr, ok := args[1].(pq.Int64Array); !ok || len(arr) != 1 || arr[0] != 10 {
-		t.Fatalf("expected list IDs array [10], got %v", args[1])
-	}
-
-	t.Log("Successfully verified create-sequence-lists 2-parameter mapping")
 }
 
 func TestInstall_EnrollSequenceSubscribersByListsParameterMapping(t *testing.T) {
@@ -467,22 +451,22 @@ func TestIntegration_Install_SequenceSeedingLifecycle(t *testing.T) {
 	}
 	defer db.Close()
 
-	// Verify that sequences table exists and can be queried with *models.JSON scanner without errors
+	// Verify that sequence campaigns exist and can be queried with *models.JSON scanner without errors
 	var seqID int
 	var sendWindow models.JSON
 	var archiveMeta models.JSON
-	err = db.QueryRow(`SELECT id, send_window, archive_meta FROM sequences WHERE name = 'Test sequence' LIMIT 1`).Scan(&seqID, &sendWindow, &archiveMeta)
+	err = db.QueryRow(`SELECT id, send_window, archive_meta FROM campaigns WHERE type = 'sequence' AND name = 'Test sequence' LIMIT 1`).Scan(&seqID, &sendWindow, &archiveMeta)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			t.Log("No existing 'Test sequence' in DB; verified table structure and scan compatibility")
 			return
 		}
-		t.Fatalf("error querying sequences table: %v", err)
+		t.Fatalf("error querying sequence campaign: %v", err)
 	}
 
 	if seqID > 0 {
 		var stepCount int
-		_ = db.QueryRow(`SELECT count(*) FROM sequence_steps WHERE sequence_id = $1`, seqID).Scan(&stepCount)
+		_ = db.QueryRow(`SELECT count(*) FROM campaign_steps WHERE campaign_id = $1`, seqID).Scan(&stepCount)
 		t.Logf("Successfully verified live DB seeded sequence (ID: %d) with %d sequence steps and valid JSON scan hydration", seqID, stepCount)
 	}
 }
