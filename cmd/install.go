@@ -371,7 +371,7 @@ func installSequenceCampaign(coldListID, campTplID, archiveTplID, schedID int, q
 		lo.Fatalf("error creating sample sequence: %v", err)
 	}
 
-	if _, err := q.EnrollSequenceSubscribersByLists.Exec(seqID); err != nil {
+	if _, err := q.EnrollCampaignSubscribersByLists.Exec(seqID); err != nil {
 		lo.Fatalf("error auto-enrolling subscribers into sequence: %v", err)
 	}
 
@@ -413,7 +413,7 @@ func installSequenceCampaign(coldListID, campTplID, archiveTplID, schedID int, q
 		if s.TemplateID.Valid {
 			tplVal = &s.TemplateID.Int
 		}
-		if _, err := q.CreateSequenceStep.Exec(seqID, s.StepNumber, s.Delay, s.Messenger, s.Condition, s.Subject, s.Body, s.EmailType, tplVal); err != nil {
+		if _, err := q.CreateCampaignStep.Exec(seqID, s.StepNumber, s.Delay, s.Messenger, s.Condition, s.Subject, s.Body, s.EmailType, tplVal); err != nil {
 			lo.Fatalf("error creating sample sequence step %d: %v", s.StepNumber, err)
 		}
 	}
