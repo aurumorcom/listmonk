@@ -20,11 +20,11 @@ import (
 	"github.com/knadh/koanf/providers/rawbytes"
 	"github.com/knadh/koanf/v2"
 	"github.com/knadh/listmonk/internal/auth"
+	"github.com/knadh/listmonk/internal/campaign"
 	"github.com/knadh/listmonk/internal/manager"
 	"github.com/knadh/listmonk/internal/messenger/email"
 	"github.com/knadh/listmonk/internal/messenger/waha"
 	"github.com/knadh/listmonk/internal/notifs"
-	"github.com/knadh/listmonk/internal/sequence"
 	"github.com/knadh/listmonk/models"
 	"github.com/labstack/echo/v4"
 )
@@ -416,15 +416,15 @@ func (a *App) UpdateSettings(c echo.Context) error {
 			a.manager.AddMessenger(m)
 		}
 	}
-	if a.seqManager != nil {
-		a.seqManager.Stop()
+	if a.stepManager != nil {
+		a.stepManager.Stop()
 		msgrMap := make(map[string]manager.Messenger)
 		for _, m := range a.messengers {
 			msgrMap[m.Name()] = m
 		}
-		a.seqManager = sequence.NewManager(a.core, msgrMap, a.media, appLogger)
+		a.stepManager = campaign.NewManager(a.core, msgrMap, a.media, appLogger)
 		if a.manager != nil && a.manager.HasRunningCampaigns() {
-			go a.seqManager.Start(1 * time.Minute)
+			go a.stepManager.Start(1 * time.Minute)
 		}
 	}
 

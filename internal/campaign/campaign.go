@@ -1,5 +1,5 @@
-// Package sequence provides drip and automated sequences engine.
-package sequence
+// Package campaign provides campaign and multi-step sequence execution engines.
+package campaign
 
 import (
 	"bytes"
@@ -28,19 +28,19 @@ import (
 )
 
 var (
-	_sequenceInstance *Manager
-	_sequenceOnce     sync.Once
+	_campaignInstance *Manager
+	_campaignOnce     sync.Once
 )
 
-// SequenceManager returns the thread-safe singleton instance of Sequence Manager.
-func SequenceManager(c *core.Core, msgrs map[string]manager.Messenger, store media.Store, logger *slog.Logger) *Manager {
-	_sequenceOnce.Do(func() {
-		_sequenceInstance = NewManager(c, msgrs, store, logger)
+// CampaignManager returns the thread-safe singleton instance of Campaign Manager.
+func CampaignManager(c *core.Core, msgrs map[string]manager.Messenger, store media.Store, logger *slog.Logger) *Manager {
+	_campaignOnce.Do(func() {
+		_campaignInstance = NewManager(c, msgrs, store, logger)
 	})
-	return _sequenceInstance
+	return _campaignInstance
 }
 
-// Manager handles scheduled processing of sequences.
+// Manager handles scheduled processing of sequences and campaign steps.
 type Manager struct {
 	core          *core.Core
 	messengers    map[string]manager.Messenger
@@ -82,12 +82,11 @@ func (m *Manager) TemplateFuncsWithContext(seqUUID, subUUID string, stepID ...in
 			if strings.TrimSpace(url) == "" {
 				return ""
 			}
-			url = strings.ReplaceAll(url, "&amp;", "&")
+			url = strings.ReplaceAll(url, "&", "&")
 			if seqUUID == "" || subUUID == "" {
 				return url
 			}
 
-			// Generate 10-character Sqids short link token
 			if m != nil && m.core != nil {
 				var seqID, subID int
 				if seq, err := m.core.GetSequence(0, seqUUID); err == nil {
@@ -268,20 +267,19 @@ func (m *Manager) ProcessBatch() error {
 	m.logger.Debug("executing sequence step processing batch", slog.Int("due_subscribers_count", len(subs)))
 
 	for _, sub := range subs {
-		steps, err := m.core.GetSequenceSteps(sub.SequenceID)
+		steps, err := m.core.GetSequenceSteps(sub.CampaignID)
 		if err != nil {
-			m.logger.Error("failed getting sequence steps", slog.Int("sequence_id", sub.SequenceID), slog.String("error", err.Error()))
+			m.logger.Error("failed getting sequence steps", slog.Int("campaign_id", sub.CampaignID), slog.String("error", err.Error()))
 			continue
 		}
 
 		if len(steps) == 0 || sub.CurrentStep > len(steps) {
-			_ = m.core.UpdateSequenceSubscriberStatus(sub.SequenceID, sub.SubscriberID, models.SequenceSubscriberStatusFinished, sub.CurrentStep, null.Time{}, sub.LastMessageID, sub.LastThreadMsgID)
+			_ = m.core.UpdateSequenceSubscriberStatus(sub.CampaignID, sub.SubscriberID, models.CampaignSubscriberStatusFinished, sub.CurrentStep, null.Time{}, sub.LastMessageID, sub.LastThreadMsgID)
 			continue
 		}
 
 		step := steps[sub.CurrentStep-1]
 
-		// Resolve subscriber details
 		subscriber, err := m.core.GetSubscriber(sub.SubscriberID, "", "")
 		if err != nil {
 			m.logger.Error("failed resolving subscriber for sequence step", slog.Int("subscriber_id", sub.SubscriberID), slog.String("error", err.Error()))
@@ -292,17 +290,14 @@ func (m *Manager) ProcessBatch() error {
 			m.logger.Error("failed to dispatch sequence step", slog.Int("step_id", step.ID), slog.Int("subscriber_id", sub.SubscriberID), slog.String("error", err.Error()))
 			continue
 		}
-		m.logger.Info("dispatched sequence step to subscriber", slog.Int("sequence_id", sub.SequenceID), slog.Int("step_id", step.ID), slog.Int("subscriber_id", sub.SubscriberID))
+		m.logger.Info("dispatched sequence step to subscriber", slog.Int("campaign_id", sub.CampaignID), slog.Int("step_id", step.ID), slog.Int("subscriber_id", sub.SubscriberID))
 	}
 
 	return nil
 }
 
 // PrepareAndDispatchStep compiles and dispatches a sequence step for a subscriber.
-// If overrideRecipient is non-empty, it runs in test mode (dispatches with overridden recipient
-// and avoids mutating subscriber state or recording history).
-func (m *Manager) PrepareAndDispatchStep(sub models.SequenceSubscriber, subscriber models.Subscriber, step models.SequenceStep, overrideRecipient string) error {
-	// Pick messenger
+func (m *Manager) PrepareAndDispatchStep(sub models.CampaignSubscriber, subscriber models.Subscriber, step models.CampaignStep, overrideRecipient string) error {
 	msgr, ok := m.messengers[step.Messenger]
 	if !ok {
 		if step.Messenger == "whatsapp" {
@@ -311,7 +306,6 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceSubscriber, subscrib
 			msgr, ok = m.messengers["whatsapp"]
 		}
 		if !ok {
-			// Try finding any messenger matching prefix for the target messenger type
 			isWhatsApp := step.Messenger == "whatsapp" || step.Messenger == "waha" || strings.HasPrefix(step.Messenger, "whatsapp-") || strings.HasPrefix(step.Messenger, "waha-")
 			for name, cand := range m.messengers {
 				if isWhatsApp && (name == "whatsapp" || name == "waha" || strings.HasPrefix(name, "whatsapp-") || strings.HasPrefix(name, "waha-")) {
@@ -346,7 +340,6 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceSubscriber, subscrib
 			}
 		}
 		if activeEmail == nil && m.core == nil {
-			// Standalone unit test environment fallback
 			activeEmail = &models.Email{
 				Name:  "Test Account",
 				Email: "test@example.com",
@@ -360,7 +353,6 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceSubscriber, subscrib
 		}
 	}
 
-	// Resolve From Address and Check Daily Send Limits
 	var fromEmail string
 	if sub.FromAddress.Valid && strings.TrimSpace(sub.FromAddress.String) != "" {
 		fromEmail = strings.TrimSpace(sub.FromAddress.String)
@@ -376,7 +368,6 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceSubscriber, subscrib
 		if maxPerDay > 0 {
 			sentForAddr := activeEmail.GetAddressSent(fromEmail)
 			if sentForAddr >= maxPerDay || activeEmail.GetTotalSent() >= maxPerDay {
-				// Address exhausted, attempt failover to alternate fromAddress
 				foundAlternative := false
 				for _, altAddr := range activeEmail.FromAddresses() {
 					if activeEmail.GetAddressSent(altAddr) < maxPerDay {
@@ -389,7 +380,7 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceSubscriber, subscrib
 					m.logger.Warn("mailbox sending threshold approaching", slog.Int("mailbox_id", activeEmail.ID), slog.String("email", activeEmail.Email), slog.String("from", fromEmail), slog.Int("sent_today", sentForAddr), slog.Int("max_per_day", maxPerDay), slog.Int("contact_id", sub.SubscriberID))
 					deferSend := null.TimeFrom(time.Now().Add(24 * time.Hour))
 					if m.core != nil {
-						_ = m.core.UpdateSequenceSubscriberStatus(sub.SequenceID, sub.SubscriberID, sub.Status, sub.CurrentStep, deferSend, sub.LastMessageID, sub.LastThreadMsgID)
+						_ = m.core.UpdateSequenceSubscriberStatus(sub.CampaignID, sub.SubscriberID, sub.Status, sub.CurrentStep, deferSend, sub.LastMessageID, sub.LastThreadMsgID)
 					}
 					return fmt.Errorf("email account %d address %s reached daily limit", activeEmail.ID, fromEmail)
 				}
@@ -400,7 +391,7 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceSubscriber, subscrib
 	isWhatsApp := step.Messenger == "whatsapp" || step.Messenger == "waha" || strings.HasPrefix(step.Messenger, "whatsapp-") || strings.HasPrefix(step.Messenger, "waha-")
 	toEmails, toPhone := ResolveTargetRecipient(subscriber, overrideRecipient, isWhatsApp)
 
-	msgID := fmt.Sprintf("<sequence-%d-%d-%s@listmonk>", sub.SequenceID, step.StepNumber, uuid.Must(uuid.NewV4()).String())
+	msgID := fmt.Sprintf("<sequence-%d-%d-%s@listmonk>", sub.CampaignID, step.StepNumber, uuid.Must(uuid.NewV4()).String())
 	msg := models.Message{
 		Subscriber: subscriber,
 		Subject:    step.Subject,
@@ -410,13 +401,12 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceSubscriber, subscrib
 		ToPhone:    toPhone,
 	}
 
-	// Resolve Sender Display Name & From Header via modular helper functions
 	displayName, assignedUser := ResolveSenderDisplayName(subscriber, activeEmail, overrideRecipient != "", m.core)
 	msg.From = FormatSenderFromHeader(displayName, fromEmail)
 
 	var seqUUID string
-	if m.core != nil && sub.SequenceID > 0 {
-		if seq, err := m.core.GetSequence(sub.SequenceID, ""); err == nil {
+	if m.core != nil && sub.CampaignID > 0 {
+		if seq, err := m.core.GetSequence(sub.CampaignID, ""); err == nil {
 			seqUUID = seq.UUID
 		}
 	}
@@ -463,7 +453,7 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceSubscriber, subscrib
 					if overrideRecipient == "" {
 						m.logger.Error("Bifrost AI prompt generation failed for step", slog.Int("step_id", step.ID), slog.Int("subscriber_id", subscriber.ID), slog.String("error", err.Error()))
 						deferSend := null.TimeFrom(time.Now().Add(1 * time.Hour))
-						_ = m.core.UpdateSequenceSubscriberStatus(sub.SequenceID, sub.SubscriberID, sub.Status, sub.CurrentStep, deferSend, sub.LastMessageID, sub.LastThreadMsgID)
+						_ = m.core.UpdateSequenceSubscriberStatus(sub.CampaignID, sub.SubscriberID, sub.Status, sub.CurrentStep, deferSend, sub.LastMessageID, sub.LastThreadMsgID)
 					}
 					return fmt.Errorf("bifrost AI generation failed: %w", err)
 				}
@@ -493,7 +483,6 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceSubscriber, subscrib
 						finalContent = aiBody
 					}
 
-					// If prompt template specifies a parent HTML layout wrapper, wrap content in parent template
 					if tpl.ParentTemplateID.Valid && tpl.ParentTemplateID.Int > 0 {
 						if parentTpl, err := m.core.GetTemplate(int(tpl.ParentTemplateID.Int), false); err == nil {
 							camp := models.Campaign{
@@ -524,7 +513,6 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceSubscriber, subscrib
 		} else if err == nil && tpl.Body != "" {
 			isWhatsApp := step.Messenger == "whatsapp" || step.Messenger == "waha" || msgr.Name() == "whatsapp" || msgr.Name() == "waha" || strings.HasPrefix(msgr.Name(), "whatsapp-") || strings.HasPrefix(msgr.Name(), "waha-")
 			if isWhatsApp {
-				// WhatsApp steps bypass HTML email layout templates. Render step body directly and sanitize HTML/CSS.
 				funcs := txttpl.FuncMap(m.TemplateFuncsWithContext(seqUUID, subscriber.UUID, step.ID))
 				bodyStr := models.SubstituteTplShorthand(step.Body)
 				subjStr := models.SubstituteTplShorthand(msg.Subject)
@@ -546,7 +534,6 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceSubscriber, subscrib
 					}
 				}
 			} else {
-				// Standard campaign/tx template assigned to email step
 				camp := models.Campaign{
 					UUID:         uuid.Must(uuid.NewV4()).String(),
 					Subject:      msg.Subject,
@@ -567,7 +554,6 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceSubscriber, subscrib
 			}
 		}
 	} else {
-		// Plain text / standard template interpolation with full FuncMap and shorthand tags replacement
 		funcs := txttpl.FuncMap(m.TemplateFuncsWithContext(seqUUID, subscriber.UUID, step.ID))
 		bodyStr := models.SubstituteTplShorthand(string(msg.Body))
 		subjStr := models.SubstituteTplShorthand(msg.Subject)
@@ -607,17 +593,13 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceSubscriber, subscrib
 		}
 	}
 
-	// Threading headers resolution based on email_type and last_thread_msg_id
 	nextLastThreadMsgID := sub.LastThreadMsgID
 	if step.Messenger == "email" || msgr.Name() == "email" || strings.HasPrefix(msgr.Name(), "email-") {
 		if step.StepNumber == 1 {
-			// Email 1 starts initial thread root
 			nextLastThreadMsgID = null.StringFrom(msgID)
 		} else if strings.EqualFold(step.EmailType, models.EmailTypeNewThread) || step.EmailType == "New Thread" {
-			// Email step is explicit "New Thread": start clean thread without In-Reply-To
 			nextLastThreadMsgID = null.StringFrom(msgID)
 		} else {
-			// Email step is "Reply" or default: reply to the last new thread root
 			replyToMsgID := sub.LastThreadMsgID.String
 			if replyToMsgID == "" {
 				replyToMsgID = sub.LastMessageID.String
@@ -632,13 +614,11 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceSubscriber, subscrib
 			}
 		}
 	} else if sub.LastMessageID.Valid {
-		// Non-email messengers fallback
 		msg.Headers = make(textproto.MIMEHeader)
 		msg.Headers.Set("In-Reply-To", sub.LastMessageID.String)
 		msg.Headers.Set("References", sub.LastMessageID.String)
 	}
 
-	// Apply recipient override for test dispatches
 	if overrideRecipient != "" {
 		if strings.Contains(overrideRecipient, "@") {
 			msg.To = []string{overrideRecipient}
@@ -651,7 +631,6 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceSubscriber, subscrib
 		return fmt.Errorf("error pushing sequence message: %w", err)
 	}
 
-	// If running in test mode, do not mutate sequence contacts or step history
 	if overrideRecipient != "" {
 		return nil
 	}
@@ -665,20 +644,20 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceSubscriber, subscrib
 	}
 
 	if m.core != nil {
-		steps, err := m.core.GetSequenceSteps(sub.SequenceID)
+		steps, err := m.core.GetSequenceSteps(sub.CampaignID)
 		if err == nil {
 			nextStep := sub.CurrentStep + 1
 			var nextSend null.Time
-			status := models.SequenceSubscriberStatusInProgress
+			status := models.CampaignSubscriberStatusInProgress
 
 			if nextStep > len(steps) {
-				status = models.SequenceSubscriberStatusFinished
+				status = models.CampaignSubscriberStatusFinished
 			} else {
 				delayDur, _ := utils.ParseDuration(steps[nextStep-1].Delay)
 				nextSend = null.TimeFrom(time.Now().Add(delayDur))
 			}
 
-			_ = m.core.UpdateSequenceSubscriberStatus(sub.SequenceID, sub.SubscriberID, status, nextStep, nextSend, null.StringFrom(msgID), nextLastThreadMsgID)
+			_ = m.core.UpdateSequenceSubscriberStatus(sub.CampaignID, sub.SubscriberID, status, nextStep, nextSend, null.StringFrom(msgID), nextLastThreadMsgID)
 		}
 	}
 
@@ -700,12 +679,7 @@ func GetAssignedUser(contact models.Subscriber, activeEmail *models.Email, store
 }
 
 // ResolveSenderDisplayName resolves the sender display name according to multi-tiered priority rules:
-// Tier 1: Contact Assigned User (contact.Attribs["user"] or contact.Attribs["assigned_user"])
-// Tier 2: Messenger Assigned User (activeEmail.UserID)
-// Tier 3: Active Triggering User (extra fallback for test messages)
-// Zero Account Name Fallback: Never uses Email Account Name (models.Email.Name).
 func ResolveSenderDisplayName(contact models.Subscriber, activeEmail *models.Email, isTest bool, store coreUserGetter) (string, *auth.User) {
-	// Tier 1: Contact Assigned User (stored in contact.Attribs["user"] or contact.Attribs["assigned_user"])
 	if userMap, ok := contact.Attribs["user"].(map[string]any); ok {
 		if name, ok := userMap["name"].(string); ok && strings.TrimSpace(name) != "" {
 			return strings.TrimSpace(name), nil
@@ -717,7 +691,6 @@ func ResolveSenderDisplayName(contact models.Subscriber, activeEmail *models.Ema
 		}
 	}
 
-	// Tier 2: Messenger Assigned User
 	var assignedUser *auth.User
 	if activeEmail != nil && activeEmail.UserID.Valid && store != nil {
 		if u, err := store.GetUser(activeEmail.UserID.Int, "", ""); err == nil {
@@ -728,7 +701,6 @@ func ResolveSenderDisplayName(contact models.Subscriber, activeEmail *models.Ema
 		}
 	}
 
-	// Tier 3: Active Triggering User (Extra fallback for preview test messages)
 	if isTest {
 		if userMap, ok := contact.Attribs["active_user"].(map[string]any); ok {
 			if name, ok := userMap["name"].(string); ok && strings.TrimSpace(name) != "" {

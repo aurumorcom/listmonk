@@ -25,7 +25,8 @@ WITH tpl AS (
 camp AS (
     INSERT INTO campaigns (uuid, type, name, subject, from_email, body, altbody,
         content_type, send_at, headers, attribs, tags, messenger, template_id, to_send,
-        max_subscriber_id, archive, archive_slug, archive_template_id, archive_meta, body_source)
+        max_subscriber_id, archive, archive_slug, archive_template_id, archive_meta, body_source,
+        schedule_id, send_window, email_ids, waha_sessions)
         SELECT $1, $2, $3, $4, $5,
             -- body
             COALESCE(NULLIF($6, ''), (SELECT body FROM tpl), ''),
@@ -40,7 +41,8 @@ camp AS (
             $18,
             $19,
             -- body_source
-            COALESCE($21, (SELECT body_source FROM tpl))
+            COALESCE($21, (SELECT body_source FROM tpl)),
+            $22, COALESCE($23::JSONB, '{}'::JSONB), COALESCE($24::INT[], '{}'::INT[]), COALESCE($25::TEXT[], '{}'::TEXT[])
         RETURNING id
 ),
 med AS (
@@ -415,6 +417,10 @@ WITH camp AS (
         archive_template_id=(CASE WHEN $7::content_type = 'visual' THEN NULL ELSE $17::INT END),
         archive_meta=$18,
         body_source=$20,
+        schedule_id=$21,
+        send_window=COALESCE($22::JSONB, '{}'::JSONB),
+        email_ids=COALESCE($23::INT[], '{}'::INT[]),
+        waha_sessions=COALESCE($24::TEXT[], '{}'::TEXT[]),
         updated_at=NOW()
     WHERE id = $1 RETURNING id
 ),
@@ -509,4 +515,128 @@ SELECT
     NULLIF($15::TEXT, '')
 FROM view
 WHERE view.campaign_id IS NOT NULL;
+
+-- campaign sequence steps & subscribers
+
+-- name: enroll-sequence-subscribers-by-lists
+INSERT INTO campaign_subscribers (campaign_id, subscriber_id, status, current_step, next_send_at)
+SELECT DISTINCT cl.campaign_id, subl.subscriber_id, 'scheduled', 1, NOW()
+FROM campaign_lists cl
+JOIN lists l ON l.id = cl.list_id
+JOIN subscriber_lists subl ON subl.list_id = cl.list_id
+    AND (
+        (l.optin = 'double' AND subl.status = 'confirmed') OR
+        (l.optin != 'double' AND subl.status != 'unsubscribed')
+    )
+JOIN subscribers s ON s.id = subl.subscriber_id AND s.status = 'enabled'
+WHERE cl.campaign_id = $1
+ON CONFLICT (campaign_id, subscriber_id) DO UPDATE SET
+    status = CASE
+        WHEN campaign_subscribers.status = 'opted_out' THEN 'scheduled'
+        ELSE campaign_subscribers.status
+    END,
+    next_send_at = CASE
+        WHEN campaign_subscribers.status = 'opted_out' THEN NOW()
+        ELSE campaign_subscribers.next_send_at
+    END;
+
+-- name: enroll-subscribers-into-active-sequences-for-lists
+INSERT INTO campaign_subscribers (campaign_id, subscriber_id, status, current_step, next_send_at)
+SELECT DISTINCT cl.campaign_id, s.id, 'scheduled', 1, NOW()
+FROM subscribers s
+JOIN subscriber_lists subl ON subl.subscriber_id = s.id
+JOIN campaign_lists cl ON cl.list_id = subl.list_id
+JOIN lists l ON l.id = cl.list_id
+    AND (
+        (l.optin = 'double' AND subl.status = 'confirmed') OR
+        (l.optin != 'double' AND subl.status != 'unsubscribed')
+    )
+JOIN campaigns c ON c.id = cl.campaign_id AND c.type = 'sequence' AND c.status = 'running'
+WHERE s.id = ANY($1::INT[]) AND subl.list_id = ANY($2::INT[]) AND s.status = 'enabled'
+ON CONFLICT (campaign_id, subscriber_id) DO UPDATE SET
+    status = CASE
+        WHEN campaign_subscribers.status = 'opted_out' THEN 'scheduled'
+        ELSE campaign_subscribers.status
+    END,
+    next_send_at = CASE
+        WHEN campaign_subscribers.status = 'opted_out' THEN NOW()
+        ELSE campaign_subscribers.next_send_at
+    END;
+
+-- name: optout-subscribers-from-sequences-for-removed-lists
+UPDATE campaign_subscribers cs
+SET status = 'opted_out'
+WHERE cs.subscriber_id = ANY($1::INT[])
+  AND cs.status IN ('scheduled', 'in_progress')
+  AND cs.campaign_id IN (
+      SELECT cl.campaign_id FROM campaign_lists cl WHERE cl.list_id = ANY($2::INT[])
+  )
+  AND NOT EXISTS (
+      SELECT 1 FROM campaign_lists cl2
+      JOIN lists l2 ON l2.id = cl2.list_id
+      JOIN subscriber_lists subl ON subl.list_id = cl2.list_id
+          AND (
+              (l2.optin = 'double' AND subl.status = 'confirmed') OR
+              (l2.optin != 'double' AND subl.status != 'unsubscribed')
+          )
+      WHERE cl2.campaign_id = cs.campaign_id AND subl.subscriber_id = cs.subscriber_id
+  );
+
+-- name: get-sequence-steps
+SELECT
+    s.id, s.campaign_id, s.step_number, s.delay, s.messenger, s.condition,
+    s.subject, s.body, s.email_type, s.template_id, s.created_at,
+    COALESCE(ARRAY_AGG(m.media_id) FILTER (WHERE m.media_id IS NOT NULL), '{}') AS media_ids
+FROM campaign_steps s
+LEFT JOIN campaign_step_media m ON s.id = m.campaign_step_id
+WHERE s.campaign_id = $1
+GROUP BY s.id
+ORDER BY s.step_number ASC;
+
+-- name: create-sequence-step-media
+INSERT INTO campaign_step_media (campaign_step_id, media_id, filename)
+SELECT $1, id, filename FROM media WHERE id = ANY($2::INT[]);
+
+-- name: create-sequence-step
+INSERT INTO campaign_steps (campaign_id, step_number, delay, messenger, condition, subject, body, email_type, template_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+RETURNING id, campaign_id, step_number, delay, messenger, condition, subject, body, email_type, template_id, created_at;
+
+-- name: delete-sequence-steps
+DELETE FROM campaign_steps WHERE campaign_id = $1;
+
+-- name: enroll-sequence-subscribers
+INSERT INTO campaign_subscribers (campaign_id, subscriber_id, status, current_step, next_send_at)
+SELECT $1, id, 'scheduled', 1, NOW()
+FROM subscribers
+WHERE id = ANY($2::INT[])
+ON CONFLICT (campaign_id, subscriber_id) DO NOTHING;
+
+-- name: get-due-sequence-subscribers
+SELECT campaign_id, subscriber_id, email_id, from_address, waha_session, status, current_step, next_send_at, last_read_at, last_clicked_at, last_message_id, last_thread_msg_id, created_at
+FROM campaign_subscribers
+WHERE status IN ('scheduled', 'in_progress') AND next_send_at <= NOW()
+LIMIT $1;
+
+-- name: update-sequence-subscriber-status
+UPDATE campaign_subscribers
+SET status = $3, current_step = $4, next_send_at = $5, last_message_id = $6, last_thread_msg_id = $7
+WHERE campaign_id = $1 AND subscriber_id = $2;
+
+-- name: update-sequence-subscriber-read
+UPDATE campaign_subscribers
+SET last_read_at = NOW()
+WHERE campaign_id = $1 AND subscriber_id = $2;
+
+-- name: update-sequence-subscriber-click
+UPDATE campaign_subscribers
+SET last_clicked_at = NOW()
+WHERE campaign_id = $1 AND subscriber_id = $2;
+
+-- name: set-sequence-subscriber-replied
+UPDATE campaign_subscribers
+SET status = 'replied'
+WHERE subscriber_id = (SELECT id FROM subscribers WHERE email = $1 LIMIT 1)
+  AND status IN ('scheduled', 'in_progress');
+
 

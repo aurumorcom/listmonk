@@ -37,6 +37,7 @@ import (
 	"github.com/knadh/listmonk/internal/auth"
 	"github.com/knadh/listmonk/internal/bounce"
 	"github.com/knadh/listmonk/internal/bounce/mailbox"
+	"github.com/knadh/listmonk/internal/campaign"
 	"github.com/knadh/listmonk/internal/captcha"
 	"github.com/knadh/listmonk/internal/core"
 	"github.com/knadh/listmonk/internal/i18n"
@@ -48,7 +49,6 @@ import (
 	"github.com/knadh/listmonk/internal/messenger/postback"
 	"github.com/knadh/listmonk/internal/messenger/waha"
 	"github.com/knadh/listmonk/internal/notifs"
-	"github.com/knadh/listmonk/internal/sequence"
 	"github.com/knadh/listmonk/internal/subimporter"
 	"github.com/knadh/listmonk/models"
 	"github.com/knadh/stuffbin"
@@ -796,8 +796,8 @@ func initSMTPMessengers(co *core.Core) []manager.Messenger {
 	return out
 }
 
-// initSequenceManager initializes the sequence runner manager.
-func initSequenceManager(msgrs []manager.Messenger, co *core.Core, md media.Store, l *log.Logger, ko *koanf.Koanf) *sequence.Manager {
+// initCampaignStepManager initializes the multi-step campaign runner manager.
+func initCampaignStepManager(msgrs []manager.Messenger, co *core.Core, md media.Store, l *log.Logger, ko *koanf.Koanf) *campaign.Manager {
 	msgrMap := make(map[string]manager.Messenger)
 	var firstWAHA manager.Messenger
 	for _, m := range msgrs {
@@ -814,7 +814,7 @@ func initSequenceManager(msgrs []manager.Messenger, co *core.Core, md media.Stor
 			msgrMap["waha"] = firstWAHA
 		}
 	}
-	seqMgr := sequence.NewManager(co, msgrMap, md, appLogger)
+	stepMgr := campaign.NewManager(co, msgrMap, md, appLogger)
 
 	// Initialize Bifrost Client if configured
 	bifrostKey := ko.String("bifrost.api_key")
@@ -837,10 +837,10 @@ func initSequenceManager(msgrs []manager.Messenger, co *core.Core, md media.Stor
 			Timeout:  5 * time.Second,
 			Logger:   appLogger,
 		})
-		seqMgr.SetBifrostClient(bc)
+		stepMgr.SetBifrostClient(bc)
 	}
 
-	return seqMgr
+	return stepMgr
 }
 
 // initPostbackMessengers initializes and returns all the enabled

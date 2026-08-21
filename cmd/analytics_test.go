@@ -52,13 +52,13 @@ func TestCampaignAndSequenceAnalytics_SupersetJSON(t *testing.T) {
 		},
 	}
 
-	seqAnalytics := models.SequenceAnalytics{
+	seqAnalytics := models.CampaignSequenceAnalytics{
 		ActiveSubscribers:   45,
 		StepCompletions:     120,
 		ReplyRate:           18.5,
 		ConversionRate:      12.0,
 		AggregatedAnalytics: campAnalytics,
-		Funnel: []models.SequenceStepFunnel{
+		Funnel: []models.CampaignStepFunnel{
 			{
 				StepNumber: 1,
 				Subject:    "Intro Cold Outreach",
@@ -73,10 +73,10 @@ func TestCampaignAndSequenceAnalytics_SupersetJSON(t *testing.T) {
 	// Verify JSON marshaling & unmarshaling fidelity
 	data, err := json.Marshal(seqAnalytics)
 	if err != nil {
-		t.Fatalf("failed to marshal SequenceAnalytics: %v", err)
+		t.Fatalf("failed to marshal CampaignSequenceAnalytics: %v", err)
 	}
 
-	var parsed models.SequenceAnalytics
+	var parsed models.CampaignSequenceAnalytics
 	if err := json.Unmarshal(data, &parsed); err != nil {
 		t.Fatalf("failed to unmarshal SequenceAnalytics: %v", err)
 	}

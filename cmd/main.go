@@ -20,6 +20,7 @@ import (
 	"github.com/knadh/listmonk/internal/auth"
 	"github.com/knadh/listmonk/internal/bounce"
 	"github.com/knadh/listmonk/internal/buflog"
+	"github.com/knadh/listmonk/internal/campaign"
 	"github.com/knadh/listmonk/internal/captcha"
 	"github.com/knadh/listmonk/internal/core"
 	"github.com/knadh/listmonk/internal/events"
@@ -27,7 +28,6 @@ import (
 	"github.com/knadh/listmonk/internal/manager"
 	"github.com/knadh/listmonk/internal/media"
 	"github.com/knadh/listmonk/internal/messenger/email"
-	"github.com/knadh/listmonk/internal/sequence"
 	"github.com/knadh/listmonk/internal/subimporter"
 	"github.com/knadh/listmonk/internal/tmptokens"
 	"github.com/knadh/listmonk/models"
@@ -37,26 +37,26 @@ import (
 
 // App contains the "global" shared components, controllers and fields.
 type App struct {
-	cfg        *Config
-	urlCfg     *UrlConfig
-	fs         stuffbin.FileSystem
-	db         *sqlx.DB
-	queries    *models.Queries
-	core       *core.Core
-	manager    *manager.Manager
-	seqManager *sequence.Manager
-	messengers []manager.Messenger
-	emailMsgr  manager.Messenger
-	importer   *subimporter.Importer
-	auth       *auth.Auth
-	media      media.Store
-	bounce     *bounce.Manager
-	captcha    *captcha.Captcha
-	i18n       *i18n.I18n
-	pg         *paginator.Paginator
-	events     *events.Events
-	log        *log.Logger
-	bufLog     *buflog.BufLog
+	cfg         *Config
+	urlCfg      *UrlConfig
+	fs          stuffbin.FileSystem
+	db          *sqlx.DB
+	queries     *models.Queries
+	core        *core.Core
+	manager     *manager.Manager
+	stepManager *campaign.Manager
+	messengers  []manager.Messenger
+	emailMsgr   manager.Messenger
+	importer    *subimporter.Importer
+	auth        *auth.Auth
+	media       media.Store
+	bounce      *bounce.Manager
+	captcha     *captcha.Captcha
+	i18n        *i18n.I18n
+	pg          *paginator.Paginator
+	events      *events.Events
+	log         *log.Logger
+	bufLog      *buflog.BufLog
 
 	about         about
 	fnOptinNotify func(models.Subscriber, []int) (int, error)
@@ -239,8 +239,8 @@ func main() {
 		// Campaign manager.
 		mgr = initCampaignManager(msgrs, queries, urlCfg, core, media, i18n, ko)
 
-		// Sequence manager.
-		seqMgr = initSequenceManager(msgrs, core, media, lo, ko)
+		// Campaign step manager.
+		stepMgr = initCampaignStepManager(msgrs, core, media, lo, ko)
 
 		// Bulk importer.
 		importer = initImporter(queries, db, core, i18n, ko)
@@ -288,9 +288,9 @@ func main() {
 	// messages) get processed at the specified interval.
 	go mgr.Run()
 
-	// Start sequence manager background loop
+	// Start multi-step campaign step manager background loop
 	if !ko.Bool("passive") {
-		go seqMgr.Start(1 * time.Minute)
+		go stepMgr.Start(1 * time.Minute)
 	}
 
 	bgCtx, bgCancel := context.WithCancel(context.Background())
@@ -299,25 +299,25 @@ func main() {
 	// =========================================================================
 	// Initialize the App{} with all the global shared components, controllers and fields.
 	app := &App{
-		cfg:        cfg,
-		urlCfg:     urlCfg,
-		fs:         fs,
-		db:         db,
-		queries:    queries,
-		core:       core,
-		manager:    mgr,
-		seqManager: seqMgr,
-		messengers: msgrs,
-		emailMsgr:  emailMsgr,
-		importer:   importer,
-		auth:       auth,
-		media:      media,
-		bounce:     bounce,
-		captcha:    initCaptcha(),
-		i18n:       i18n,
-		log:        lo,
-		events:     evStream,
-		bufLog:     bufLog,
+		cfg:         cfg,
+		urlCfg:      urlCfg,
+		fs:          fs,
+		db:          db,
+		queries:     queries,
+		core:        core,
+		manager:     mgr,
+		stepManager: stepMgr,
+		messengers:  msgrs,
+		emailMsgr:   emailMsgr,
+		importer:    importer,
+		auth:        auth,
+		media:       media,
+		bounce:      bounce,
+		captcha:     initCaptcha(),
+		i18n:        i18n,
+		log:         lo,
+		events:      evStream,
+		bufLog:      bufLog,
 
 		pg: paginator.New(paginator.Opt{
 			DefaultPerPage: 20,
@@ -360,8 +360,8 @@ func main() {
 		// Close the campaign manager.
 		mgr.Close()
 
-		// Stop sequence manager.
-		seqMgr.Stop()
+		// Stop step manager.
+		stepMgr.Stop()
 
 		bgCancel()
 

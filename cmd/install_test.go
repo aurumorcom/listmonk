@@ -233,7 +233,7 @@ func TestInstall_CreateSequenceParameterMapping(t *testing.T) {
 	seqUUID := uuid.Must(uuid.NewV4()).String()
 	name := "Test sequence"
 	desc := "Sample multi-step outreach sequence with delivery window schedule and link tracking"
-	status := models.SequenceStatusPaused
+	status := models.CampaignStatusPaused
 	schedID := 1
 	sendWindow := json.RawMessage(`{"days": ["mon","tue","wed","thu","fri"], "start_time": "09:00", "end_time": "17:00"}`)
 	emailIDs := pq.Int64Array{}
@@ -253,7 +253,7 @@ func TestInstall_CreateSequenceParameterMapping(t *testing.T) {
 	}
 
 	// Positional checks
-	if args[0] != seqUUID || args[1] != "Test sequence" || args[3] != models.SequenceStatusPaused {
+	if args[0] != seqUUID || args[1] != "Test sequence" || args[3] != models.CampaignStatusPaused {
 		t.Fatalf("create-sequence parameter values mismatch: got %v", args)
 	}
 	if _, ok := args[5].(json.RawMessage); !ok {
@@ -281,12 +281,12 @@ func TestInstall_CreateSequenceStepParameterMapping(t *testing.T) {
 	seqID := 10
 	campTplID := 5
 
-	steps := []models.SequenceStep{
+	steps := []models.CampaignStep{
 		{
 			StepNumber: 1,
 			Delay:      "0s",
 			Messenger:  "whatsapp",
-			Condition:  models.SequenceConditionAlways,
+			Condition:  models.CampaignConditionAlways,
 			Subject:    "Step 1: Introduction",
 			Body:       "🛸 *Welcome to the outreach demo, {{ .Subscriber.FirstName }}!*\n\nThis is Step 1 of your automated sequence. Check your inbox for our follow-up email in a moment!",
 			EmailType:  "",
@@ -296,7 +296,7 @@ func TestInstall_CreateSequenceStepParameterMapping(t *testing.T) {
 			StepNumber: 2,
 			Delay:      "1m",
 			Messenger:  "email",
-			Condition:  models.SequenceConditionAlways,
+			Condition:  models.CampaignConditionAlways,
 			Subject:    "Step 2: Platform Overview & Demo Link",
 			Body:       "<p>Hi {{ .Subscriber.FirstName }}!</p><p>Here is Step 2 with your personalized platform link:</p><p><a href=\"https://listmonk.app@TrackLink\">👉 Click here to explore the platform 👈</a></p><p>We will check in with you shortly on WhatsApp!</p>",
 			EmailType:  models.EmailTypeNewThread,
@@ -306,7 +306,7 @@ func TestInstall_CreateSequenceStepParameterMapping(t *testing.T) {
 			StepNumber: 3,
 			Delay:      "5m",
 			Messenger:  "whatsapp",
-			Condition:  models.SequenceConditionAlways,
+			Condition:  models.CampaignConditionAlways,
 			Subject:    "Step 3: Follow-Up Check",
 			Body:       "👋 *Hi {{ .Subscriber.FirstName }}!*\n\nJust following up on the email we sent you. Let us know if you have any questions or reply directly here to chat with us!",
 			EmailType:  "",
@@ -380,15 +380,14 @@ func TestInstall_EnrollSequenceSubscribersByListsParameterMapping(t *testing.T) 
 
 func TestInstall_SequenceRETURNINGStructScanAlignment(t *testing.T) {
 	// Verify that all 15 columns from queries/sequences.sql (create-sequence RETURNING clause)
-	// map cleanly to models.Sequence fields:
+	// map cleanly to models.Campaign fields:
 	// RETURNING id, uuid, name, description, status, schedule_id, send_window, email_ids, waha_sessions, archive, archive_template_id, archive_slug, archive_meta, created_at, updated_at
 
-	var seq models.Sequence
+	var seq models.Campaign
 	seq.ID = 1
 	seq.UUID = "00000000-0000-0000-0000-000000000001"
 	seq.Name = "Test sequence"
-	seq.Description = "Sample multi-step outreach sequence with delivery window schedule and link tracking"
-	seq.Status = models.SequenceStatusPaused
+	seq.Status = models.CampaignStatusPaused
 	seq.ScheduleID = null.IntFrom(1)
 	seq.SendWindow = models.JSON{"start_time": "09:00", "end_time": "17:00"}
 	seq.EmailIDs = pq.Int64Array{1}
@@ -396,7 +395,7 @@ func TestInstall_SequenceRETURNINGStructScanAlignment(t *testing.T) {
 	seq.Archive = false
 	seq.ArchiveTemplateID = null.IntFrom(2)
 	seq.ArchiveSlug = null.StringFrom("test-sequence")
-	seq.ArchiveMeta = models.JSON{}
+	seq.ArchiveMeta = json.RawMessage("{}")
 	seq.CreatedAt = null.TimeFrom(time.Now())
 	seq.UpdatedAt = null.TimeFrom(time.Now())
 

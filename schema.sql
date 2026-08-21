@@ -4,7 +4,7 @@ DROP TYPE IF EXISTS list_status CASCADE; CREATE TYPE list_status AS ENUM ('activ
 DROP TYPE IF EXISTS subscriber_status CASCADE; CREATE TYPE subscriber_status AS ENUM ('enabled', 'disabled', 'blocklisted');
 DROP TYPE IF EXISTS subscription_status CASCADE; CREATE TYPE subscription_status AS ENUM ('unconfirmed', 'confirmed', 'unsubscribed');
 DROP TYPE IF EXISTS campaign_status CASCADE; CREATE TYPE campaign_status AS ENUM ('draft', 'running', 'scheduled', 'paused', 'cancelled', 'finished');
-DROP TYPE IF EXISTS campaign_type CASCADE; CREATE TYPE campaign_type AS ENUM ('regular', 'optin');
+DROP TYPE IF EXISTS campaign_type CASCADE; CREATE TYPE campaign_type AS ENUM ('regular', 'optin', 'sequence');
 DROP TYPE IF EXISTS content_type CASCADE; CREATE TYPE content_type AS ENUM ('richtext', 'html', 'plain', 'markdown', 'visual');
 DROP TYPE IF EXISTS bounce_type CASCADE; CREATE TYPE bounce_type AS ENUM ('soft', 'hard', 'complaint');
 DROP TYPE IF EXISTS template_type CASCADE; CREATE TYPE template_type AS ENUM ('campaign', 'campaign_visual', 'tx', 'prompt');
@@ -26,6 +26,7 @@ CREATE TABLE subscribers (
     phone           TEXT NULL DEFAULT '',
     attribs         JSONB NOT NULL DEFAULT '{}',
     status          subscriber_status NOT NULL DEFAULT 'enabled',
+    tz              TEXT NOT NULL DEFAULT '',
 
     created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -125,6 +126,12 @@ CREATE TABLE campaigns (
     sent               INT NOT NULL DEFAULT 0,
     max_subscriber_id  INT NOT NULL DEFAULT 0,
     last_subscriber_id INT NOT NULL DEFAULT 0,
+
+    -- Sequence / Schedule configuration.
+    schedule_id       INTEGER NULL REFERENCES schedules(id) ON DELETE SET NULL,
+    send_window       JSONB NOT NULL DEFAULT '{}',
+    email_ids         INTEGER[] NOT NULL DEFAULT '{}',
+    waha_sessions     TEXT[] NOT NULL DEFAULT '{}',
 
     -- Publishing.
     archive             BOOLEAN NOT NULL DEFAULT false,
@@ -519,41 +526,11 @@ CREATE TABLE schedules (
 );
 CREATE UNIQUE INDEX idx_schedules_default ON schedules (is_default) WHERE is_default = true;
 
--- sequences
-DROP TABLE IF EXISTS sequences CASCADE;
-CREATE TABLE sequences (
-    id                SERIAL PRIMARY KEY,
-    uuid              UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
-    name              TEXT NOT NULL,
-    description       TEXT NOT NULL DEFAULT '',
-    status            TEXT NOT NULL DEFAULT 'active',
-    schedule_id       INTEGER NULL REFERENCES schedules(id) ON DELETE SET NULL,
-    send_window       JSONB NOT NULL DEFAULT '{}',
-    email_ids         INTEGER[] NOT NULL DEFAULT '{}',
-    waha_sessions     TEXT[] NOT NULL DEFAULT '{}',
-    archive           BOOLEAN NOT NULL DEFAULT false,
-    archive_template_id INTEGER NULL REFERENCES templates(id) ON DELETE SET NULL,
-    archive_slug      TEXT NULL,
-    archive_meta      JSONB NOT NULL DEFAULT '{}',
-    created_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- sequence_lists
-DROP TABLE IF EXISTS sequence_lists CASCADE;
-CREATE TABLE sequence_lists (
-    sequence_id INTEGER NOT NULL REFERENCES sequences(id) ON DELETE CASCADE,
-    list_id     INTEGER REFERENCES lists(id) ON DELETE SET NULL,
-    list_name   VARCHAR(255) NOT NULL,
-    PRIMARY KEY (sequence_id, list_id)
-);
-CREATE INDEX idx_seq_lists_list_id ON sequence_lists(list_id);
-
--- sequence_steps
-DROP TABLE IF EXISTS sequence_steps CASCADE;
-CREATE TABLE sequence_steps (
+-- campaign_steps
+DROP TABLE IF EXISTS campaign_steps CASCADE;
+CREATE TABLE campaign_steps (
     id            SERIAL PRIMARY KEY,
-    sequence_id   INTEGER NOT NULL REFERENCES sequences(id) ON DELETE CASCADE,
+    campaign_id   INTEGER NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
     step_number   INTEGER NOT NULL DEFAULT 1,
     delay         TEXT NOT NULL DEFAULT '0s',
     messenger     TEXT NOT NULL DEFAULT 'email',
@@ -564,22 +541,22 @@ CREATE TABLE sequence_steps (
     template_id   INTEGER NULL REFERENCES templates(id) ON DELETE SET NULL,
     created_at    TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-CREATE INDEX idx_seq_steps_seq_id ON sequence_steps(sequence_id);
+CREATE INDEX idx_camp_steps_camp_id ON campaign_steps(campaign_id);
 
--- sequence_step_media
-DROP TABLE IF EXISTS sequence_step_media CASCADE;
-CREATE TABLE sequence_step_media (
-    sequence_step_id INTEGER REFERENCES sequence_steps(id) ON DELETE CASCADE ON UPDATE CASCADE,
+-- campaign_step_media
+DROP TABLE IF EXISTS campaign_step_media CASCADE;
+CREATE TABLE campaign_step_media (
+    campaign_step_id INTEGER REFERENCES campaign_steps(id) ON DELETE CASCADE ON UPDATE CASCADE,
     media_id         INTEGER NULL REFERENCES media(id) ON DELETE SET NULL ON UPDATE CASCADE,
     filename         TEXT NOT NULL DEFAULT ''
 );
-DROP INDEX IF EXISTS idx_sequence_step_media_id; CREATE UNIQUE INDEX idx_sequence_step_media_id ON sequence_step_media (sequence_step_id, media_id);
-DROP INDEX IF EXISTS idx_sequence_step_media_step_id; CREATE INDEX idx_sequence_step_media_step_id ON sequence_step_media(sequence_step_id);
+DROP INDEX IF EXISTS idx_campaign_step_media_id; CREATE UNIQUE INDEX idx_campaign_step_media_id ON campaign_step_media (campaign_step_id, media_id);
+DROP INDEX IF EXISTS idx_campaign_step_media_step_id; CREATE INDEX idx_campaign_step_media_step_id ON campaign_step_media(campaign_step_id);
 
--- sequence_subscribers
-DROP TABLE IF EXISTS sequence_subscribers CASCADE;
-CREATE TABLE sequence_subscribers (
-    sequence_id        INTEGER NOT NULL REFERENCES sequences(id) ON DELETE CASCADE,
+-- campaign_subscribers
+DROP TABLE IF EXISTS campaign_subscribers CASCADE;
+CREATE TABLE campaign_subscribers (
+    campaign_id        INTEGER NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
     subscriber_id      INTEGER NOT NULL REFERENCES subscribers(id) ON DELETE CASCADE,
     email_id           INTEGER NULL REFERENCES emails(id) ON DELETE SET NULL,
     from_address       TEXT NULL,
@@ -592,10 +569,10 @@ CREATE TABLE sequence_subscribers (
     last_message_id    TEXT NULL,
     last_thread_msg_id TEXT NULL,
     created_at         TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    PRIMARY KEY (sequence_id, subscriber_id)
+    PRIMARY KEY (campaign_id, subscriber_id)
 );
-CREATE INDEX idx_seq_subscribers_next_send ON sequence_subscribers(status, next_send_at);
-CREATE INDEX idx_seq_subscribers_sender ON sequence_subscribers(sequence_id, email_id, waha_session);
+CREATE INDEX idx_camp_subscribers_next_send ON campaign_subscribers(status, next_send_at);
+CREATE INDEX idx_camp_subscribers_sender ON campaign_subscribers(campaign_id, email_id, waha_session);
 
 -- webhooks
 DROP TABLE IF EXISTS webhooks CASCADE;
