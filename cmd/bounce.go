@@ -11,7 +11,6 @@ import (
 
 	"github.com/knadh/listmonk/internal/auth"
 	"github.com/knadh/listmonk/internal/messenger/waha"
-	"github.com/knadh/listmonk/internal/sequence"
 	"github.com/knadh/listmonk/models"
 	"github.com/labstack/echo/v4"
 )
@@ -494,8 +493,7 @@ func (a *App) WAHAWebhook(c echo.Context) error {
 			a.log.Printf("[WAHA WEBHOOK INBOUND REPLY] Incoming message from %s (quotedMsgID: %s)", fromIdentifier, quotedID)
 		}
 		if a.core != nil {
-			l := sequence.NewReplyListener(a.core, nil)
-			_ = l.ProcessReplyWithQuotedID(fromIdentifier, sequence.ChannelTypeWhatsApp, req.Payload.Body, quotedID)
+			_ = a.core.RecordSequenceReplyByPhone(fromIdentifier)
 		}
 	}
 

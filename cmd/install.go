@@ -336,12 +336,12 @@ func installSchedule(q *models.Queries) int {
 }
 
 func installSequence(coldListID, campTplID, archiveTplID, schedID int, q *models.Queries) {
-	var seq models.Sequence
+	var seq models.Campaign
 	if err := q.CreateSequence.Get(&seq,
 		uuid.Must(uuid.NewV4()).String(),
 		"Test sequence",
 		"Sample multi-step outreach sequence with delivery window schedule and link tracking",
-		models.SequenceStatusPaused,
+		models.CampaignStatusPaused,
 		schedID,
 		json.RawMessage(`{"days": ["mon","tue","wed","thu","fri"], "start_time": "09:00", "end_time": "17:00"}`),
 		pq.Int64Array{},
@@ -362,12 +362,12 @@ func installSequence(coldListID, campTplID, archiveTplID, schedID int, q *models
 		lo.Fatalf("error auto-enrolling subscribers into sequence: %v", err)
 	}
 
-	steps := []models.SequenceStep{
+	steps := []models.CampaignStep{
 		{
 			StepNumber: 1,
 			Delay:      "0s",
 			Messenger:  "whatsapp",
-			Condition:  models.SequenceConditionAlways,
+			Condition:  models.CampaignConditionAlways,
 			Subject:    "Step 1: Introduction",
 			Body:       "🛸 *Welcome to the outreach demo, {{ .Subscriber.FirstName }}!*\n\nThis is Step 1 of your automated sequence. Check your inbox for our follow-up email in a moment!",
 			EmailType:  "",
@@ -377,7 +377,7 @@ func installSequence(coldListID, campTplID, archiveTplID, schedID int, q *models
 			StepNumber: 2,
 			Delay:      "1m",
 			Messenger:  "email",
-			Condition:  models.SequenceConditionAlways,
+			Condition:  models.CampaignConditionAlways,
 			Subject:    "Step 2: Platform Overview & Demo Link",
 			Body:       "<p>Hi {{ .Subscriber.FirstName }}!</p><p>Here is Step 2 with your personalized platform link:</p><p><a href=\"https://listmonk.app@TrackLink\">👉 Click here to explore the platform 👈</a></p><p>We will check in with you shortly on WhatsApp!</p>",
 			EmailType:  models.EmailTypeNewThread,
@@ -387,7 +387,7 @@ func installSequence(coldListID, campTplID, archiveTplID, schedID int, q *models
 			StepNumber: 3,
 			Delay:      "5m",
 			Messenger:  "whatsapp",
-			Condition:  models.SequenceConditionAlways,
+			Condition:  models.CampaignConditionAlways,
 			Subject:    "Step 3: Follow-Up Check",
 			Body:       "👋 *Hi {{ .Subscriber.FirstName }}!*\n\nJust following up on the email we sent you. Let us know if you have any questions or reply directly here to chat with us!",
 			EmailType:  "",

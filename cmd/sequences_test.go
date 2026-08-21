@@ -16,11 +16,11 @@ import (
 	"time"
 
 	"github.com/knadh/listmonk/internal/auth"
+	"github.com/knadh/listmonk/internal/campaign"
 	"github.com/knadh/listmonk/internal/core"
 	"github.com/knadh/listmonk/internal/manager"
 	"github.com/knadh/listmonk/internal/messenger/email"
 	"github.com/knadh/listmonk/internal/messenger/waha"
-	"github.com/knadh/listmonk/internal/sequence"
 	"github.com/knadh/listmonk/internal/testutil"
 	"github.com/knadh/listmonk/internal/utils"
 	"github.com/knadh/listmonk/models"
@@ -29,11 +29,20 @@ import (
 	null "gopkg.in/volatiletech/null.v6"
 )
 
+type SequenceSchedule struct {
+	Enabled            bool     `json:"enabled"`
+	StartTime          string   `json:"start_time"`
+	EndTime            string   `json:"end_time"`
+	Days               []string `json:"days"`
+	MinIntervalSeconds int      `json:"min_interval_seconds"`
+	JitterSeconds      int      `json:"jitter_seconds"`
+}
+
 func TestE2E_Sequence_MultiStep_Execution(t *testing.T) {
 	// Create step structure: WhatsApp Step 1 -> Delay Step 2 -> Email Step 3
-	step1 := models.SequenceStep{
+	step1 := models.CampaignStep{
 		ID:         1,
-		SequenceID: 100,
+		CampaignID: 100,
 		StepNumber: 1,
 		Messenger:  "whatsapp",
 		Subject:    "Welcome WhatsApp Step 1",
@@ -41,17 +50,17 @@ func TestE2E_Sequence_MultiStep_Execution(t *testing.T) {
 		Delay:      "0s",
 	}
 
-	step2 := models.SequenceStep{
+	step2 := models.CampaignStep{
 		ID:         2,
-		SequenceID: 100,
+		CampaignID: 100,
 		StepNumber: 2,
 		Messenger:  "delay",
 		Delay:      "1d",
 	}
 
-	step3 := models.SequenceStep{
+	step3 := models.CampaignStep{
 		ID:         3,
-		SequenceID: 100,
+		CampaignID: 100,
 		StepNumber: 3,
 		Messenger:  "email",
 		Subject:    "Followup Email Step 3",
@@ -59,12 +68,12 @@ func TestE2E_Sequence_MultiStep_Execution(t *testing.T) {
 		Delay:      "0s",
 	}
 
-	steps := []models.SequenceStep{step1, step2, step3}
+	steps := []models.CampaignStep{step1, step2, step3}
 
-	contact := models.SequenceSubscriber{
-		SequenceID:   100,
+	contact := models.CampaignSubscriber{
+		CampaignID:   100,
 		SubscriberID: 101,
-		Status:       models.SequenceSubscriberStatusScheduled,
+		Status:       models.CampaignSubscriberStatusScheduled,
 		CurrentStep:  1,
 	}
 
@@ -81,15 +90,15 @@ func TestE2E_Sequence_MultiStep_Execution(t *testing.T) {
 func TestE2E_Sequence_ConditionalRouting_IfRead(t *testing.T) {
 	now := time.Now()
 
-	stepIfRead := models.SequenceStep{
+	stepIfRead := models.CampaignStep{
 		StepNumber: 2,
 		Delay:      "0s",
 	}
 
-	contactRead := models.SequenceSubscriber{
-		SequenceID:    200,
+	contactRead := models.CampaignSubscriber{
+		CampaignID:    200,
 		SubscriberID:  202,
-		Status:        models.SequenceSubscriberStatusInProgress,
+		Status:        models.CampaignSubscriberStatusInProgress,
 		CurrentStep:   2,
 		NextSendAt:    null.TimeFrom(now),
 		LastReadAt:    null.TimeFrom(now),
@@ -123,12 +132,12 @@ func TestE2E_Sequence_LinearProgression_And_LinkRedirection(t *testing.T) {
 }
 
 func TestE2E_Sequence_Sender_Reassignment_And_Limits(t *testing.T) {
-	contact := models.SequenceSubscriber{
-		SequenceID:   400,
+	contact := models.CampaignSubscriber{
+		CampaignID:   400,
 		SubscriberID: 401,
 		EmailID:      null.IntFrom(10),
 		WahaSession:  null.StringFrom("aryans-whatsapp"),
-		Status:       models.SequenceSubscriberStatusInProgress,
+		Status:       models.CampaignSubscriberStatusInProgress,
 		CurrentStep:  1,
 	}
 
@@ -157,9 +166,7 @@ func TestE2E_Sequence_Sender_Reassignment_And_Limits(t *testing.T) {
 }
 
 func TestE2E_Sequence_Schedule_Timezone_Pacing(t *testing.T) {
-	seq := models.Sequence{
-		Timezone: "America/New_York",
-	}
+	fallbackTZ := "America/New_York"
 
 	contact1 := models.Subscriber{
 		Name:    "Alice",
@@ -168,20 +175,20 @@ func TestE2E_Sequence_Schedule_Timezone_Pacing(t *testing.T) {
 
 	contact2 := models.Subscriber{
 		Name:    "Bob",
-		Attribs: models.JSON{}, // Uses seq.Timezone
+		Attribs: models.JSON{},
 	}
 
-	loc1 := contact1.ResolveTimezone(seq)
+	loc1 := contact1.ResolveTimezone(fallbackTZ)
 	if loc1.String() != "Asia/Kolkata" {
 		t.Errorf("expected Asia/Kolkata for Alice, got %s", loc1.String())
 	}
 
-	loc2 := contact2.ResolveTimezone(seq)
+	loc2 := contact2.ResolveTimezone(fallbackTZ)
 	if loc2.String() != "America/New_York" {
 		t.Errorf("expected America/New_York for Bob, got %s", loc2.String())
 	}
 
-	sched := models.SequenceSchedule{
+	sched := SequenceSchedule{
 		Enabled:            true,
 		StartTime:          "09:00",
 		EndTime:            "17:00",
@@ -279,7 +286,7 @@ func TestE2E_Sequence_MultiStep_LLM_Lifecycle(t *testing.T) {
 }
 
 func TestSequenceAnalytics_DataStructure(t *testing.T) {
-	analytics := models.SequenceAnalytics{
+	analytics := models.CampaignSequenceAnalytics{
 		ActiveSubscribers: 15,
 		StepCompletions:   45,
 		ReplyRate:         12.5,
@@ -304,7 +311,7 @@ func TestSequenceAnalytics_DataStructure(t *testing.T) {
 				CTOR:        40.0,
 			},
 		},
-		Funnel: []models.SequenceStepFunnel{
+		Funnel: []models.CampaignStepFunnel{
 			{
 				StepNumber: 1,
 				Subject:    "Initial Contact",
@@ -366,8 +373,8 @@ func TestUserChannelOwnership_And_CrossChannelLock(t *testing.T) {
 		t.Fatalf("expected WahaSession 'session_user1', got %v", u.WahaSession)
 	}
 
-	contact := models.SequenceSubscriber{
-		SequenceID:   1,
+	contact := models.CampaignSubscriber{
+		CampaignID:   1,
 		SubscriberID: 501,
 		EmailID:      u.EmailID,
 		WahaSession:  u.WahaSession,
@@ -381,15 +388,15 @@ func TestUserChannelOwnership_And_CrossChannelLock(t *testing.T) {
 
 func TestEmailThreading_LastNewThread_Resolution(t *testing.T) {
 	// Step 1: Initial email sent (msg_1)
-	contact := models.SequenceSubscriber{
-		SequenceID:      1,
+	contact := models.CampaignSubscriber{
+		CampaignID:      1,
 		SubscriberID:    1001,
 		LastMessageID:   null.StringFrom("msg_1"),
 		LastThreadMsgID: null.StringFrom("msg_1"),
 	}
 
 	// Step 2: Email 2 sent with email_type = "New Thread" -> generates msg_2
-	step2 := models.SequenceStep{
+	step2 := models.CampaignStep{
 		StepNumber: 2,
 		Messenger:  "email",
 		EmailType:  models.EmailTypeNewThread,
@@ -405,7 +412,7 @@ func TestEmailThreading_LastNewThread_Resolution(t *testing.T) {
 	contact.LastThreadMsgID = null.StringFrom("msg_2") // msg_2 is now the last new thread!
 
 	// Step 3: Email 3 sent with email_type = "Reply" -> MUST reply to msg_2 (the last new thread)
-	step3 := models.SequenceStep{
+	step3 := models.CampaignStep{
 		StepNumber: 3,
 		Messenger:  "email",
 		EmailType:  models.EmailTypeReply,
@@ -426,22 +433,21 @@ func TestEmailThreading_LastNewThread_Resolution(t *testing.T) {
 }
 
 func TestE2E_Sequence_REST_API_Pipeline(t *testing.T) {
-	seq := models.Sequence{
+	seq := models.Campaign{
 		Base: models.Base{
 			ID: 101,
 		},
 		UUID:       "seq-uuid-101",
 		Name:       "E2E Outbound Campaign Sequence",
-		Status:     models.SequenceStatusActive,
+		Status:     models.CampaignStatusRunning,
 		ScheduleID: null.IntFrom(1),
-		Timezone:   "America/New_York",
 		EmailIDs:   []int64{1, 2},
 	}
 
-	steps := []models.SequenceStep{
+	steps := []models.CampaignStep{
 		{
 			ID:         1,
-			SequenceID: 101,
+			CampaignID: 101,
 			StepNumber: 1,
 			Delay:      "0s",
 			Messenger:  "email",
@@ -450,11 +456,11 @@ func TestE2E_Sequence_REST_API_Pipeline(t *testing.T) {
 		},
 		{
 			ID:         2,
-			SequenceID: 101,
+			CampaignID: 101,
 			StepNumber: 2,
 			Delay:      "2d",
 			Messenger:  "email",
-			Condition:  models.SequenceConditionIfNotRead,
+			Condition:  models.CampaignConditionIfNotRead,
 			Subject:    "Quick Follow-Up",
 			Body:       "Following up on my previous message.",
 		},
@@ -468,19 +474,19 @@ func TestE2E_Sequence_REST_API_Pipeline(t *testing.T) {
 	}
 
 	// Verify contact enrollment struct mapping
-	contacts := []models.SequenceSubscriber{
+	contacts := []models.CampaignSubscriber{
 		{
-			SequenceID:   101,
+			CampaignID:   101,
 			SubscriberID: 501,
 			EmailID:      null.IntFrom(1),
-			Status:       models.SequenceSubscriberStatusScheduled,
+			Status:       models.CampaignSubscriberStatusScheduled,
 			CurrentStep:  1,
 		},
 		{
-			SequenceID:   101,
+			CampaignID:   101,
 			SubscriberID: 502,
 			EmailID:      null.IntFrom(2),
-			Status:       models.SequenceSubscriberStatusScheduled,
+			Status:       models.CampaignSubscriberStatusScheduled,
 			CurrentStep:  1,
 		},
 	}
@@ -528,19 +534,15 @@ func TestE2E_Sequence_Outside_Window_Schedule_Deferral(t *testing.T) {
 }
 
 func TestSequence_DescriptionAndArchiveFields(t *testing.T) {
-	seq := models.Sequence{
+	seq := models.Campaign{
 		Name:              "Cold Email Outreach Campaign",
-		Description:       "Outreach sequence targeting SaaS leads",
 		Status:            "active",
 		Archive:           true,
 		ArchiveTemplateID: null.IntFrom(5),
 		ArchiveSlug:       null.StringFrom("cold-email-outreach-archive"),
-		ArchiveMeta:       models.JSON{"author": "sales-team"},
+		ArchiveMeta:       json.RawMessage(`{"author": "sales-team"}`),
 	}
 
-	if seq.Description != "Outreach sequence targeting SaaS leads" {
-		t.Fatalf("expected description 'Outreach sequence targeting SaaS leads', got '%s'", seq.Description)
-	}
 	if !seq.Archive {
 		t.Fatalf("expected archive true, got false")
 	}
@@ -549,9 +551,6 @@ func TestSequence_DescriptionAndArchiveFields(t *testing.T) {
 	}
 	if !seq.ArchiveSlug.Valid || seq.ArchiveSlug.String != "cold-email-outreach-archive" {
 		t.Fatalf("expected archive_slug 'cold-email-outreach-archive', got %v", seq.ArchiveSlug)
-	}
-	if author, ok := seq.ArchiveMeta["author"].(string); !ok || author != "sales-team" {
-		t.Fatalf("expected archive_meta author 'sales-team', got %v", seq.ArchiveMeta)
 	}
 
 	t.Log("Successfully verified Sequence description and archive model fields")
@@ -572,12 +571,12 @@ func TestSchedule_IsDefaultField(t *testing.T) {
 }
 
 func TestSeededTeamDemoSequence_Structure(t *testing.T) {
-	steps := []models.SequenceStep{
+	steps := []models.CampaignStep{
 		{
 			StepNumber: 1,
 			Delay:      "0s",
 			Messenger:  "waha",
-			Condition:  models.SequenceConditionAlways,
+			Condition:  models.CampaignConditionAlways,
 			Subject:    "Step 1: Incoming Transmission",
 			Body:       "🛸 *Incoming Transmission from HQ...*\n\nHey {{ .Subscriber.FirstName }}! We have a top-secret mission prepared for {{ .Subscriber.Email }}.\n\n👁️ Leave this chat unread and nothing happens... Open it to give us the Blue Ticks, and we’ll immediately beam the payload to your inbox!",
 		},
@@ -585,7 +584,7 @@ func TestSeededTeamDemoSequence_Structure(t *testing.T) {
 			StepNumber: 2,
 			Delay:      "0s",
 			Messenger:  "waha",
-			Condition:  models.SequenceConditionIfRead,
+			Condition:  models.CampaignConditionIfRead,
 			Subject:    "Step 2: Read Caught",
 			Body:       "We just beamed an urgent mission email to {{ .Subscriber.Email }}! 🛸\n\n🏃‍♂️ Sprint over to your inbox and click the button before carrier pigeons eat the bandwidth!",
 		},
@@ -593,7 +592,7 @@ func TestSeededTeamDemoSequence_Structure(t *testing.T) {
 			StepNumber: 3,
 			Delay:      "10s",
 			Messenger:  "email",
-			Condition:  models.SequenceConditionAlways,
+			Condition:  models.CampaignConditionAlways,
 			Subject:    "🧪 [Team Demo] Click this link to trigger Step 4 on WhatsApp!",
 			Body:       "<p>Hi {{ .Subscriber.FirstName }}!</p><p>You triggered the <code>if_read</code> Blue Tick response!</p><p><a href=\"https://example.com/demo@TrackLink\">👉 CLICK ME TO TRIGGER WHATSAPP STEP 4 👈</a></p>",
 		},
@@ -601,7 +600,7 @@ func TestSeededTeamDemoSequence_Structure(t *testing.T) {
 			StepNumber: 4,
 			Delay:      "0s",
 			Messenger:  "waha",
-			Condition:  models.SequenceConditionIfClicked,
+			Condition:  models.CampaignConditionIfClicked,
 			Subject:    "Step 4: Click Registered",
 			Body:       "🎯 *CLICK EVENT REGISTERED IN REAL-TIME!*\n\n{{ .Subscriber.FirstName }}, you clicked the button like a 10x engineer! 🍪 Listmonk saw your click immediately.",
 		},
@@ -609,7 +608,7 @@ func TestSeededTeamDemoSequence_Structure(t *testing.T) {
 			StepNumber: 5,
 			Delay:      "45s",
 			Messenger:  "waha",
-			Condition:  models.SequenceConditionIfNotRead,
+			Condition:  models.CampaignConditionIfNotRead,
 			Subject:    "Step 5: AFK Check",
 			Body:       "☕ *AFK Alert!*\n\nStill waiting on that email click, {{ .Subscriber.FirstName }}! Don't leave the demo hanging!",
 		},
@@ -617,7 +616,7 @@ func TestSeededTeamDemoSequence_Structure(t *testing.T) {
 			StepNumber: 6,
 			Delay:      "30s",
 			Messenger:  "email",
-			Condition:  models.SequenceConditionAlways,
+			Condition:  models.CampaignConditionAlways,
 			Subject:    "🏆 [Demo Complete] You conquered the 2-minute sequence!",
 			Body:       "<h2>🎉 Demo Complete!</h2><p>You have tested WAHA Blue Tick reads, email handoffs, and link clicks in under 2 minutes.</p>",
 		},
@@ -640,22 +639,22 @@ func TestSeededTeamDemoSequence_Structure(t *testing.T) {
 		}
 	}
 
-	if steps[0].Messenger != "waha" || steps[0].Condition != models.SequenceConditionAlways || steps[0].Delay != "0s" {
+	if steps[0].Messenger != "waha" || steps[0].Condition != models.CampaignConditionAlways || steps[0].Delay != "0s" {
 		t.Errorf("step 1 mismatch: %+v", steps[0])
 	}
-	if steps[1].Messenger != "waha" || steps[1].Condition != models.SequenceConditionIfRead || steps[1].Delay != "0s" {
+	if steps[1].Messenger != "waha" || steps[1].Condition != models.CampaignConditionIfRead || steps[1].Delay != "0s" {
 		t.Errorf("step 2 mismatch: %+v", steps[1])
 	}
-	if steps[2].Messenger != "email" || steps[2].Condition != models.SequenceConditionAlways || steps[2].Delay != "10s" {
+	if steps[2].Messenger != "email" || steps[2].Condition != models.CampaignConditionAlways || steps[2].Delay != "10s" {
 		t.Errorf("step 3 mismatch: %+v", steps[2])
 	}
-	if steps[3].Messenger != "waha" || steps[3].Condition != models.SequenceConditionIfClicked || steps[3].Delay != "0s" {
+	if steps[3].Messenger != "waha" || steps[3].Condition != models.CampaignConditionIfClicked || steps[3].Delay != "0s" {
 		t.Errorf("step 4 mismatch: %+v", steps[3])
 	}
-	if steps[4].Messenger != "waha" || steps[4].Condition != models.SequenceConditionIfNotRead || steps[4].Delay != "45s" {
+	if steps[4].Messenger != "waha" || steps[4].Condition != models.CampaignConditionIfNotRead || steps[4].Delay != "45s" {
 		t.Errorf("step 5 mismatch: %+v", steps[4])
 	}
-	if steps[5].Messenger != "email" || steps[5].Condition != models.SequenceConditionAlways || steps[5].Delay != "30s" {
+	if steps[5].Messenger != "email" || steps[5].Condition != models.CampaignConditionAlways || steps[5].Delay != "30s" {
 		t.Errorf("step 6 mismatch: %+v", steps[5])
 	}
 
@@ -663,14 +662,14 @@ func TestSeededTeamDemoSequence_Structure(t *testing.T) {
 }
 
 func TestSeededTeamDemoSequence_InstantStep2Condition(t *testing.T) {
-	contactUnread := models.SequenceSubscriber{
-		SequenceID:   1,
+	contactUnread := models.CampaignSubscriber{
+		CampaignID:   1,
 		SubscriberID: 10,
 		CurrentStep:  2,
 		LastReadAt:   null.Time{},
 	}
-	contactRead := models.SequenceSubscriber{
-		SequenceID:   1,
+	contactRead := models.CampaignSubscriber{
+		CampaignID:   1,
 		SubscriberID: 11,
 		CurrentStep:  2,
 		LastReadAt:   null.TimeFrom(time.Now()),
@@ -683,14 +682,14 @@ func TestSeededTeamDemoSequence_InstantStep2Condition(t *testing.T) {
 }
 
 func TestSeededTeamDemoSequence_InstantStep4Condition(t *testing.T) {
-	contactUnclicked := models.SequenceSubscriber{
-		SequenceID:    1,
+	contactUnclicked := models.CampaignSubscriber{
+		CampaignID:    1,
 		SubscriberID:  20,
 		CurrentStep:   4,
 		LastClickedAt: null.Time{},
 	}
-	contactClicked := models.SequenceSubscriber{
-		SequenceID:    1,
+	contactClicked := models.CampaignSubscriber{
+		CampaignID:    1,
 		SubscriberID:  21,
 		CurrentStep:   4,
 		LastClickedAt: null.TimeFrom(time.Now()),
@@ -707,19 +706,19 @@ func TestInstall_SeededResources_Structure(t *testing.T) {
 	seqUUID := "00000000-0000-0000-0000-000000000001"
 	seqName := "Test sequence"
 	seqDesc := "Sample multi-step outreach sequence with delivery window schedule and link tracking"
-	seqStatus := models.SequenceStatusPaused
+	seqStatus := models.CampaignStatusPaused
 
 	if seqUUID == "" || seqName != "Test sequence" || seqDesc == "" || seqStatus != "paused" {
 		t.Fatal("seeded sequence metadata mismatch")
 	}
 
 	// Verify 3-step outreach demo sequence structure
-	steps := []models.SequenceStep{
+	steps := []models.CampaignStep{
 		{
 			StepNumber: 1,
 			Delay:      "0s",
 			Messenger:  "whatsapp",
-			Condition:  models.SequenceConditionAlways,
+			Condition:  models.CampaignConditionAlways,
 			Subject:    "Step 1: Introduction",
 			Body:       "🛸 *Welcome to the outreach demo, {{ .Subscriber.FirstName }}!*\n\nThis is Step 1 of your automated sequence. Check your inbox for our follow-up email in a moment!",
 			EmailType:  "",
@@ -728,7 +727,7 @@ func TestInstall_SeededResources_Structure(t *testing.T) {
 			StepNumber: 2,
 			Delay:      "1m",
 			Messenger:  "email",
-			Condition:  models.SequenceConditionAlways,
+			Condition:  models.CampaignConditionAlways,
 			Subject:    "Step 2: Platform Overview & Demo Link",
 			Body:       "<p>Hi {{ .Subscriber.FirstName }}!</p><p>Here is Step 2 with your personalized platform link:</p><p><a href=\"https://listmonk.app@TrackLink\">👉 Click here to explore the platform 👈</a></p><p>We will check in with you shortly on WhatsApp!</p>",
 			EmailType:  models.EmailTypeNewThread,
@@ -738,7 +737,7 @@ func TestInstall_SeededResources_Structure(t *testing.T) {
 			StepNumber: 3,
 			Delay:      "5m",
 			Messenger:  "whatsapp",
-			Condition:  models.SequenceConditionAlways,
+			Condition:  models.CampaignConditionAlways,
 			Subject:    "Step 3: Follow-Up Check",
 			Body:       "👋 *Hi {{ .Subscriber.FirstName }}!*\n\nJust following up on the email we sent you. Let us know if you have any questions or reply directly here to chat with us!",
 			EmailType:  "",
@@ -772,9 +771,9 @@ func TestInstall_SeededResources_Structure(t *testing.T) {
 func TestE2E_Sequence_ListBasedTrigger_Enrollment(t *testing.T) {
 	// 1. Sequence created with target List IDs
 	seqLists := []int{101, 102}
-	seq := models.Sequence{
+	seq := models.Campaign{
 		Name:   "Cold Outreach List-Triggered Sequence",
-		Status: models.SequenceStatusActive,
+		Status: models.CampaignStatusRunning,
 	}
 
 	reqPayload := map[string]any{
@@ -798,20 +797,20 @@ func TestE2E_Sequence_ListBasedTrigger_Enrollment(t *testing.T) {
 	}
 
 	// 2. Contact subscribing to List 101 triggers scheduled state
-	contact := models.SequenceSubscriber{
-		SequenceID:   1,
+	contact := models.CampaignSubscriber{
+		CampaignID:   1,
 		SubscriberID: 501,
-		Status:       models.SequenceSubscriberStatusScheduled,
+		Status:       models.CampaignSubscriberStatusScheduled,
 		CurrentStep:  1,
 		NextSendAt:   null.TimeFrom(time.Now()),
 	}
 
-	if contact.Status != models.SequenceSubscriberStatusScheduled || contact.CurrentStep != 1 {
+	if contact.Status != models.CampaignSubscriberStatusScheduled || contact.CurrentStep != 1 {
 		t.Fatalf("expected contact status 'scheduled' at step 1, got status '%s' step %d", contact.Status, contact.CurrentStep)
 	}
 
 	// 3. Contact unsubscription from list transitions to opted_out
-	contact.Status = models.SequenceSubscriberStatusOptedOut
+	contact.Status = models.CampaignSubscriberStatusOptedOut
 	if contact.Status != "opted_out" {
 		t.Fatalf("expected contact status opted_out upon list removal")
 	}
@@ -1005,7 +1004,7 @@ func TestE2E_WhatsApp_FirstClassCitizen_Resolution(t *testing.T) {
 	}
 
 	// Verify sample step with messenger "whatsapp"
-	step := models.SequenceStep{
+	step := models.CampaignStep{
 		StepNumber: 1,
 		Messenger:  "whatsapp",
 		Subject:    "",
@@ -1022,7 +1021,7 @@ func TestE2E_WhatsApp_FirstClassCitizen_Resolution(t *testing.T) {
 func TestSequence_StepDelay_Persistence(t *testing.T) {
 	// Verify that sequence steps with varied delay intervals (seconds, minutes, hours, days)
 	// correctly retain their delay values across serialization and state mapping.
-	steps := []models.SequenceStep{
+	steps := []models.CampaignStep{
 		{StepNumber: 1, Delay: "0s", Messenger: "whatsapp", Condition: "always", Subject: "Step 1"},
 		{StepNumber: 2, Delay: "0s", Messenger: "whatsapp", Condition: "if_read", Subject: "Step 2"},
 		{StepNumber: 3, Delay: "10s", Messenger: "email", Condition: "always", Subject: "Step 3"},
@@ -1058,17 +1057,16 @@ func TestSequence_StepDelay_Persistence(t *testing.T) {
 
 func TestSequence_ParentSave_StepPreservation(t *testing.T) {
 	// Verify that parent sequence save payload retains step array integrity
-	seq := models.Sequence{
-		Name:        "Demo Cold Outreach",
-		Description: "Multi-step cold outreach campaign",
-		Status:      models.SequenceStatusActive,
+	seq := models.Campaign{
+		Name:   "Demo Cold Outreach",
+		Status: models.CampaignStatusRunning,
 	}
 
-	step5 := models.SequenceStep{
+	step5 := models.CampaignStep{
 		StepNumber: 5,
 		Delay:      "45s",
 		Messenger:  "whatsapp",
-		Condition:  models.SequenceConditionIfNotRead,
+		Condition:  models.CampaignConditionIfNotRead,
 		Subject:    "Step 5: AFK Check",
 	}
 
@@ -1077,7 +1075,7 @@ func TestSequence_ParentSave_StepPreservation(t *testing.T) {
 	}
 
 	reqPayload := sequenceReq{
-		Sequence: seq,
+		Campaign: seq,
 		Lists:    []int{1},
 	}
 
@@ -1105,58 +1103,58 @@ func TestE2E_Sequence_Email_MailHog_Lifecycle(t *testing.T) {
 	subUUID := fmt.Sprintf("sub-uuid-%d", subID)
 
 	// Step 1: email, always, delay 0s
-	step1 := models.SequenceStep{
+	step1 := models.CampaignStep{
 		ID:         1,
-		SequenceID: seqID,
+		CampaignID: seqID,
 		StepNumber: 1,
 		Messenger:  "email",
-		Condition:  models.SequenceConditionAlways,
+		Condition:  models.CampaignConditionAlways,
 		Subject:    "Seq Step 1: Initial Discovery",
 		Body:       fmt.Sprintf("Hello! Please review: <a href=\"http://localhost:9000/link/link-1/%s/%s\">View Proposal</a><img src=\"http://localhost:9000/campaign/%s/%s/px.png\">", seqUUID, subUUID, seqUUID, subUUID),
 		Delay:      "0s",
 	}
 
 	// Step 2: email, if_read, delay 0s
-	step2 := models.SequenceStep{
+	step2 := models.CampaignStep{
 		ID:         2,
-		SequenceID: seqID,
+		CampaignID: seqID,
 		StepNumber: 2,
 		Messenger:  "email",
-		Condition:  models.SequenceConditionIfRead,
+		Condition:  models.CampaignConditionIfRead,
 		Subject:    "Seq Step 2: Read Followup",
 		Body:       "Thanks for reviewing Step 1! Here are the next steps.",
 		Delay:      "0s",
 	}
 
 	// Step 3: email, if_clicked, delay 0s
-	step3 := models.SequenceStep{
+	step3 := models.CampaignStep{
 		ID:         3,
-		SequenceID: seqID,
+		CampaignID: seqID,
 		StepNumber: 3,
 		Messenger:  "email",
-		Condition:  models.SequenceConditionIfClicked,
+		Condition:  models.CampaignConditionIfClicked,
 		Subject:    "Seq Step 3: Clicker Special Offer",
 		Body:       "We noticed you clicked the proposal link! Here is your discount.",
 		Delay:      "0s",
 	}
 
 	// Step 4: email, always (to be blocked by reply)
-	step4 := models.SequenceStep{
+	step4 := models.CampaignStep{
 		ID:         4,
-		SequenceID: seqID,
+		CampaignID: seqID,
 		StepNumber: 4,
 		Messenger:  "email",
-		Condition:  models.SequenceConditionAlways,
+		Condition:  models.CampaignConditionAlways,
 		Subject:    "Seq Step 4: Final Checkin",
 		Body:       "Final checkin before sequence closes.",
 		Delay:      "0s",
 	}
 
-	steps := []models.SequenceStep{step1, step2, step3, step4}
-	contact := models.SequenceSubscriber{
-		SequenceID:   seqID,
+	steps := []models.CampaignStep{step1, step2, step3, step4}
+	contact := models.CampaignSubscriber{
+		CampaignID:   seqID,
 		SubscriberID: subID,
-		Status:       models.SequenceSubscriberStatusScheduled,
+		Status:       models.CampaignSubscriberStatusScheduled,
 		CurrentStep:  1,
 	}
 
@@ -1205,7 +1203,7 @@ func TestE2E_Sequence_Email_MailHog_Lifecycle(t *testing.T) {
 	}
 
 	contact.CurrentStep = 2
-	contact.Status = models.SequenceSubscriberStatusInProgress
+	contact.Status = models.CampaignSubscriberStatusInProgress
 
 	// 4. Trigger Real / Open Tracking
 	contact.LastReadAt = null.TimeFrom(time.Now())
@@ -1250,12 +1248,10 @@ func TestE2E_Sequence_Email_MailHog_Lifecycle(t *testing.T) {
 	contact.CurrentStep = 4
 
 	// 9. Trigger Inbound Reply & Auto-Stop
-	rl := sequence.NewReplyListener(nil, nil)
-	_ = rl.ProcessReplyWithBody(subEmail, sequence.ChannelTypeEmail, "Yes, I am interested in this deal!")
-	contact.Status = models.SequenceSubscriberStatusReplied
+	contact.Status = models.CampaignSubscriberStatusReplied
 
 	// Verify Step 4 is prevented because contact has 'replied'
-	if contact.Status == models.SequenceSubscriberStatusReplied {
+	if contact.Status == models.CampaignSubscriberStatusReplied {
 		t.Logf("Sequence contact %d successfully transitioned to 'replied' status; Step 4 automatically halted", subID)
 	} else {
 		t.Errorf("expected contact status 'replied', got %s", contact.Status)
@@ -1290,20 +1286,20 @@ func TestE2E_Sequence_WAHA_WhatsApp_Lifecycle(t *testing.T) {
 	seqID := int(time.Now().UnixNano() % 100000)
 	subID := 2002
 
-	step1 := models.SequenceStep{
+	step1 := models.CampaignStep{
 		ID:         1,
-		SequenceID: seqID,
+		CampaignID: seqID,
 		StepNumber: 1,
 		Messenger:  "waha",
-		Condition:  models.SequenceConditionAlways,
+		Condition:  models.CampaignConditionAlways,
 		Subject:    "WAHA Step 1",
 		Body:       "Hi! Check out our new platform here: http://localhost:9000/r/waha-seq-deal",
 		Delay:      "0s",
 	}
 
-	step2 := models.SequenceStep{
+	step2 := models.CampaignStep{
 		ID:         2,
-		SequenceID: seqID,
+		CampaignID: seqID,
 		StepNumber: 2,
 		Messenger:  "waha",
 		Subject:    "WAHA Step 2: Read Branch",
@@ -1311,9 +1307,9 @@ func TestE2E_Sequence_WAHA_WhatsApp_Lifecycle(t *testing.T) {
 		Delay:      "0s",
 	}
 
-	step3 := models.SequenceStep{
+	step3 := models.CampaignStep{
 		ID:         3,
-		SequenceID: seqID,
+		CampaignID: seqID,
 		StepNumber: 3,
 		Messenger:  "waha",
 		Subject:    "WAHA Step 3: Click Branch",
@@ -1324,21 +1320,21 @@ func TestE2E_Sequence_WAHA_WhatsApp_Lifecycle(t *testing.T) {
 	_ = step2
 	_ = step3
 
-	step4 := models.SequenceStep{
+	step4 := models.CampaignStep{
 		ID:         4,
-		SequenceID: seqID,
+		CampaignID: seqID,
 		StepNumber: 4,
 		Messenger:  "waha",
-		Condition:  models.SequenceConditionAlways,
+		Condition:  models.CampaignConditionAlways,
 		Subject:    "WAHA Step 4: Final Wrapup",
 		Body:       "Final sequence follow-up.",
 		Delay:      "0s",
 	}
 
-	contact := models.SequenceSubscriber{
-		SequenceID:   seqID,
+	contact := models.CampaignSubscriber{
+		CampaignID:   seqID,
 		SubscriberID: subID,
-		Status:       models.SequenceSubscriberStatusScheduled,
+		Status:       models.CampaignSubscriberStatusScheduled,
 		CurrentStep:  1,
 	}
 
@@ -1377,7 +1373,7 @@ func TestE2E_Sequence_WAHA_WhatsApp_Lifecycle(t *testing.T) {
 	}
 
 	contact.CurrentStep = 2
-	contact.Status = models.SequenceSubscriberStatusInProgress
+	contact.Status = models.CampaignSubscriberStatusInProgress
 
 	// Simulate WAHA Read ACK
 	ackPayload := map[string]any{
@@ -1425,10 +1421,10 @@ func TestE2E_Sequence_WAHA_WhatsApp_Lifecycle(t *testing.T) {
 	cReply := e.NewContext(reqReply, recReply)
 	_ = app.WAHAWebhook(cReply)
 
-	contact.Status = models.SequenceSubscriberStatusReplied
+	contact.Status = models.CampaignSubscriberStatusReplied
 
 	// Verify Step 4 is halted
-	if contact.Status != models.SequenceSubscriberStatusReplied {
+	if contact.Status != models.CampaignSubscriberStatusReplied {
 		t.Errorf("expected contact status 'replied', got %s", contact.Status)
 	}
 
@@ -1464,54 +1460,54 @@ func TestE2E_Sequence_Mixed_Messenger_Lifecycle(t *testing.T) {
 
 	// Multi-Channel Sequence crossing Email and WhatsApp:
 	// Step 1: Email (MailHog) -> Step 2: WhatsApp (WAHA on if_read) -> Step 3: Email (MailHog on if_clicked) -> Step 4: WhatsApp (auto-stopped by reply)
-	step1 := models.SequenceStep{
+	step1 := models.CampaignStep{
 		ID:         1,
-		SequenceID: seqID,
+		CampaignID: seqID,
 		StepNumber: 1,
 		Messenger:  "email",
-		Condition:  models.SequenceConditionAlways,
+		Condition:  models.CampaignConditionAlways,
 		Subject:    "Mixed Step 1: Email Welcome",
 		Body:       "Welcome to our multi-channel sequence! <img src=\"http://localhost:9000/campaign/mixed-camp/mixed-sub/px.png\">",
 		Delay:      "0s",
 	}
 
-	step2 := models.SequenceStep{
+	step2 := models.CampaignStep{
 		ID:         2,
-		SequenceID: seqID,
+		CampaignID: seqID,
 		StepNumber: 2,
 		Messenger:  "waha",
-		Condition:  models.SequenceConditionIfRead,
+		Condition:  models.CampaignConditionIfRead,
 		Subject:    "Mixed Step 2: WhatsApp Followup",
 		Body:       "Hi from WhatsApp! Since you opened our email, here is the secret link: http://localhost:9000/r/mixed-exclusive",
 		Delay:      "0s",
 	}
 
-	step3 := models.SequenceStep{
+	step3 := models.CampaignStep{
 		ID:         3,
-		SequenceID: seqID,
+		CampaignID: seqID,
 		StepNumber: 3,
 		Messenger:  "email",
-		Condition:  models.SequenceConditionIfClicked,
+		Condition:  models.CampaignConditionIfClicked,
 		Subject:    "Mixed Step 3: Email Bonus",
 		Body:       "You clicked the WhatsApp link! Here is your exclusive email coupon.",
 		Delay:      "0s",
 	}
 
-	step4 := models.SequenceStep{
+	step4 := models.CampaignStep{
 		ID:         4,
-		SequenceID: seqID,
+		CampaignID: seqID,
 		StepNumber: 4,
 		Messenger:  "waha",
-		Condition:  models.SequenceConditionAlways,
+		Condition:  models.CampaignConditionAlways,
 		Subject:    "Mixed Step 4: Final Message",
 		Body:       "Final checkin before sequence completes.",
 		Delay:      "0s",
 	}
 
-	contact := models.SequenceSubscriber{
-		SequenceID:   seqID,
+	contact := models.CampaignSubscriber{
+		CampaignID:   seqID,
 		SubscriberID: subID,
-		Status:       models.SequenceSubscriberStatusScheduled,
+		Status:       models.CampaignSubscriberStatusScheduled,
 		CurrentStep:  1,
 	}
 
@@ -1548,7 +1544,7 @@ func TestE2E_Sequence_Mixed_Messenger_Lifecycle(t *testing.T) {
 	}
 
 	contact.CurrentStep = 2
-	contact.Status = models.SequenceSubscriberStatusInProgress
+	contact.Status = models.CampaignSubscriberStatusInProgress
 
 	// 3. Trigger Email Read
 	contact.LastReadAt = null.TimeFrom(time.Now())
@@ -1601,11 +1597,9 @@ func TestE2E_Sequence_Mixed_Messenger_Lifecycle(t *testing.T) {
 	contact.CurrentStep = 4
 
 	// 7. Trigger Reply & Cross-Channel Sequence Auto-Stop
-	rl := sequence.NewReplyListener(nil, nil)
-	_ = rl.ProcessReplyWithBody(subEmail, sequence.ChannelTypeEmail, "I love this multi-channel campaign, thanks!")
-	contact.Status = models.SequenceSubscriberStatusReplied
+	contact.Status = models.CampaignSubscriberStatusReplied
 
-	if contact.Status != models.SequenceSubscriberStatusReplied {
+	if contact.Status != models.CampaignSubscriberStatusReplied {
 		t.Errorf("expected contact status 'replied', got %s", contact.Status)
 	}
 
@@ -1639,33 +1633,33 @@ func TestE2E_UI_User_Assigned_Sender_CrossChannel_Continuity(t *testing.T) {
 	}
 
 	// 3. Sequence Definition: Step 1 (email) -> Step 2 (whatsapp)
-	step1 := models.SequenceStep{
+	step1 := models.CampaignStep{
 		ID:         1,
-		SequenceID: 50,
+		CampaignID: 50,
 		StepNumber: 1,
 		Messenger:  "email",
-		Condition:  models.SequenceConditionAlways,
+		Condition:  models.CampaignConditionAlways,
 		Subject:    "Step 1: Introduction from Alice",
 		Body:       "Hi Bob, Alice here.",
 	}
 
-	step2 := models.SequenceStep{
+	step2 := models.CampaignStep{
 		ID:         2,
-		SequenceID: 50,
+		CampaignID: 50,
 		StepNumber: 2,
 		Messenger:  "whatsapp",
-		Condition:  models.SequenceConditionAlways,
+		Condition:  models.CampaignConditionAlways,
 		Subject:    "Step 2: Quick WhatsApp Ping",
 		Body:       "Hey Bob, just sent you an email.",
 	}
 
 	// 4. Enroll Bob into Sequence with User Alice's locked channels
-	contactBob := models.SequenceSubscriber{
-		SequenceID:   50,
+	contactBob := models.CampaignSubscriber{
+		CampaignID:   50,
 		SubscriberID: 1001,
 		EmailID:      null.IntFrom(userCtx["email_id"].(int)),
 		WahaSession:  null.StringFrom(userCtx["waha_session"].(string)),
-		Status:       models.SequenceSubscriberStatusScheduled,
+		Status:       models.CampaignSubscriberStatusScheduled,
 		CurrentStep:  1,
 	}
 
@@ -2042,9 +2036,9 @@ func TestE2E_Sequence_StepCompilation_And_FromEmail_MailHog(t *testing.T) {
 	isLive := isURLReachable(mailhogHTTP + "/api/v2/messages")
 	testRecipient := fmt.Sprintf("seq-compiled-%d@example.com", time.Now().UnixNano()%100000)
 
-	step := models.SequenceStep{
+	step := models.CampaignStep{
 		ID:         1,
-		SequenceID: 101,
+		CampaignID: 101,
 		StepNumber: 1,
 		Messenger:  "email",
 		Subject:    "Outreach for {{ .Subscriber.Name }}",
@@ -2064,8 +2058,8 @@ func TestE2E_Sequence_StepCompilation_And_FromEmail_MailHog(t *testing.T) {
 		},
 	}
 
-	seqContact := models.SequenceSubscriber{
-		SequenceID:   101,
+	seqContact := models.CampaignSubscriber{
+		CampaignID:   101,
 		SubscriberID: 4004,
 	}
 
@@ -2086,7 +2080,7 @@ func TestE2E_Sequence_StepCompilation_And_FromEmail_MailHog(t *testing.T) {
 			t.Fatalf("failed initializing emailer: %v", err)
 		}
 
-		mgr := sequence.NewManager(nil, map[string]manager.Messenger{"email": emailer}, nil, nil)
+		mgr := campaign.NewManager(nil, map[string]manager.Messenger{"email": emailer}, nil, nil)
 		err = mgr.PrepareAndDispatchStep(seqContact, contact, step, testRecipient)
 		if err != nil {
 			t.Fatalf("PrepareAndDispatchStep failed: %v", err)
@@ -2158,20 +2152,20 @@ func TestE2E_Campaign_And_Sequence_DispatchParity(t *testing.T) {
 	_ = camp.CompileTemplate(nil)
 
 	// 2. Sequence side
-	step := models.SequenceStep{
+	step := models.CampaignStep{
 		Subject:   "Alert for {{ .Subscriber.Name }}",
 		Body:      "Company: {{ .Subscriber.Attribs.company }}",
 		EmailType: models.EmailTypeNewThread,
 	}
 
 	msgr := &mockCmdMessenger{name: "email"}
-	seqMgr := sequence.NewManager(nil, map[string]manager.Messenger{"email": msgr}, nil, nil)
-	seqContact := models.SequenceSubscriber{
-		SequenceID:   1,
+	stepMgr := campaign.NewManager(nil, map[string]manager.Messenger{"email": msgr}, nil, nil)
+	seqContact := models.CampaignSubscriber{
+		CampaignID:   1,
 		SubscriberID: 1,
 	}
 
-	err := seqMgr.PrepareAndDispatchStep(seqContact, sub, step, "preview@test.com")
+	err := stepMgr.PrepareAndDispatchStep(seqContact, sub, step, "preview@test.com")
 	if err != nil {
 		t.Fatalf("sequence dispatch failed: %v", err)
 	}
@@ -2193,7 +2187,7 @@ func TestE2E_Campaign_And_Sequence_DispatchParity(t *testing.T) {
 
 func TestResilience_SequenceWorker_ConcurrentTickContention(t *testing.T) {
 	msgr := &mockCmdMessenger{name: "email"}
-	seqMgr := sequence.NewManager(nil, map[string]manager.Messenger{"email": msgr}, nil, nil)
+	stepMgr := campaign.NewManager(nil, map[string]manager.Messenger{"email": msgr}, nil, nil)
 
 	const numWorkers = 10
 	sub := models.Subscriber{
@@ -2201,16 +2195,16 @@ func TestResilience_SequenceWorker_ConcurrentTickContention(t *testing.T) {
 		Email:   "resilience@test.com",
 		Attribs: models.JSON{"company": "Contention Corp"},
 	}
-	step := models.SequenceStep{
+	step := models.CampaignStep{
 		ID:         1,
-		SequenceID: 100,
+		CampaignID: 100,
 		StepNumber: 1,
 		Messenger:  "email",
 		Subject:    "Resilience Check",
 		Body:       "Concurrent dispatch test",
 	}
-	seqContact := models.SequenceSubscriber{
-		SequenceID:   100,
+	seqContact := models.CampaignSubscriber{
+		CampaignID:   100,
 		SubscriberID: 1001,
 	}
 
@@ -2221,7 +2215,7 @@ func TestResilience_SequenceWorker_ConcurrentTickContention(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			err := seqMgr.PrepareAndDispatchStep(seqContact, sub, step, "sender@test.com")
+			err := stepMgr.PrepareAndDispatchStep(seqContact, sub, step, "sender@test.com")
 			if err != nil {
 				atomic.AddInt64(&errCount, 1)
 			}
@@ -2311,9 +2305,9 @@ func TestIntegration_WAHASettings_HostSerializationParity(t *testing.T) {
 
 func TestIntegration_Sequence_TestMessage_ChannelIsolation(t *testing.T) {
 	emailMsgr := &mockSeqTestMessenger{name: "email"}
-	seqMgr := sequence.NewManager(nil, map[string]manager.Messenger{"email": emailMsgr}, nil, nil)
+	stepMgr := campaign.NewManager(nil, map[string]manager.Messenger{"email": emailMsgr}, nil, nil)
 
-	step := models.SequenceStep{
+	step := models.CampaignStep{
 		StepNumber: 1,
 		Messenger:  "whatsapp",
 		Subject:    "WhatsApp Step",
@@ -2325,12 +2319,12 @@ func TestIntegration_Sequence_TestMessage_ChannelIsolation(t *testing.T) {
 		Phone: null.StringFrom("+918935885359"),
 	}
 
-	seqContact := models.SequenceSubscriber{
-		SequenceID:   100,
+	seqContact := models.CampaignSubscriber{
+		CampaignID:   100,
 		SubscriberID: 1000,
 	}
 
-	err := seqMgr.PrepareAndDispatchStep(seqContact, sub, step, "+918935885359")
+	err := stepMgr.PrepareAndDispatchStep(seqContact, sub, step, "+918935885359")
 	if err == nil {
 		t.Fatal("expected channel isolation error when WhatsApp messenger is missing, got nil")
 	}
@@ -2342,34 +2336,34 @@ func TestIntegration_Sequence_TestMessage_ChannelIsolation(t *testing.T) {
 
 func TestGetDueSequenceContacts_FiltersPausedSequences(t *testing.T) {
 	// Verify that sequence status filtering logic distinguishes between active and paused sequences.
-	activeSeq := models.Sequence{
+	activeSeq := models.Campaign{
 		Base:   models.Base{ID: 1},
 		Name:   "Active Sequence",
-		Status: models.SequenceStatusActive,
+		Status: models.CampaignStatusRunning,
 	}
 
-	pausedSeq := models.Sequence{
+	pausedSeq := models.Campaign{
 		Base:   models.Base{ID: 2},
 		Name:   "Paused Sequence",
-		Status: models.SequenceStatusPaused,
+		Status: models.CampaignStatusPaused,
 	}
 
-	if activeSeq.Status != models.SequenceStatusActive {
-		t.Fatalf("expected active sequence status to be %s, got %s", models.SequenceStatusActive, activeSeq.Status)
+	if activeSeq.Status != models.CampaignStatusRunning {
+		t.Fatalf("expected active sequence status to be %s, got %s", models.CampaignStatusRunning, activeSeq.Status)
 	}
 
-	if pausedSeq.Status == models.SequenceStatusActive {
+	if pausedSeq.Status == models.CampaignStatusRunning {
 		t.Fatalf("paused sequence should not equal active status: %s", pausedSeq.Status)
 	}
 
-	contacts := []models.SequenceSubscriber{
-		{SequenceID: activeSeq.ID, SubscriberID: 101, Status: models.SequenceSubscriberStatusScheduled},
-		{SequenceID: pausedSeq.ID, SubscriberID: 102, Status: models.SequenceSubscriberStatusScheduled},
+	contacts := []models.CampaignSubscriber{
+		{CampaignID: activeSeq.ID, SubscriberID: 101, Status: models.CampaignSubscriberStatusScheduled},
+		{CampaignID: pausedSeq.ID, SubscriberID: 102, Status: models.CampaignSubscriberStatusScheduled},
 	}
 
-	var dueForActive []models.SequenceSubscriber
+	var dueForActive []models.CampaignSubscriber
 	for _, c := range contacts {
-		if c.SequenceID == activeSeq.ID {
+		if c.CampaignID == activeSeq.ID {
 			dueForActive = append(dueForActive, c)
 		}
 	}
@@ -2393,7 +2387,7 @@ func TestE2E_Sequence_TestMessage_ActiveUserRouting_And_ShorthandTemplateRenderi
 	}
 
 	// Step body with template tags and shorthand @TrackLink
-	step := models.SequenceStep{
+	step := models.CampaignStep{
 		StepNumber: 3,
 		Messenger:  "email",
 		Subject:    "Demo Step for {{ .Subscriber.FirstName }}",
@@ -2410,17 +2404,17 @@ func TestE2E_Sequence_TestMessage_ActiveUserRouting_And_ShorthandTemplateRenderi
 	}
 
 	mockMsgr := &mockCmdMessenger{name: "email"}
-	seqMgr := sequence.NewManager(nil, map[string]manager.Messenger{"email": mockMsgr}, nil, nil)
+	stepMgr := campaign.NewManager(nil, map[string]manager.Messenger{"email": mockMsgr}, nil, nil)
 
-	seqContact := models.SequenceSubscriber{
-		SequenceID:   5,
+	seqContact := models.CampaignSubscriber{
+		CampaignID:   5,
 		SubscriberID: contactSub.ID,
 		CurrentStep:  step.StepNumber,
 	}
 
 	// Dispatch sequence step test message with active user email target
 	targetEmail := adminUser.Email.String
-	err := seqMgr.PrepareAndDispatchStep(seqContact, contactSub, step, targetEmail)
+	err := stepMgr.PrepareAndDispatchStep(seqContact, contactSub, step, targetEmail)
 	if err != nil {
 		t.Fatalf("failed to dispatch test sequence step: %v", err)
 	}
@@ -2469,7 +2463,7 @@ func TestE2E_Sequence_ProductionMessage_Routing_And_ContactRendering(t *testing.
 		},
 	}
 
-	step := models.SequenceStep{
+	step := models.CampaignStep{
 		StepNumber: 1,
 		Messenger:  "email",
 		Subject:    "Welcome {{ .Subscriber.FirstName }}",
@@ -2477,16 +2471,16 @@ func TestE2E_Sequence_ProductionMessage_Routing_And_ContactRendering(t *testing.
 	}
 
 	mockMsgr := &mockCmdMessenger{name: "email"}
-	seqMgr := sequence.NewManager(nil, map[string]manager.Messenger{"email": mockMsgr}, nil, nil)
+	stepMgr := campaign.NewManager(nil, map[string]manager.Messenger{"email": mockMsgr}, nil, nil)
 
-	seqContact := models.SequenceSubscriber{
-		SequenceID:   5,
+	seqContact := models.CampaignSubscriber{
+		CampaignID:   5,
 		SubscriberID: contactSub.ID,
 		CurrentStep:  step.StepNumber,
 	}
 
 	// Production dispatch (overrideRecipient = "")
-	err := seqMgr.PrepareAndDispatchStep(seqContact, contactSub, step, "")
+	err := stepMgr.PrepareAndDispatchStep(seqContact, contactSub, step, "")
 	if err != nil {
 		t.Fatalf("failed to dispatch production sequence step: %v", err)
 	}
@@ -2525,9 +2519,9 @@ func TestE2E_Sequence_RealWorld_Pooled_LoadBalancing(t *testing.T) {
 		"waha":               msgrA,
 	}
 
-	seqMgr := sequence.NewManager(nil, msgrMap, nil, nil)
+	stepMgr := campaign.NewManager(nil, msgrMap, nil, nil)
 
-	step := models.SequenceStep{
+	step := models.CampaignStep{
 		StepNumber: 1,
 		Messenger:  "whatsapp",
 		Subject:    "Real-World Outreach",
@@ -2544,14 +2538,14 @@ func TestE2E_Sequence_RealWorld_Pooled_LoadBalancing(t *testing.T) {
 	}
 
 	for _, c := range contacts {
-		seqContact := models.SequenceSubscriber{
-			SequenceID:   10,
+		seqContact := models.CampaignSubscriber{
+			CampaignID:   10,
 			SubscriberID: c.ID,
 			CurrentStep:  1,
 			WahaSession:  null.String{}, // NULL in DB (no hardcoded "default")
 		}
 
-		err := seqMgr.PrepareAndDispatchStep(seqContact, c, step, "")
+		err := stepMgr.PrepareAndDispatchStep(seqContact, c, step, "")
 		if err != nil {
 			t.Fatalf("failed to dispatch pooled step for contact %d: %v", c.ID, err)
 		}
@@ -2574,13 +2568,13 @@ func TestE2E_Sequence_RealWorld_Pooled_LoadBalancing(t *testing.T) {
 func TestE2E_Sequence_BaseTemplate_L_Function_Integration(t *testing.T) {
 	// Initialize Mock Sequence Messenger
 	msgr := &mockCmdMessenger{name: "email"}
-	seqMgr := sequence.NewManager(nil, map[string]manager.Messenger{"email": msgr}, nil, nil)
+	stepMgr := campaign.NewManager(nil, map[string]manager.Messenger{"email": msgr}, nil, nil)
 
 	// Step template assigned to HTML base layout with L.T, TrackLink, TrackView
 	baseHTML := `<!DOCTYPE html><html><body>{{ if L }}{{ L.T "app.name" }}{{ end }} {{ template "content" . }} - {{ TrackLink "https://aurumor.com" }} - {{ TrackView }}</body></html>`
 
 	// Compile campaign using sequence manager template functions
-	funcs := seqMgr.TemplateFuncsWithContext("seq-e2e-123", "sub-e2e-456")
+	funcs := stepMgr.TemplateFuncsWithContext("seq-e2e-123", "sub-e2e-456")
 	camp := models.Campaign{
 		UUID:         "camp-e2e-789",
 		Subject:      "Welcome {{ .Subscriber.Name }}",
@@ -2598,19 +2592,19 @@ func TestE2E_Sequence_BaseTemplate_L_Function_Integration(t *testing.T) {
 		Name:  "Daniel",
 		Email: "daniel@example.com",
 	}
-	seqContact := models.SequenceSubscriber{
-		SequenceID:   1,
+	seqContact := models.CampaignSubscriber{
+		CampaignID:   1,
 		SubscriberID: 101,
 		CurrentStep:  1,
 	}
-	step := models.SequenceStep{
+	step := models.CampaignStep{
 		ID:        1,
 		Messenger: "email",
 		Subject:   "Welcome {{ .Subscriber.Name }}",
 		Body:      "Hello {{ .Subscriber.Name }} - {{ TrackLink \"https://aurumor.com\" }}",
 	}
 
-	err := seqMgr.PrepareAndDispatchStep(seqContact, sub, step, "")
+	err := stepMgr.PrepareAndDispatchStep(seqContact, sub, step, "")
 	if err != nil {
 		t.Fatalf("failed to dispatch sequence step with base template: %v", err)
 	}
@@ -2630,7 +2624,7 @@ func TestE2E_Sequence_BaseTemplate_L_Function_Integration(t *testing.T) {
 
 func TestE2E_Sequence_WhatsApp_HTMLTemplate_BypassAndSanitization(t *testing.T) {
 	msgr := &mockCmdMessenger{name: "whatsapp"}
-	seqMgr := sequence.NewManager(nil, map[string]manager.Messenger{"whatsapp": msgr}, nil, nil)
+	stepMgr := campaign.NewManager(nil, map[string]manager.Messenger{"whatsapp": msgr}, nil, nil)
 
 	sub := models.Subscriber{
 		Base:  models.Base{ID: 202},
@@ -2640,14 +2634,14 @@ func TestE2E_Sequence_WhatsApp_HTMLTemplate_BypassAndSanitization(t *testing.T) 
 		Phone: null.StringFrom("+919472380340"),
 	}
 
-	seqContact := models.SequenceSubscriber{
-		SequenceID:   1,
+	seqContact := models.CampaignSubscriber{
+		CampaignID:   1,
 		SubscriberID: 202,
 		CurrentStep:  1,
 	}
 
 	// Step has HTML Default campaign template assigned (TemplateID = 1)
-	step := models.SequenceStep{
+	step := models.CampaignStep{
 		ID:         1,
 		TemplateID: null.IntFrom(1),
 		Messenger:  "whatsapp",
@@ -2655,7 +2649,7 @@ func TestE2E_Sequence_WhatsApp_HTMLTemplate_BypassAndSanitization(t *testing.T) 
 		Body:       "🛸 *Incoming Transmission from HQ...* Hey {{ .Subscriber.Name }}! We have a top-secret mission prepared for {{ .Subscriber.Email }}. &nbsp;&nbsp; View in browser",
 	}
 
-	err := seqMgr.PrepareAndDispatchStep(seqContact, sub, step, "")
+	err := stepMgr.PrepareAndDispatchStep(seqContact, sub, step, "")
 	if err != nil {
 		t.Fatalf("unexpected error dispatching whatsapp step: %v", err)
 	}
@@ -2684,18 +2678,18 @@ func TestE2E_Sequence_WhatsApp_HTMLTemplate_BypassAndSanitization(t *testing.T) 
 
 func TestE2E_Sequence_TeamDemo_RealTimeClickTrigger(t *testing.T) {
 	// Recreate full 6-step Team Demo sequence structure
-	step1 := models.SequenceStep{StepNumber: 1, Delay: "0s", Messenger: "whatsapp", Condition: models.SequenceConditionAlways, Subject: "Step 1"}
-	step2 := models.SequenceStep{StepNumber: 2, Delay: "0s", Messenger: "whatsapp", Condition: models.SequenceConditionIfRead, Subject: "Step 2"}
-	step3 := models.SequenceStep{StepNumber: 3, Delay: "10s", Messenger: "email", Condition: models.SequenceConditionAlways, Subject: "Step 3"}
-	step4 := models.SequenceStep{StepNumber: 4, Delay: "0s", Messenger: "whatsapp", Condition: models.SequenceConditionIfClicked, Subject: "Step 4"}
-	step5 := models.SequenceStep{StepNumber: 5, Delay: "45s", Messenger: "whatsapp", Condition: models.SequenceConditionIfNotRead, Subject: "Step 5"}
-	step6 := models.SequenceStep{StepNumber: 6, Delay: "30s", Messenger: "email", Condition: models.SequenceConditionAlways, Subject: "Step 6"}
+	step1 := models.CampaignStep{StepNumber: 1, Delay: "0s", Messenger: "whatsapp", Condition: models.CampaignConditionAlways, Subject: "Step 1"}
+	step2 := models.CampaignStep{StepNumber: 2, Delay: "0s", Messenger: "whatsapp", Condition: models.CampaignConditionIfRead, Subject: "Step 2"}
+	step3 := models.CampaignStep{StepNumber: 3, Delay: "10s", Messenger: "email", Condition: models.CampaignConditionAlways, Subject: "Step 3"}
+	step4 := models.CampaignStep{StepNumber: 4, Delay: "0s", Messenger: "whatsapp", Condition: models.CampaignConditionIfClicked, Subject: "Step 4"}
+	step5 := models.CampaignStep{StepNumber: 5, Delay: "45s", Messenger: "whatsapp", Condition: models.CampaignConditionIfNotRead, Subject: "Step 5"}
+	step6 := models.CampaignStep{StepNumber: 6, Delay: "30s", Messenger: "email", Condition: models.CampaignConditionAlways, Subject: "Step 6"}
 
-	steps := []models.SequenceStep{step1, step2, step3, step4, step5, step6}
+	steps := []models.CampaignStep{step1, step2, step3, step4, step5, step6}
 
 	now := time.Now()
-	contact := models.SequenceSubscriber{
-		SequenceID:   1,
+	contact := models.CampaignSubscriber{
+		CampaignID:   1,
 		SubscriberID: 10,
 		CurrentStep:  4,
 		NextSendAt:   null.TimeFrom(now.Add(45 * time.Second)),
@@ -2761,15 +2755,15 @@ func TestIntegration_Sequence_RealTimeLinkClick_DB_Mutation(t *testing.T) {
 
 func TestIntegration_Sequence_LinearProgression_With_Delays(t *testing.T) {
 	// Create 3-step sequence: Step 1 (0s), Step 2 (10s), Step 3 (20s)
-	step1 := models.SequenceStep{ID: 1, SequenceID: 100, StepNumber: 1, Delay: "0s", Messenger: "email", Subject: "Step 1"}
-	step2 := models.SequenceStep{ID: 2, SequenceID: 100, StepNumber: 2, Delay: "10s", Messenger: "email", Subject: "Step 2"}
-	step3 := models.SequenceStep{ID: 3, SequenceID: 100, StepNumber: 3, Delay: "20s", Messenger: "email", Subject: "Step 3"}
-	steps := []models.SequenceStep{step1, step2, step3}
+	step1 := models.CampaignStep{ID: 1, CampaignID: 100, StepNumber: 1, Delay: "0s", Messenger: "email", Subject: "Step 1"}
+	step2 := models.CampaignStep{ID: 2, CampaignID: 100, StepNumber: 2, Delay: "10s", Messenger: "email", Subject: "Step 2"}
+	step3 := models.CampaignStep{ID: 3, CampaignID: 100, StepNumber: 3, Delay: "20s", Messenger: "email", Subject: "Step 3"}
+	steps := []models.CampaignStep{step1, step2, step3}
 
-	contact := models.SequenceSubscriber{
-		SequenceID:   100,
+	contact := models.CampaignSubscriber{
+		CampaignID:   100,
 		SubscriberID: 501,
-		Status:       models.SequenceSubscriberStatusScheduled,
+		Status:       models.CampaignSubscriberStatusScheduled,
 		CurrentStep:  1,
 	}
 
@@ -2779,7 +2773,7 @@ func TestIntegration_Sequence_LinearProgression_With_Delays(t *testing.T) {
 	now := time.Now()
 	contact.CurrentStep = nextStep
 	contact.NextSendAt = null.TimeFrom(now.Add(d2))
-	contact.Status = models.SequenceSubscriberStatusInProgress
+	contact.Status = models.CampaignSubscriberStatusInProgress
 
 	if contact.CurrentStep != 2 || d2 != 10*time.Second {
 		t.Fatalf("expected step 2 with 10s delay, got step %d and %v", contact.CurrentStep, d2)
@@ -2799,11 +2793,11 @@ func TestIntegration_Sequence_LinearProgression_With_Delays(t *testing.T) {
 	nextStep = contact.CurrentStep + 1
 	if nextStep > len(steps) {
 		contact.CurrentStep = nextStep
-		contact.Status = models.SequenceSubscriberStatusFinished
+		contact.Status = models.CampaignSubscriberStatusFinished
 		contact.NextSendAt = null.Time{}
 	}
 
-	if contact.Status != models.SequenceSubscriberStatusFinished {
+	if contact.Status != models.CampaignSubscriberStatusFinished {
 		t.Fatalf("expected status 'finished', got %s", contact.Status)
 	}
 	t.Log("Successfully verified TestIntegration_Sequence_LinearProgression_With_Delays")
@@ -2839,7 +2833,7 @@ func TestIntegration_ShortLink_Prefix_Redirection(t *testing.T) {
 
 func TestIntegration_Sequence_PerStep_Analytics_Funnel(t *testing.T) {
 	// Mock funnel analytics structure
-	funnel := []models.SequenceStepFunnel{
+	funnel := []models.CampaignStepFunnel{
 		{
 			StepNumber: 1,
 			Subject:    "Step 1: Introduction",
@@ -2864,7 +2858,7 @@ func TestIntegration_Sequence_PerStep_Analytics_Funnel(t *testing.T) {
 		},
 	}
 
-	analytics := models.SequenceAnalytics{
+	analytics := models.CampaignSequenceAnalytics{
 		ActiveSubscribers: 60,
 		Funnel:            funnel,
 	}
@@ -2882,26 +2876,23 @@ func TestIntegration_Sequence_PerStep_Analytics_Funnel(t *testing.T) {
 }
 
 func TestIntegration_Sequence_Reply_AutoStop(t *testing.T) {
-	subEmail := "contact@example.com"
-	contact := models.SequenceSubscriber{
-		SequenceID:   10,
+	contact := models.CampaignSubscriber{
+		CampaignID:   10,
 		SubscriberID: 101,
-		Status:       models.SequenceSubscriberStatusInProgress,
+		Status:       models.CampaignSubscriberStatusInProgress,
 		CurrentStep:  1,
 	}
 
 	// Ingest subscriber reply
-	rl := sequence.NewReplyListener(nil, nil)
-	_ = rl.ProcessReplyWithBody(subEmail, sequence.ChannelTypeEmail, "Please stop sending emails.")
-	contact.Status = models.SequenceSubscriberStatusReplied
+	contact.Status = models.CampaignSubscriberStatusReplied
 
-	if contact.Status != models.SequenceSubscriberStatusReplied {
+	if contact.Status != models.CampaignSubscriberStatusReplied {
 		t.Fatalf("expected status 'replied', got %s", contact.Status)
 	}
 
 	// Verify that ProcessBatch ignores 'replied' contacts
 	// (Due query only fetches status IN ('scheduled', 'in_progress'))
-	isDue := contact.Status == models.SequenceSubscriberStatusScheduled || contact.Status == models.SequenceSubscriberStatusInProgress
+	isDue := contact.Status == models.CampaignSubscriberStatusScheduled || contact.Status == models.CampaignSubscriberStatusInProgress
 	if isDue {
 		t.Fatalf("replied contact must not be considered due for batch processing")
 	}

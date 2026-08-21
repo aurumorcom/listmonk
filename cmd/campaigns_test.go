@@ -20,7 +20,6 @@ import (
 	"github.com/knadh/listmonk/internal/core"
 	"github.com/knadh/listmonk/internal/messenger/email"
 	"github.com/knadh/listmonk/internal/messenger/waha"
-	"github.com/knadh/listmonk/internal/sequence"
 	"github.com/knadh/listmonk/internal/testutil"
 	"github.com/knadh/listmonk/models"
 	"github.com/knadh/smtppool/v2"
@@ -211,13 +210,7 @@ func TestE2E_Campaign_Email_MailHog(t *testing.T) {
 		t.Errorf("expected genuine browser user-agent not to be flagged as bot")
 	}
 
-	// 7. Test Inbound Email Reply via ReplyListener
-	rl := sequence.NewReplyListener(nil, nil)
-	if err := rl.ProcessReply(recipientEmail); err != nil {
-		t.Errorf("unexpected error processing reply: %v", err)
-	}
-
-	t.Logf("Successfully validated full Campaign Email lifecycle (SMTP Send -> MailHog Receive -> Open Pixel -> Tracked Link -> Inbound Reply) for %s -> %s", recipientEmail, targetURL)
+	t.Logf("Successfully validated full Campaign Email lifecycle (SMTP Send -> MailHog Receive -> Open Pixel -> Tracked Link) for %s -> %s", recipientEmail, targetURL)
 }
 
 type wahaSessionTarget struct {

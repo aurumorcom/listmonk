@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/knadh/listmonk/internal/messenger/waha"
-	"github.com/knadh/listmonk/internal/sequence"
 	"github.com/knadh/listmonk/internal/testutil"
 	"github.com/knadh/listmonk/models"
 	"github.com/labstack/echo/v4"
@@ -230,10 +229,6 @@ func TestIntegration_WAHA_Replied(t *testing.T) {
 	if recReply.Code != http.StatusOK {
 		t.Errorf("expected HTTP 200 from WAHA Reply webhook, got %d", recReply.Code)
 	}
-
-	// Verify ReplyListener intent matching
-	rl := sequence.NewReplyListener(nil, nil)
-	_ = rl.ProcessReplyWithBody(receiverSess.Phone, sequence.ChannelTypeWhatsApp, "Yes, I am interested in this offer!")
 
 	// 4B. Verify @lid Inbound Reply with fromMe=false
 	replyLIDPayload := map[string]any{
