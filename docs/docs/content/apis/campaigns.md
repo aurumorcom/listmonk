@@ -295,7 +295,7 @@ Create a new campaign.
 | subject      | string     | Yes      | Campaign email subject.                                                                                                |
 | lists        | number\[\] | Yes      | List IDs to send campaign to.                                                                                          |
 | from_email   | string     |          | 'From' email in campaign emails. Defaults to value from settings if not provided.                                      |
-| type         | string     | Yes      | Campaign type: 'regular' or 'optin'.                                                                                   |
+| type         | string     | Yes      | Campaign type: 'regular', 'optin', or 'sequence' (for automated multi-step sequence workflows).                         |
 | content_type | string     | Yes      | Content type: 'richtext', 'html', 'markdown', 'plain', 'visual'.                                                       |
 | body         | string     | Yes      | Content body of campaign.                                                                                              |
 | body_source  | string     |          | If content_type is `visual`, the JSON block source of the body.                                                        |
