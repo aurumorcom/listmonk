@@ -233,7 +233,7 @@ func TestIntegration_WAHA_Replied(t *testing.T) {
 
 	// Verify ReplyListener intent matching
 	rl := sequence.NewReplyListener(nil, nil)
-	_ = rl.ProcessReplyWithBody(receiverSess.Phone, true, "Yes, I am interested in this offer!")
+	_ = rl.ProcessReplyWithBody(receiverSess.Phone, sequence.ChannelTypeWhatsApp, "Yes, I am interested in this offer!")
 
 	// 4B. Verify @lid Inbound Reply with fromMe=false
 	replyLIDPayload := map[string]any{
@@ -486,7 +486,7 @@ func TestWAHAWebhook_DeepLogging_Resilience(t *testing.T) {
 func TestWAHAWebhook_LID_Resolution_Cassette(t *testing.T) {
 	rec, vcrClient := testutil.NewVCRRecorder(t, "waha/lid_resolution")
 
-	wmsgr, err := waha.GetWAHAMessenger(waha.Options{
+	wmsgr, err := waha.WAHAMessenger(waha.Options{
 		Name:    "waha",
 		Session: "aquiveal",
 		Host:    "http://localhost:3000",
@@ -534,7 +534,7 @@ func TestWAHAWebhook_LID_Resolution_Cassette(t *testing.T) {
 func TestWAHAWebhook_LID_PN_Resolution_Cassette(t *testing.T) {
 	rec, vcrClient := testutil.NewVCRRecorder(t, "waha/lid_resolution_pn")
 
-	wmsgr, err := waha.GetWAHAMessenger(waha.Options{
+	wmsgr, err := waha.WAHAMessenger(waha.Options{
 		Name:    "waha",
 		Session: "aquiveal",
 		Host:    "http://localhost:3000",

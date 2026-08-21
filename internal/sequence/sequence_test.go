@@ -22,19 +22,19 @@ import (
 	null "gopkg.in/volatiletech/null.v6"
 )
 
-func TestGetSequenceManager(t *testing.T) {
-	m1 := GetSequenceManager(nil, nil, nil, nil)
+func TestSequenceManager(t *testing.T) {
+	m1 := SequenceManager(nil, nil, nil, nil)
 	if m1 == nil {
 		t.Fatalf("expected non-nil SequenceManager instance")
 	}
 
-	m2 := GetSequenceManager(nil, nil, nil, nil)
+	m2 := SequenceManager(nil, nil, nil, nil)
 	if m2 == nil {
 		t.Fatalf("expected non-nil SequenceManager instance on second call")
 	}
 
 	if m1 != m2 {
-		t.Fatalf("expected GetSequenceManager to return identical singleton pointer")
+		t.Fatalf("expected SequenceManager to return identical singleton pointer")
 	}
 }
 
@@ -58,18 +58,18 @@ func TestReplyListenerProcessReply(t *testing.T) {
 	}
 
 	// Test Layer 1 Fast-Path Opt-Out Regex
-	if !reOptOut.MatchString("STOP") || !reOptOut.MatchString("unsubscribe") {
-		t.Errorf("expected reOptOut to match 'STOP' and 'unsubscribe'")
+	if !_reOptOut.MatchString("STOP") || !_reOptOut.MatchString("unsubscribe") {
+		t.Errorf("expected _reOptOut to match 'STOP' and 'unsubscribe'")
 	}
 
 	// Test Layer 1 Fast-Path Interested Regex
-	if !reInterested.MatchString("yes, let's talk") || !reInterested.MatchString("interested") {
-		t.Errorf("expected reInterested to match 'yes, let's talk' and 'interested'")
+	if !_reInterested.MatchString("yes, let's talk") || !_reInterested.MatchString("interested") {
+		t.Errorf("expected _reInterested to match 'yes, let's talk' and 'interested'")
 	}
 
 	// Test Layer 1 Fast-Path OOO Regex
-	if !reOOO.MatchString("I am currently out of office until Monday") {
-		t.Errorf("expected reOOO to match 'out of office'")
+	if !_reOOO.MatchString("I am currently out of office until Monday") {
+		t.Errorf("expected _reOOO to match 'out of office'")
 	}
 }
 

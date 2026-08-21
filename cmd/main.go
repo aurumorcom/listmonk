@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"strings"
@@ -28,6 +29,7 @@ import (
 	"github.com/knadh/listmonk/internal/messenger/email"
 	"github.com/knadh/listmonk/internal/sequence"
 	"github.com/knadh/listmonk/internal/subimporter"
+	"github.com/knadh/listmonk/internal/tmptokens"
 	"github.com/knadh/listmonk/models"
 	"github.com/knadh/paginator"
 	"github.com/knadh/stuffbin"
@@ -80,6 +82,9 @@ var (
 	bufLog   = buflog.New(5000)
 	lo       = log.New(io.MultiWriter(os.Stdout, bufLog, evStream.ErrWriter()), "", log.Ldate|log.Ltime|log.Lmicroseconds|log.Lshortfile)
 
+	programLevel = new(slog.LevelVar)
+	appLogger    = slog.New(slog.NewJSONHandler(io.MultiWriter(os.Stdout, bufLog, evStream.ErrWriter()), &slog.HandlerOptions{Level: programLevel}))
+
 	ko      = koanf.New(".")
 	fs      stuffbin.FileSystem
 	db      *sqlx.DB
@@ -103,6 +108,18 @@ func init() {
 
 	// Initialize commandline flags.
 	initFlags(ko)
+
+	slog.SetDefault(appLogger)
+	switch strings.ToLower(ko.String("log-level")) {
+	case "debug":
+		programLevel.Set(slog.LevelDebug)
+	case "warn", "warning":
+		programLevel.Set(slog.LevelWarn)
+	case "error":
+		programLevel.Set(slog.LevelError)
+	default:
+		programLevel.Set(slog.LevelInfo)
+	}
 
 	// Display version.
 	if ko.Bool("version") {
@@ -276,6 +293,9 @@ func main() {
 		go seqMgr.Start(1 * time.Minute)
 	}
 
+	bgCtx, bgCancel := context.WithCancel(context.Background())
+	tmptokens.StartCleanup(bgCtx, time.Hour)
+
 	// =========================================================================
 	// Initialize the App{} with all the global shared components, controllers and fields.
 	app := &App{
@@ -342,6 +362,8 @@ func main() {
 
 		// Stop sequence manager.
 		seqMgr.Stop()
+
+		bgCancel()
 
 		// Close the DB pool.
 		db.Close()

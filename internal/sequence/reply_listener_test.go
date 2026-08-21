@@ -14,7 +14,7 @@ func TestIntegration_IMAP_MailHog_ReplyListening_ContextCancellation(t *testing.
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
 
-	err := listener.ProcessReplyWithContext(ctx, "test@example.com", false, "I am interested")
+	err := listener.ProcessReplyWithContext(ctx, "test@example.com", ChannelTypeEmail, "I am interested")
 	if err == nil {
 		t.Errorf("expected context cancellation error, got nil")
 	}
@@ -23,25 +23,25 @@ func TestIntegration_IMAP_MailHog_ReplyListening_ContextCancellation(t *testing.
 func TestReplyListener_RegexLayer1_IntentRouting(t *testing.T) {
 	// Test OptOut Regex
 	optOutMsg := "STOP"
-	if !reOptOut.MatchString(optOutMsg) {
+	if !_reOptOut.MatchString(optOutMsg) {
 		t.Errorf("expected optOut regex to match %q", optOutMsg)
 	}
 
 	// Test Interested Regex
 	interestedMsg := "yes I'm interested"
-	if !reInterested.MatchString(interestedMsg) {
+	if !_reInterested.MatchString(interestedMsg) {
 		t.Errorf("expected interested regex to match %q", interestedMsg)
 	}
 
 	// Test OOO Regex
 	oooMsg := "Out of office till next week"
-	if !reOOO.MatchString(oooMsg) {
+	if !_reOOO.MatchString(oooMsg) {
 		t.Errorf("expected OOO regex to match %q", oooMsg)
 	}
 
 	// Test @lid identifier routing without core
 	listener := NewReplyListener(nil, nil)
-	if err := listener.ProcessReplyWithQuotedID("210556493537459@lid", true, "STOP", "AC6DD75E5513F74D982B46860BA9E85D"); err != nil {
+	if err := listener.ProcessReplyWithQuotedID("210556493537459@lid", ChannelTypeWhatsApp, "STOP", "AC6DD75E5513F74D982B46860BA9E85D"); err != nil {
 		t.Errorf("expected nil error for nil core, got %v", err)
 	}
 }
@@ -55,7 +55,7 @@ func TestResilience_IMAP_ConnectionDropAndAutoReconnect(t *testing.T) {
 	// Simulate processing reply during network connection drop
 	done := make(chan error, 1)
 	go func() {
-		done <- listener.ProcessReplyWithContext(ctx, "subscriber@example.com", false, "Out of office until Friday")
+		done <- listener.ProcessReplyWithContext(ctx, "subscriber@example.com", ChannelTypeEmail, "Out of office until Friday")
 	}()
 
 	select {

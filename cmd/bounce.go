@@ -30,11 +30,12 @@ func (a *App) GetBounce(c echo.Context) error {
 
 // GetBounces handles retrieval of bounce records.
 func (a *App) GetBounces(c echo.Context) error {
+	// campaign_id is optional; default to 0 on missing or invalid param
+	campID, _ := strconv.Atoi(c.QueryParam("campaign_id"))
 	var (
-		campID, _ = strconv.Atoi(c.QueryParam("campaign_id"))
-		source    = c.FormValue("source")
-		orderBy   = c.FormValue("order_by")
-		order     = c.FormValue("order")
+		source  = c.FormValue("source")
+		orderBy = c.FormValue("order_by")
+		order   = c.FormValue("order")
 
 		pg = a.pg.NewFromURL(c.Request().URL.Query())
 	)
@@ -47,7 +48,8 @@ func (a *App) GetBounces(c echo.Context) error {
 
 	// No results.
 	if len(res) == 0 {
-		return c.JSON(http.StatusOK, okResp{models.PageResults{Results: []models.Bounce{}}})
+		var emptyBounces []models.Bounce
+		return c.JSON(http.StatusOK, okResp{models.PageResults{Results: emptyBounces}})
 	}
 
 	out := models.PageResults{
@@ -350,6 +352,10 @@ func ParseWAHAAckLevel(ack any, ackName string) int {
 
 // WAHAWebhook handles delivery status webhooks from WAHA.
 func (a *App) WAHAWebhook(c echo.Context) error {
+	if a.log != nil {
+		a.log.Printf("[WAHA WEBHOOK] Incoming POST /api/webhooks/waha")
+	}
+
 	type wahaPayload struct {
 		Event   string `json:"event"`
 		Session string `json:"session"`
@@ -488,8 +494,8 @@ func (a *App) WAHAWebhook(c echo.Context) error {
 			a.log.Printf("[WAHA WEBHOOK INBOUND REPLY] Incoming message from %s (quotedMsgID: %s)", fromIdentifier, quotedID)
 		}
 		if a.core != nil {
-			l := sequence.NewReplyListener(a.core, a.log)
-			_ = l.ProcessReplyWithQuotedID(fromIdentifier, true, req.Payload.Body, quotedID)
+			l := sequence.NewReplyListener(a.core, nil)
+			_ = l.ProcessReplyWithQuotedID(fromIdentifier, sequence.ChannelTypeWhatsApp, req.Payload.Body, quotedID)
 		}
 	}
 

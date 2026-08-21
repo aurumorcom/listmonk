@@ -15,8 +15,8 @@ var (
 	listManagerOnce     sync.Once
 )
 
-// GetListManager returns the thread-safe singleton Core list manager instance.
-func GetListManager(c *Core) *Core {
+// ListManager returns the thread-safe singleton Core list manager instance.
+func ListManager(c *Core) *Core {
 	listManagerOnce.Do(func() {
 		listManagerInstance = c
 	})

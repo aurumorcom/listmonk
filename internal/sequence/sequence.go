@@ -1,3 +1,4 @@
+// Package sequence provides drip and automated sequences engine.
 package sequence
 
 import (
@@ -6,7 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	htmltpl "html/template"
-	"log"
+	"log/slog"
 	"maps"
 	"net/textproto"
 	"strings"
@@ -27,16 +28,16 @@ import (
 )
 
 var (
-	sequenceInstance *Manager
-	sequenceOnce     sync.Once
+	_sequenceInstance *Manager
+	_sequenceOnce     sync.Once
 )
 
-// GetSequenceManager returns the thread-safe singleton instance of Sequence Manager.
-func GetSequenceManager(c *core.Core, msgrs map[string]manager.Messenger, store media.Store, l *log.Logger) *Manager {
-	sequenceOnce.Do(func() {
-		sequenceInstance = NewManager(c, msgrs, store, l)
+// SequenceManager returns the thread-safe singleton instance of Sequence Manager.
+func SequenceManager(c *core.Core, msgrs map[string]manager.Messenger, store media.Store, logger *slog.Logger) *Manager {
+	_sequenceOnce.Do(func() {
+		_sequenceInstance = NewManager(c, msgrs, store, logger)
 	})
-	return sequenceInstance
+	return _sequenceInstance
 }
 
 // Manager handles scheduled processing of sequences.
@@ -45,7 +46,7 @@ type Manager struct {
 	messengers    map[string]manager.Messenger
 	mediaStore    media.Store
 	bifrostClient *manager.BifrostClient
-	log           *log.Logger
+	logger        *slog.Logger
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -110,8 +111,8 @@ func (m *Manager) TemplateFuncsWithContext(seqUUID, subUUID string, stepID ...in
 			if m != nil && m.core != nil {
 				if lUUID, err := m.core.CreateLink(url); err == nil {
 					uu = lUUID
-				} else if m.log != nil {
-					m.log.Printf("error creating sequence link tracking record for %s: %v", url, err)
+				} else if m.logger != nil {
+					m.logger.Error("failed creating sequence link tracking record", slog.String("url", url), slog.String("error", err.Error()))
 				}
 			}
 			if uu == "" {
@@ -211,13 +212,16 @@ func (m *Manager) SetBifrostClient(bc *manager.BifrostClient) {
 }
 
 // NewManager returns a new Sequence Manager.
-func NewManager(c *core.Core, msgrs map[string]manager.Messenger, store media.Store, l *log.Logger) *Manager {
+func NewManager(c *core.Core, msgrs map[string]manager.Messenger, store media.Store, logger *slog.Logger) *Manager {
+	if logger == nil {
+		logger = slog.Default()
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Manager{
 		core:       c,
 		messengers: msgrs,
 		mediaStore: store,
-		log:        l,
+		logger:     logger,
 		ctx:        ctx,
 		cancel:     cancel,
 	}
@@ -241,7 +245,7 @@ func (m *Manager) Start(interval time.Duration) {
 				return
 			case <-ticker.C:
 				if err := m.ProcessBatch(); err != nil {
-					m.log.Printf("sequence scheduler error: %v", err)
+					m.logger.Error("sequence scheduler batch processing error", slog.String("error", err.Error()))
 				}
 			}
 		}
@@ -261,10 +265,12 @@ func (m *Manager) ProcessBatch() error {
 		return err
 	}
 
+	m.logger.Debug("executing sequence step processing batch", slog.Int("due_contacts_count", len(subs)))
+
 	for _, sub := range subs {
 		steps, err := m.core.GetSequenceSteps(sub.SequenceID)
 		if err != nil {
-			m.log.Printf("error getting sequence steps for sequence %d: %v", sub.SequenceID, err)
+			m.logger.Error("failed getting sequence steps", slog.Int("sequence_id", sub.SequenceID), slog.String("error", err.Error()))
 			continue
 		}
 
@@ -278,14 +284,15 @@ func (m *Manager) ProcessBatch() error {
 		// Resolve contact details
 		contact, err := m.core.GetContact(sub.SubscriberID, "", "")
 		if err != nil {
-			m.log.Printf("error resolving contact %d: %v", sub.SubscriberID, err)
+			m.logger.Error("failed resolving contact for sequence step", slog.Int("contact_id", sub.SubscriberID), slog.String("error", err.Error()))
 			continue
 		}
 
 		if err := m.PrepareAndDispatchStep(sub, contact, step, ""); err != nil {
-			m.log.Printf("error dispatching sequence step %d for subscriber %d: %v", step.ID, sub.SubscriberID, err)
+			m.logger.Error("failed to dispatch sequence step", slog.Int("step_id", step.ID), slog.Int("contact_id", sub.SubscriberID), slog.String("error", err.Error()))
 			continue
 		}
+		m.logger.Info("dispatched sequence step to contact", slog.Int("sequence_id", sub.SequenceID), slog.Int("step_id", step.ID), slog.Int("contact_id", sub.SubscriberID))
 	}
 
 	return nil
@@ -328,7 +335,7 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceContact, contact mod
 		if sub.EmailID.Valid && m.core != nil {
 			mb, err := m.core.GetEmail(sub.EmailID.Int)
 			if err != nil {
-				m.log.Printf("error resolving assigned email account %d for contact %d: %v", sub.EmailID.Int, sub.SubscriberID, err)
+				m.logger.Error("failed resolving assigned email account", slog.Int("email_id", sub.EmailID.Int), slog.Int("contact_id", sub.SubscriberID), slog.String("error", err.Error()))
 			} else {
 				activeEmail = mb
 			}
@@ -379,7 +386,7 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceContact, contact mod
 					}
 				}
 				if !foundAlternative {
-					m.log.Printf("email account %d (%s) / address %s reached daily limit (%d/%d), deferring step for contact %d", activeEmail.ID, activeEmail.Email, fromEmail, sentForAddr, maxPerDay, sub.SubscriberID)
+					m.logger.Warn("mailbox sending threshold approaching", slog.Int("mailbox_id", activeEmail.ID), slog.String("email", activeEmail.Email), slog.String("from", fromEmail), slog.Int("sent_today", sentForAddr), slog.Int("max_per_day", maxPerDay), slog.Int("contact_id", sub.SubscriberID))
 					deferSend := null.TimeFrom(time.Now().Add(24 * time.Hour))
 					if m.core != nil {
 						_ = m.core.UpdateSequenceContactStatus(sub.SequenceID, sub.SubscriberID, sub.Status, sub.CurrentStep, deferSend, sub.LastMessageID, sub.LastThreadMsgID)
@@ -454,7 +461,7 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceContact, contact mod
 				cancel()
 				if err != nil {
 					if overrideRecipient == "" {
-						m.log.Printf("Bifrost AI prompt generation failed for step %d, contact %d: %v", step.ID, contact.ID, err)
+						m.logger.Error("Bifrost AI prompt generation failed for step", slog.Int("step_id", step.ID), slog.Int("contact_id", contact.ID), slog.String("error", err.Error()))
 						deferSend := null.TimeFrom(time.Now().Add(1 * time.Hour))
 						_ = m.core.UpdateSequenceContactStatus(sub.SequenceID, sub.SubscriberID, sub.Status, sub.CurrentStep, deferSend, sub.LastMessageID, sub.LastThreadMsgID)
 					}
@@ -551,11 +558,11 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceContact, contact mod
 					var buf bytes.Buffer
 					if err := camp.Tpl.ExecuteTemplate(&buf, models.BaseTpl, scope); err == nil {
 						msg.Body = buf.Bytes()
-					} else if m.log != nil {
-						m.log.Printf("sequence step %d HTML template execution error for subscriber %d: %v", step.ID, contact.ID, err)
+					} else if m.logger != nil {
+						m.logger.Error("sequence step HTML template execution error", slog.Int("step_id", step.ID), slog.Int("contact_id", contact.ID), slog.String("error", err.Error()))
 					}
-				} else if m.log != nil {
-					m.log.Printf("sequence step %d HTML template compilation error for subscriber %d: %v", step.ID, contact.ID, err)
+				} else if m.logger != nil {
+					m.logger.Error("sequence step HTML template compilation error", slog.Int("step_id", step.ID), slog.Int("contact_id", contact.ID), slog.String("error", err.Error()))
 				}
 			}
 		}
@@ -573,11 +580,11 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceContact, contact mod
 					rendered = manager.StripHTML(rendered)
 				}
 				msg.Body = []byte(rendered)
-			} else if m.log != nil {
-				m.log.Printf("sequence step %d text template execution error for subscriber %d: %v", step.ID, contact.ID, err)
+			} else if m.logger != nil {
+				m.logger.Error("sequence step text template execution error", slog.Int("step_id", step.ID), slog.Int("contact_id", contact.ID), slog.String("error", err.Error()))
 			}
-		} else if m.log != nil {
-			m.log.Printf("sequence step %d text template parse error for subscriber %d: %v", step.ID, contact.ID, err)
+		} else if m.logger != nil {
+			m.logger.Error("sequence step text template parse error", slog.Int("step_id", step.ID), slog.Int("contact_id", contact.ID), slog.String("error", err.Error()))
 		}
 		if st, err := txttpl.New("subj").Funcs(funcs).Parse(subjStr); err == nil {
 			var sb bytes.Buffer
@@ -594,7 +601,7 @@ func (m *Manager) PrepareAndDispatchStep(sub models.SequenceContact, contact mod
 	if len(step.MediaIDs) > 0 && m.mediaStore != nil {
 		atts, err := m.core.GetStepAttachments(m.mediaStore, step.MediaIDs)
 		if err != nil {
-			m.log.Printf("error loading attachments for step %d: %v", step.ID, err)
+			m.logger.Error("error loading attachments for step", slog.Int("step_id", step.ID), slog.String("error", err.Error()))
 		} else {
 			msg.Attachments = atts
 		}

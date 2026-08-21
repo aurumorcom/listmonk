@@ -4,7 +4,9 @@
 package tmptokens
 
 import (
+	"context"
 	"errors"
+	"log/slog"
 	"sync"
 	"time"
 )
@@ -26,17 +28,26 @@ type Token struct {
 var (
 	Err = errors.New("token was not found or has expired")
 
-	tokens = make(map[string]Token)
-	mu     sync.RWMutex
+	_tokens = make(map[string]Token)
+	_mu     sync.RWMutex
 )
 
-func init() {
-	// Start periodic cleanup of expired temporary tokens (2FA, password reset).
+// StartCleanup starts a lifecycle-managed background ticker that periodically purges expired tokens.
+func StartCleanup(ctx context.Context, interval time.Duration) {
+	ticker := time.NewTicker(interval)
 	go func() {
-		ticker := time.NewTicker(time.Hour)
 		defer ticker.Stop()
-		for range ticker.C {
-			Clean()
+		for {
+			select {
+			case <-ctx.Done():
+				slog.Info("stopping temporary tokens cleanup worker")
+				return
+			case <-ticker.C:
+				purged := Clean()
+				if purged > 0 {
+					slog.Debug("purged expired temporary tokens", slog.Int("purged_count", purged))
+				}
+			}
 		}
 	}()
 }
@@ -44,10 +55,10 @@ func init() {
 // Set stores a token with the given ID, TTL, and data.
 // If a token with the same ID already exists, it will be overwritten silently.
 func Set(id string, ttl time.Duration, data any) {
-	mu.Lock()
-	defer mu.Unlock()
+	_mu.Lock()
+	defer _mu.Unlock()
 
-	tokens[id] = Token{
+	_tokens[id] = Token{
 		TTL:       ttl,
 		Data:      data,
 		CreatedAt: time.Now(),
@@ -60,17 +71,17 @@ func Set(id string, ttl time.Duration, data any) {
 // It also increments the check counter and deletes the token if maxTries is exceeded,
 // acting as a rate limiter.
 func Check(id string) (any, error) {
-	mu.Lock()
-	defer mu.Unlock()
+	_mu.Lock()
+	defer _mu.Unlock()
 
-	token, exists := tokens[id]
+	token, exists := _tokens[id]
 	if !exists {
 		return nil, Err
 	}
 
 	// Check if token has expired.
 	if time.Since(token.CreatedAt) > token.TTL {
-		delete(tokens, id)
+		delete(_tokens, id)
 		return nil, Err
 	}
 
@@ -79,12 +90,12 @@ func Check(id string) (any, error) {
 
 	// Check if max attempts exceeded.
 	if token.Count > maxTries {
-		delete(tokens, id)
+		delete(_tokens, id)
 		return nil, Err
 	}
 
 	// Update the token with the new count.
-	tokens[id] = token
+	_tokens[id] = token
 
 	return token.Data, nil
 }
@@ -92,44 +103,47 @@ func Check(id string) (any, error) {
 // Get retrieves a token by ID and automatically deletes it (after one time use).
 // An error is returned if the token doesn't exist or has expired.
 func Get(id string) (any, error) {
-	mu.Lock()
-	defer mu.Unlock()
+	_mu.Lock()
+	defer _mu.Unlock()
 
-	token, exists := tokens[id]
+	token, exists := _tokens[id]
 	if !exists {
 		return nil, Err
 	}
 
 	// Check if token has expired.
 	if time.Since(token.CreatedAt) > token.TTL {
-		delete(tokens, id)
+		delete(_tokens, id)
 		return nil, Err
 	}
 
 	// Delete the token.
-	delete(tokens, id)
+	delete(_tokens, id)
 
 	return token.Data, nil
 }
 
 // Delete deletes a token by ID.
 func Delete(id string) {
-	mu.Lock()
-	defer mu.Unlock()
+	_mu.Lock()
+	defer _mu.Unlock()
 
-	delete(tokens, id)
+	delete(_tokens, id)
 }
 
 // Clean deletes all expired tokens. This can be called periodically
 // to purge unused and expired tokens.
-func Clean() {
-	mu.Lock()
-	defer mu.Unlock()
+func Clean() int {
+	_mu.Lock()
+	defer _mu.Unlock()
 
+	var purged int
 	now := time.Now()
-	for id, token := range tokens {
+	for id, token := range _tokens {
 		if now.Sub(token.CreatedAt) > token.TTL {
-			delete(tokens, id)
+			delete(_tokens, id)
+			purged++
 		}
 	}
+	return purged
 }

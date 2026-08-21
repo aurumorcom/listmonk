@@ -26,7 +26,7 @@ func getEnv(key, fallback string) string {
 	return fallback
 }
 
-func TestGetBifrostClientThreadSafety(t *testing.T) {
+func TestBifrostThreadSafety(t *testing.T) {
 	cfg := BifrostConfig{
 		APIKey:   "test_key",
 		Endpoint: "http://localhost:8080",
@@ -41,7 +41,7 @@ func TestGetBifrostClientThreadSafety(t *testing.T) {
 	for i := 0; i < goroutines; i++ {
 		go func(idx int) {
 			defer wg.Done()
-			instances[idx] = GetBifrostClient(cfg)
+			instances[idx] = Bifrost(cfg)
 		}(i)
 	}
 	wg.Wait()

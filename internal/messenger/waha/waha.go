@@ -1,3 +1,4 @@
+// Package waha provides a messenger backend for the WAHA (WhatsApp HTTP API) service.
 package waha
 
 import (
@@ -6,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"math"
 	"math/rand"
 	"net/http"
@@ -16,9 +18,12 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/knadh/listmonk/internal/manager"
 	"github.com/knadh/listmonk/internal/utils"
 	"github.com/knadh/listmonk/models"
 )
+
+var _ manager.Messenger = (*Waha)(nil)
 
 // Options represents WAHA messenger options.
 type Options struct {
@@ -37,33 +42,29 @@ type Options struct {
 	MaxConns          int           `json:"max_conns"`
 	Retries           int           `json:"retries"`
 	Timeout           time.Duration `json:"timeout"`
+	Logger            *slog.Logger  `json:"-"`
 }
 
 var (
-	wahaInstances = make(map[string]*Waha)
-	wahaMutex     sync.RWMutex
+	_wahaInstances = make(map[string]*Waha)
+	_wahaMutex     sync.RWMutex
 )
 
-// GetWAHAMessenger returns a thread-safe singleton instance of the WAHA messenger per session.
-func GetWAHAMessenger(o Options) (*Waha, error) {
-	wahaMutex.Lock()
-	defer wahaMutex.Unlock()
-
+// WAHAMessenger returns a thread-safe singleton instance of the WAHA messenger per session.
+func WAHAMessenger(o Options) (*Waha, error) {
 	sessKey := o.Session
 	if sessKey == "" {
 		sessKey = "default"
 	}
 
-	if inst, ok := wahaInstances[sessKey]; ok {
+	_wahaMutex.RLock()
+	if inst, ok := _wahaInstances[sessKey]; ok {
+		_wahaMutex.RUnlock()
 		return inst, nil
 	}
+	_wahaMutex.RUnlock()
 
-	inst, err := New(o)
-	if err != nil {
-		return nil, err
-	}
-	wahaInstances[sessKey] = inst
-	return inst, nil
+	return New(o)
 }
 
 // ResolveLID looks up an active WAHA instance (or falls back to WAHA_HOST/localhost:3000) and resolves a WhatsApp Linked Device ID (@lid) to a phone number.
@@ -72,25 +73,25 @@ func ResolveLID(session string, lid string) (string, error) {
 		return "", fmt.Errorf("invalid lid identifier: %s", lid)
 	}
 
-	wahaMutex.RLock()
+	_wahaMutex.RLock()
 	sessKey := session
 	if sessKey == "" {
 		sessKey = "default"
 	}
 
-	if inst, ok := wahaInstances[sessKey]; ok && inst != nil && inst.o.RootURL != "" {
-		wahaMutex.RUnlock()
+	if inst, ok := _wahaInstances[sessKey]; ok && inst != nil && inst.o.RootURL != "" {
+		_wahaMutex.RUnlock()
 		return inst.ResolveLIDToPhone(session, lid)
 	}
 
 	// Fallback to any active instance
-	for _, inst := range wahaInstances {
+	for _, inst := range _wahaInstances {
 		if inst != nil && inst.o.RootURL != "" {
-			wahaMutex.RUnlock()
+			_wahaMutex.RUnlock()
 			return inst.ResolveLIDToPhone(session, lid)
 		}
 	}
-	wahaMutex.RUnlock()
+	_wahaMutex.RUnlock()
 
 	// Fallback to default local dev host if no instance registered
 	host := os.Getenv("WAHA_HOST")
@@ -113,8 +114,9 @@ func ResolveLID(session string, lid string) (string, error) {
 
 // Waha represents a WAHA messenger backend.
 type Waha struct {
-	o Options
-	c *http.Client
+	o      Options
+	c      *http.Client
+	logger *slog.Logger
 }
 
 type chatRequest struct {
@@ -177,8 +179,14 @@ func New(o Options) (*Waha, error) {
 		o.Timeout = 10 * time.Second
 	}
 
+	logger := o.Logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+
 	w := &Waha{
-		o: o,
+		o:      o,
+		logger: logger,
 		c: &http.Client{
 			Timeout: o.Timeout,
 			Transport: &http.Transport{
@@ -190,15 +198,15 @@ func New(o Options) (*Waha, error) {
 		},
 	}
 
-	wahaMutex.Lock()
+	_wahaMutex.Lock()
 	if o.Session != "" {
-		wahaInstances[o.Session] = w
+		_wahaInstances[o.Session] = w
 	}
 	if o.Name != "" {
-		wahaInstances[o.Name] = w
+		_wahaInstances[o.Name] = w
 	}
-	wahaInstances["default"] = w
-	wahaMutex.Unlock()
+	_wahaInstances["default"] = w
+	_wahaMutex.Unlock()
 
 	return w, nil
 }
@@ -247,6 +255,7 @@ func (w *Waha) Push(m models.Message) error {
 		_ = w.stopTyping(chatID, session)
 	default: // "human" (Default)
 		typingDelay := calculateHumanTypingDelay(m.Body, w.o)
+		w.logger.Debug("calculated human typing simulation delay", slog.Int("target_wpm", w.o.TargetWPM), slog.Duration("delay", typingDelay))
 		_ = w.startTyping(chatID, session)
 
 		// Start periodic keep-alive ticker every 8 seconds for long delays
@@ -275,12 +284,21 @@ func (w *Waha) Push(m models.Message) error {
 	}
 
 	// Step 2: Convert content and dispatch payload
+	var errDispatch error
 	formattedText := convertToWhatsAppMarkdown(string(m.Body))
 	if len(m.Attachments) > 0 {
-		return w.sendImage(chatID, session, formattedText, m.Attachments[0])
+		errDispatch = w.sendImage(chatID, session, formattedText, m.Attachments[0])
+	} else {
+		errDispatch = w.sendText(chatID, session, formattedText)
 	}
 
-	return w.sendText(chatID, session, formattedText)
+	if errDispatch != nil {
+		w.logger.Error("WAHA message dispatch failed", slog.String("to", chatID), slog.String("session", session), slog.String("error", errDispatch.Error()))
+		return errDispatch
+	}
+
+	w.logger.Info("WAHA message dispatched", slog.String("to", chatID), slog.String("session", session))
+	return nil
 }
 
 // Flush flushes the message queue.
@@ -343,6 +361,8 @@ func (w *Waha) doRequest(method, url string, body any) error {
 		return err
 	}
 
+	w.logger.Debug("executing WAHA HTTP request", slog.String("method", method), slog.String("url", url), slog.String("session", w.o.Session))
+
 	retries := w.o.Retries
 	if retries <= 0 {
 		retries = 3
@@ -351,6 +371,7 @@ func (w *Waha) doRequest(method, url string, body any) error {
 	var lastErr error
 	for attempt := 0; attempt <= retries; attempt++ {
 		if attempt > 0 {
+			w.logger.Warn("retrying WAHA HTTP request", slog.Int("attempt", attempt), slog.String("url", url))
 			time.Sleep(time.Duration(1<<(attempt-1)) * 500 * time.Millisecond)
 		}
 
@@ -375,6 +396,7 @@ func (w *Waha) doRequest(method, url string, body any) error {
 
 		if resp.StatusCode >= 400 {
 			lastErr = fmt.Errorf("WAHA error (%d): %s", resp.StatusCode, string(respBody))
+			w.logger.Error("WAHA HTTP request non-2xx status code", slog.String("url", url), slog.Int("status_code", resp.StatusCode), slog.String("error", lastErr.Error()))
 			if resp.StatusCode == 502 || resp.StatusCode == 503 || resp.StatusCode == 504 || resp.StatusCode == 429 {
 				continue
 			}
@@ -384,6 +406,7 @@ func (w *Waha) doRequest(method, url string, body any) error {
 		return nil
 	}
 
+	w.logger.Error("WAHA HTTP request failed after retries", slog.String("url", url), slog.String("error", lastErr.Error()))
 	return lastErr
 }
 
@@ -457,6 +480,8 @@ func (w *Waha) ResolveLIDToPhone(session string, lid string) (string, error) {
 		session = "default"
 	}
 
+	w.logger.Debug("resolving WAHA LID identifier", slog.String("lid", lid), slog.String("session", session))
+
 	url := fmt.Sprintf("%s/api/contacts?contactId=%s&session=%s",
 		strings.TrimRight(w.o.RootURL, "/"),
 		lid,
@@ -474,11 +499,13 @@ func (w *Waha) ResolveLIDToPhone(session string, lid string) (string, error) {
 
 	resp, err := w.c.Do(req)
 	if err != nil {
+		w.logger.Warn("WAHA contact resolution request failed", slog.String("lid", lid), slog.String("error", err.Error()))
 		return "", fmt.Errorf("error querying WAHA contact resolution API: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
+		w.logger.Warn("WAHA contact resolution API returned non-2xx status", slog.String("lid", lid), slog.Int("status_code", resp.StatusCode))
 		return "", fmt.Errorf("WAHA contact API returned status %d", resp.StatusCode)
 	}
 
@@ -521,9 +548,11 @@ func (w *Waha) ResolveLIDToPhone(session string, lid string) (string, error) {
 
 	cleaned := regexp.MustCompile(`[^\d]`).ReplaceAllString(rawNum, "")
 	if cleaned == "" {
+		w.logger.Warn("WAHA LID resolution returned empty phone number", slog.String("lid", lid))
 		return "", fmt.Errorf("unable to resolve phone number for LID %s (raw response: %s)", lid, string(body))
 	}
 
+	w.logger.Info("successfully resolved WAHA LID to phone", slog.String("lid", lid), slog.String("phone", cleaned))
 	return cleaned, nil
 }
 
@@ -675,7 +704,7 @@ func (k *keyboardLayoutMap) getRandomNeighbor(r rune) rune {
 }
 
 // Common English words for speed boost
-var commonWords = map[string]bool{
+var _commonWords = map[string]bool{
 	"the": true, "be": true, "to": true, "of": true, "and": true, "a": true, "in": true, "that": true, "have": true, "it": true,
 	"for": true, "not": true, "on": true, "with": true, "he": true, "as": true, "you": true, "do": true, "at": true, "this": true,
 	"but": true, "his": true, "by": true, "from": true, "they": true, "we": true, "say": true, "her": true, "she": true, "or": true,
@@ -688,7 +717,7 @@ var commonWords = map[string]bool{
 	"our": true, "work": true, "first": true, "well": true, "way": true, "even": true, "new": true, "want": true, "because": true,
 }
 
-var commonBigrams = map[string]bool{
+var _commonBigrams = map[string]bool{
 	"th": true, "he": true, "in": true, "er": true, "an": true, "re": true, "on": true, "at": true, "en": true, "nd": true, "ti": true, "es": true,
 	"or": true, "te": true, "of": true, "ed": true, "is": true, "it": true, "al": true, "ar": true, "st": true, "to": true, "nt": true, "ng": true,
 	"se": true, "ha": true, "as": true, "ou": true, "io": true, "le": true, "ve": true, "co": true, "me": true, "de": true, "hi": true, "ri": true,
@@ -697,7 +726,7 @@ var commonBigrams = map[string]bool{
 
 func getWordDifficulty(word string) string {
 	cleaned := strings.Trim(strings.ToLower(word), ".,!?;:'\"-()[]{}")
-	if commonWords[cleaned] {
+	if _commonWords[cleaned] {
 		return "common"
 	}
 	if len(cleaned) > 8 || strings.ContainsAny(cleaned, "zxqj") {
@@ -708,7 +737,7 @@ func getWordDifficulty(word string) string {
 
 func isCommonBigram(r1, r2 rune) bool {
 	bg := strings.ToLower(string([]rune{r1, r2}))
-	return commonBigrams[bg]
+	return _commonBigrams[bg]
 }
 
 func normFloat64(mean, std float64) float64 {

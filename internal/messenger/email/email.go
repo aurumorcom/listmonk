@@ -22,8 +22,8 @@ var (
 	emailMutex     sync.RWMutex
 )
 
-// GetEmailMessenger returns a thread-safe singleton instance of the Email messenger per SMTP server config.
-func GetEmailMessenger(s Server) (*Server, error) {
+// EmailMessenger returns a thread-safe singleton instance of the Email messenger per SMTP server config.
+func EmailMessenger(s Server) (*Server, error) {
 	emailMutex.Lock()
 	defer emailMutex.Unlock()
 

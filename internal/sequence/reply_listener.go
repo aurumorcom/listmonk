@@ -1,8 +1,9 @@
+// Package sequence provides drip and automated sequences engine.
 package sequence
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"regexp"
 	"strings"
 	"time"
@@ -11,24 +12,35 @@ import (
 	"github.com/knadh/listmonk/internal/manager"
 )
 
+type ChannelType int
+
+const (
+	ChannelTypeUnknown ChannelType = iota
+	ChannelTypeEmail
+	ChannelTypeWhatsApp
+)
+
 var (
-	reOptOut     = regexp.MustCompile(`(?i)^\s*(stop|unsubscribe|cancel|quit|end|optout|opt-out|remove|block|take me off)\s*$`)
-	reInterested = regexp.MustCompile(`(?i)^\s*(yes|sure|interested|tell me more|let's talk|lets talk|call me|pricing|demo|sounds good|schedule|schedule a call)\b`)
-	reOOO        = regexp.MustCompile(`(?i)(out of office|automatic reply|auto-reply|autoresponse|on vacation|away from my desk)`)
+	_reOptOut     = regexp.MustCompile(`(?i)^\s*(stop|unsubscribe|cancel|quit|end|optout|opt-out|remove|block|take me off)\s*$`)
+	_reInterested = regexp.MustCompile(`(?i)^\s*(yes|sure|interested|tell me more|let's talk|lets talk|call me|pricing|demo|sounds good|schedule|schedule a call)\b`)
+	_reOOO        = regexp.MustCompile(`(?i)(out of office|automatic reply|auto-reply|autoresponse|on vacation|away from my desk)`)
 )
 
 // ReplyListener monitors incoming replies on all channels to stop active sequences or handle opt-out / OOO deferrals.
 type ReplyListener struct {
 	core          *core.Core
 	bifrostClient *manager.BifrostClient
-	log           *log.Logger
+	logger        *slog.Logger
 }
 
 // NewReplyListener returns a new ReplyListener.
-func NewReplyListener(c *core.Core, l *log.Logger) *ReplyListener {
+func NewReplyListener(c *core.Core, logger *slog.Logger) *ReplyListener {
+	if logger == nil {
+		logger = slog.Default()
+	}
 	return &ReplyListener{
-		core: c,
-		log:  l,
+		core:   c,
+		logger: logger,
 	}
 }
 
@@ -39,25 +51,26 @@ func (r *ReplyListener) SetBifrostClient(bc *manager.BifrostClient) {
 
 // ProcessReply records a recipient reply by email address, stopping active sequence steps for that subscriber.
 func (r *ReplyListener) ProcessReply(fromEmail string) error {
-	return r.ProcessReplyWithBody(fromEmail, false, "")
+	return r.ProcessReplyWithBody(fromEmail, ChannelTypeEmail, "")
 }
 
 // ProcessReplyWithContext processes replies while respecting caller context cancellation.
-func (r *ReplyListener) ProcessReplyWithContext(ctx context.Context, fromIdentifier string, isPhone bool, messageBody string) error {
+func (r *ReplyListener) ProcessReplyWithContext(ctx context.Context, fromIdentifier string, channel ChannelType, messageBody string) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
 	default:
-		return r.ProcessReplyWithBody(fromIdentifier, isPhone, messageBody)
+		return r.ProcessReplyWithBody(fromIdentifier, channel, messageBody)
 	}
 }
 
 // ProcessReplyWithQuotedID processes incoming replies across Email and WhatsApp including quoted message IDs.
-func (r *ReplyListener) ProcessReplyWithQuotedID(fromIdentifier string, isPhone bool, messageBody string, quotedMsgID string) error {
+func (r *ReplyListener) ProcessReplyWithQuotedID(fromIdentifier string, channel ChannelType, messageBody string, quotedMsgID string) error {
 	if fromIdentifier == "" || r.core == nil {
 		return nil
 	}
 
+	isPhone := (channel == ChannelTypeWhatsApp) || strings.Contains(fromIdentifier, "@lid")
 	trimmedBody := strings.TrimSpace(messageBody)
 
 	// If a quoted message ID is present, also trigger read matching by message ID
@@ -68,29 +81,23 @@ func (r *ReplyListener) ProcessReplyWithQuotedID(fromIdentifier string, isPhone 
 	// --- Layer 1: Fast-Path Regex Filter ---
 	if trimmedBody != "" {
 		// 1A. Fast Opt-Out Regex
-		if reOptOut.MatchString(trimmedBody) {
-			if r.log != nil {
-				r.log.Printf("fast-path opt-out regex match from %s; cancelling active sequence & blocklisting", fromIdentifier)
-			}
+		if _reOptOut.MatchString(trimmedBody) {
+			r.logger.Info("fast-path reply classification matched", slog.String("from", fromIdentifier), slog.String("intent", "opt_out"))
 			return r.core.CancelSequenceContactForOptOut(fromIdentifier, isPhone)
 		}
 
 		// 1B. Fast Interested Regex
-		if reInterested.MatchString(trimmedBody) {
-			if r.log != nil {
-				r.log.Printf("fast-path interested regex match from %s; marking sequence as replied", fromIdentifier)
-			}
-			if isPhone || strings.Contains(fromIdentifier, "@lid") {
+		if _reInterested.MatchString(trimmedBody) {
+			r.logger.Info("fast-path reply classification matched", slog.String("from", fromIdentifier), slog.String("intent", "interested"))
+			if isPhone {
 				return r.core.RecordSequenceReplyByPhone(fromIdentifier)
 			}
 			return r.core.RecordSequenceReply(fromIdentifier)
 		}
 
 		// 1C. Fast OOO Regex
-		if reOOO.MatchString(trimmedBody) {
-			if r.log != nil {
-				r.log.Printf("fast-path OOO regex match from %s; parsing return date via AI", fromIdentifier)
-			}
+		if _reOOO.MatchString(trimmedBody) {
+			r.logger.Info("fast-path reply classification matched", slog.String("from", fromIdentifier), slog.String("intent", "out_of_office"))
 			nowStr := time.Now().Format(time.RFC3339)
 			var returnDate time.Time
 			var err error
@@ -120,9 +127,7 @@ func (r *ReplyListener) ProcessReplyWithQuotedID(fromIdentifier string, isPhone 
 		if err == nil && intentResult != nil {
 			switch intentResult.Intent {
 			case "opt_out":
-				if r.log != nil {
-					r.log.Printf("Bifrost AI classified opt_out from %s (%s); cancelling sequence & blocklisting", fromIdentifier, intentResult.Reason)
-				}
+				r.logger.Info("Bifrost AI classified reply intent", slog.String("from", fromIdentifier), slog.String("intent", "opt_out"), slog.String("reason", intentResult.Reason))
 				return r.core.CancelSequenceContactForOptOut(fromIdentifier, isPhone)
 
 			case "out_of_office":
@@ -133,16 +138,12 @@ func (r *ReplyListener) ProcessReplyWithQuotedID(fromIdentifier string, isPhone 
 				if returnDate.IsZero() || returnDate.Before(time.Now()) {
 					returnDate = time.Now().Add(72 * time.Hour)
 				}
-				if r.log != nil {
-					r.log.Printf("Bifrost AI classified out_of_office from %s; deferring to %v", fromIdentifier, returnDate)
-				}
+				r.logger.Info("Bifrost AI classified reply intent", slog.String("from", fromIdentifier), slog.String("intent", "out_of_office"), slog.Time("return_date", returnDate))
 				return r.core.DeferSequenceContactOOO(fromIdentifier, isPhone, returnDate)
 
 			case "interested", "other":
-				if r.log != nil {
-					r.log.Printf("Bifrost AI classified %s from %s; marking sequence as replied", intentResult.Intent, fromIdentifier)
-				}
-				if isPhone || strings.Contains(fromIdentifier, "@lid") {
+				r.logger.Info("Bifrost AI classified reply intent", slog.String("from", fromIdentifier), slog.String("intent", intentResult.Intent))
+				if isPhone {
 					return r.core.RecordSequenceReplyByPhone(fromIdentifier)
 				}
 				return r.core.RecordSequenceReply(fromIdentifier)
@@ -151,13 +152,13 @@ func (r *ReplyListener) ProcessReplyWithQuotedID(fromIdentifier string, isPhone 
 	}
 
 	// Fallback Default: Mark sequence as replied
-	if isPhone || strings.Contains(fromIdentifier, "@lid") {
+	if isPhone {
 		return r.core.RecordSequenceReplyByPhone(fromIdentifier)
 	}
 	return r.core.RecordSequenceReply(fromIdentifier)
 }
 
 // ProcessReplyWithBody processes incoming replies across Email and WhatsApp using Layer 1 Regex and Layer 2 Bifrost AI.
-func (r *ReplyListener) ProcessReplyWithBody(fromIdentifier string, isPhone bool, messageBody string) error {
-	return r.ProcessReplyWithQuotedID(fromIdentifier, isPhone, messageBody, "")
+func (r *ReplyListener) ProcessReplyWithBody(fromIdentifier string, channel ChannelType, messageBody string) error {
+	return r.ProcessReplyWithQuotedID(fromIdentifier, channel, messageBody, "")
 }

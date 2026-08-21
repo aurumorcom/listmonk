@@ -25,8 +25,8 @@ var (
 	coreOnce     sync.Once
 )
 
-// GetCore returns the thread-safe singleton Core instance.
-func GetCore(o *Opt, h *Hooks) *Core {
+// Instance returns the thread-safe singleton Core instance.
+func Instance(o *Opt, h *Hooks) *Core {
 	coreOnce.Do(func() {
 		coreInstance = New(o, h)
 	})

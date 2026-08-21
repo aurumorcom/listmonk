@@ -217,7 +217,7 @@ if condition {
 }
 
 // Don't manually escape strings if raw literals are cleaner
-regex := regexp.MustCompile("\\.txt$")
+regex := regexp.MustCompile("\.txt$")
 ```
 
 ### Configuration and Environment Standards
@@ -412,32 +412,41 @@ func doSomething() error {
 
 #### 🎯 Directives
 - ALWAYS handle an error exactly once: either log it, or return it, but never both.
-- ALWAYS use structured logging (e.g., `slog`, `zap`, `logrus`) rather than standard `log` or `fmt` for production applications.
+- ALWAYS use structured logging (e.g., `slog`, `zap`, `logrus`) rather than standard `log` or `fmt` for production applications. Include context fields (like correlation IDs, environment) dynamically.
+- ALWAYS use the `Debug` level for extensive diagnostic data, data queries, external API details, configuration values, and timing information (method executions).
+- ALWAYS use the `Info` level for high-level operational messages, normal workflow milestones, state changes, starting/stopping components, and health checks.
+- ALWAYS use the `Warn` level for potentially hazardous but recoverable situations, outdated configurations, external API threshold breaches, or high resource consumption.
+- ALWAYS use the `Error` level for errors that hinder specific functionality but allow the application to continue running, such as external service failures, network timeouts, or unexpected decoding errors.
+- ALWAYS use the `Fatal` level ONLY for severe infrastructure issues requiring immediate application termination (e.g., security breaches, fatal database connection loss, out of disk space).
 - ALWAYS use thread-safe mechanisms (like `go.uber.org/atomic`) for telemetry counters and gauges to prevent race conditions.
-- NEVER use `log.Fatal` or `log.Panic` outside of the `main()` function. Libraries should return errors.
+- NEVER put debug statements inside simple getters or property accessors, as it creates unnecessary high-verbosity noise.
+- NEVER use `log.Fatal` or `log.Panic` outside of the `main()` function or initialization setup. Libraries must return errors.
 - NEVER log sensitive information (PII, credentials, tokens) in plain text.
 
 #### 📝 Examples
 
 ##### ✅ DO
 ```go
-// Return error to be handled by caller
-func connect() error {
-	if err := db.Ping(); err != nil {
-		return fmt.Errorf("database ping failed: %w", err)
-	}
-	return nil
+// Debug: Troubleshooting, timings, queries
+logger.Debug("Executing query", zap.String("query", "SELECT *"), zap.Duration("time_taken", elapsed))
+
+// Info: State changes and milestones
+logger.Info("Starting notification scheduler", zap.String("status", "in-progress"))
+
+// Warn: Recoverable issues, thresholds
+logger.Warn("External API response time exceeded threshold", zap.Duration("response_time", time.Second*5))
+
+// Error: Functionality hindered, app survives
+if err := decodeJSON(); err != nil {
+	logger.Error("Failed to decode JSON payload", zap.Error(err))
 }
 
-// Log and handle at the top boundary
-func main() {
-	if err := connect(); err != nil {
-		logger.Error("startup failed", zap.Error(err))
-		os.Exit(1)
-	}
+// Fatal: Unrecoverable infra failure, app must die (Top level main only)
+if err := db.Ping(); err != nil {
+	logger.Fatal("Database connection lost permanently", zap.Error(err))
 }
 
-// Use atomic for thread-safe counters
+// Thread-safe metrics
 type Metrics struct {
 	Requests atomic.Int64
 }
@@ -445,20 +454,29 @@ type Metrics struct {
 
 ##### ❌ DON'T
 ```go
+// Don't use Fatal in libraries or recoverable errors
+func parseConfig() {
+	if err := read(); err != nil {
+		log.Fatal(err) // Kills the entire application unexpectedly!
+	}
+}
+
+// Don't use Error for recoverable/threshold issues
+logger.Error("CPU usage at 85%") // Should be Warn!
+
+// Don't put Debug logs in getters
+func (u *User) GetName() string {
+	logger.Debug("GetName called") // Creates extreme verbosity noise
+	return u.Name
+}
+
 // Don't log and return
 func connect() error {
 	if err := db.Ping(); err != nil {
-		log.Printf("error: database ping failed: %v", err) // Handled here...
+		logger.Error("database ping failed", zap.Error(err)) // Handled here...
 		return err // ...and handled here! (Double logging)
 	}
 	return nil
-}
-
-// Don't use Fatal in libraries
-func parseConfig() {
-	if err := read(); err != nil {
-		log.Fatal(err) // Kills the entire application unexpectedly
-	}
 }
 ```
 
@@ -772,8 +790,6 @@ type ConcreteList struct {
 	AbstractList // Exposes InternalAdd
 }
 ```
-
-
 # Code Context Engine (Probe)
 
 Probe is configured for this workspace. Use Probe MCP tools to inspect and search code dynamically across target folder paths instead of raw static AST dumps:

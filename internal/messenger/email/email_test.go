@@ -8,20 +8,20 @@ import (
 	"time"
 )
 
-func TestGetEmailMessenger(t *testing.T) {
+func TestEmailMessenger(t *testing.T) {
 	s1 := Server{Name: "smtp-singleton-test"}
-	m1, err1 := GetEmailMessenger(s1)
+	m1, err1 := EmailMessenger(s1)
 	if err1 != nil || m1 == nil {
 		t.Fatalf("unexpected error getting email messenger: %v", err1)
 	}
 
-	m2, err2 := GetEmailMessenger(s1)
+	m2, err2 := EmailMessenger(s1)
 	if err2 != nil || m2 == nil {
 		t.Fatalf("unexpected error getting email messenger second time: %v", err2)
 	}
 
 	if m1 != m2 {
-		t.Fatalf("expected GetEmailMessenger to return same pointer instance")
+		t.Fatalf("expected EmailMessenger to return same pointer instance")
 	}
 }
 

@@ -422,7 +422,7 @@ func (a *App) UpdateSettings(c echo.Context) error {
 		for _, m := range a.messengers {
 			msgrMap[m.Name()] = m
 		}
-		a.seqManager = sequence.NewManager(a.core, msgrMap, a.media, a.log)
+		a.seqManager = sequence.NewManager(a.core, msgrMap, a.media, appLogger)
 		if a.manager != nil && a.manager.HasRunningCampaigns() {
 			go a.seqManager.Start(1 * time.Minute)
 		}

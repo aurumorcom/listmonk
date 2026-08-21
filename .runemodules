@@ -5,5 +5,8 @@
 	url = https://github.com/devlikeapro/waha-docs/tree/main
 	path = .agents/skills/waha/modules/waha-docs
 [runemodule ".agents/skills/humantyping/modules/HumanTyping"]
-	url = https://github.com/Lax3n/HumanTypin/tree/master
+	url = https://github.com/Lax3n/HumanTyping/tree/master
 	path = .agents/skills/humantyping/modules/HumanTyping
+[runemodule ".agents/rules/language-go"]
+	url = https://github.com/aurumorcom/.agents/tree/main/rules/language-go
+	path = .agents/rules/language-go

@@ -1,3 +1,4 @@
+// Package manager provides message distribution, pipeline handling, and AI client integration.
 package manager
 
 import (
@@ -7,6 +8,7 @@ import (
 	"fmt"
 	"html"
 	"io"
+	"log/slog"
 	"net/http"
 	"regexp"
 	"strings"
@@ -19,29 +21,31 @@ import (
 
 // BifrostConfig holds settings for Bifrost AI inference.
 type BifrostConfig struct {
-	APIKey   string
-	Endpoint string
-	Model    string
-	Timeout  time.Duration
+	APIKey   string        `json:"api_key"`
+	Endpoint string        `json:"endpoint"`
+	Model    string        `json:"model"`
+	Timeout  time.Duration `json:"timeout"`
+	Logger   *slog.Logger  `json:"-"`
 }
 
 var (
-	bifrostInstance *BifrostClient
-	bifrostOnce     sync.Once
+	_bifrostInstance *BifrostClient
+	_bifrostOnce     sync.Once
 )
 
-// GetBifrostClient returns the thread-safe singleton Bifrost AI client.
-func GetBifrostClient(cfg BifrostConfig) *BifrostClient {
-	bifrostOnce.Do(func() {
-		bifrostInstance = NewBifrostClient(cfg)
+// Bifrost returns the thread-safe singleton Bifrost AI client.
+func Bifrost(cfg BifrostConfig) *BifrostClient {
+	_bifrostOnce.Do(func() {
+		_bifrostInstance = NewBifrostClient(cfg)
 	})
-	return bifrostInstance
+	return _bifrostInstance
 }
 
 // BifrostClient is a client for performing JIT AI prompt completions via Bifrost.
 type BifrostClient struct {
 	cfg        BifrostConfig
 	httpClient *http.Client
+	logger     *slog.Logger
 }
 
 // BifrostMessage represents a chat message in the completion request.
@@ -56,10 +60,12 @@ type BifrostResponseFormat struct {
 	JSONSchema any    `json:"json_schema,omitempty"`
 }
 
-var reHTMLTags = regexp.MustCompile(`<[^>]*>`)
-var reBlockTags = regexp.MustCompile(`(?i)</p>|</div>|</h[1-6]>`)
-var reBreakTags = regexp.MustCompile(`(?i)<br\s*/?>`)
-var reMultipleNewlines = regexp.MustCompile(`\n{3,}`)
+var (
+	_reHTMLTags         = regexp.MustCompile(`<[^>]*>`)
+	_reBlockTags        = regexp.MustCompile(`(?i)</p>|div|</h[1-6]>`)
+	_reBreakTags        = regexp.MustCompile(`(?i)<br\s*/?>`)
+	_reMultipleNewlines = regexp.MustCompile(`\n{3,}`)
+)
 
 // EmailResponseFormat returns the json_schema response format guide for email prompt completions.
 func EmailResponseFormat() *BifrostResponseFormat {
@@ -92,9 +98,9 @@ func StripHTML(input string) string {
 	if strings.TrimSpace(input) == "" {
 		return ""
 	}
-	s := reBlockTags.ReplaceAllString(input, "\n\n")
-	s = reBreakTags.ReplaceAllString(s, "\n")
-	s = reHTMLTags.ReplaceAllString(s, "")
+	s := _reBlockTags.ReplaceAllString(input, "\n\n")
+	s = _reBreakTags.ReplaceAllString(s, "\n")
+	s = _reHTMLTags.ReplaceAllString(s, "")
 	s = html.UnescapeString(s)
 	return NormalizePlainTextLineBreaks(s)
 }
@@ -104,7 +110,7 @@ func NormalizePlainTextLineBreaks(input string) string {
 	s := strings.ReplaceAll(input, "\r\n", "\n")
 	s = strings.ReplaceAll(s, "\r", "\n")
 	s = strings.TrimSpace(s)
-	s = reMultipleNewlines.ReplaceAllString(s, "\n\n")
+	s = _reMultipleNewlines.ReplaceAllString(s, "\n\n")
 	return s
 }
 
@@ -168,9 +174,14 @@ func NewBifrostClient(cfg BifrostConfig) *BifrostClient {
 	if cfg.Model == "" {
 		cfg.Model = "gpt-4o-mini"
 	}
+	logger := cfg.Logger
+	if logger == nil {
+		logger = slog.Default()
+	}
 
 	return &BifrostClient{
-		cfg: cfg,
+		cfg:    cfg,
+		logger: logger,
 		httpClient: &http.Client{
 			Timeout: cfg.Timeout,
 		},
@@ -210,6 +221,7 @@ func (b *BifrostClient) GeneratePromptWithFormat(ctx context.Context, systemProm
 		return "", fmt.Errorf("bifrost client is not configured")
 	}
 
+	start := time.Now()
 	endpoint := b.cfg.Endpoint
 	if endpoint == "" {
 		endpoint = "https://api.openai.com/v1/chat/completions"
@@ -229,6 +241,8 @@ func (b *BifrostClient) GeneratePromptWithFormat(ctx context.Context, systemProm
 		Content: userPrompt,
 	})
 
+	b.logger.Debug("executing Bifrost AI prompt completion", slog.String("model", b.cfg.Model), slog.Int("message_count", len(messages)))
+
 	reqPayload := BifrostRequest{
 		Model:          b.cfg.Model,
 		Messages:       messages,
@@ -237,6 +251,7 @@ func (b *BifrostClient) GeneratePromptWithFormat(ctx context.Context, systemProm
 
 	bodyBytes, err := json.Marshal(reqPayload)
 	if err != nil {
+		b.logger.Error("Bifrost AI prompt completion request marshal failed", slog.String("model", b.cfg.Model), slog.String("error", err.Error()))
 		return "", fmt.Errorf("error encoding bifrost request: %w", err)
 	}
 
@@ -250,6 +265,7 @@ func (b *BifrostClient) GeneratePromptWithFormat(ctx context.Context, systemProm
 
 	resp, err := b.httpClient.Do(req)
 	if err != nil {
+		b.logger.Error("Bifrost AI HTTP call failed", slog.String("model", b.cfg.Model), slog.String("error", err.Error()))
 		return "", fmt.Errorf("error executing bifrost http call: %w", err)
 	}
 	defer resp.Body.Close()
@@ -260,22 +276,27 @@ func (b *BifrostClient) GeneratePromptWithFormat(ctx context.Context, systemProm
 	}
 
 	if resp.StatusCode != http.StatusOK {
+		b.logger.Error("Bifrost API returned non-200 status", slog.String("model", b.cfg.Model), slog.Int("status_code", resp.StatusCode))
 		return "", fmt.Errorf("bifrost API returned status %d: %s", resp.StatusCode, string(respBytes))
 	}
 
 	var bifrostResp BifrostResponse
 	if err := json.Unmarshal(respBytes, &bifrostResp); err != nil {
+		b.logger.Error("Bifrost response unmarshal failed", slog.String("model", b.cfg.Model), slog.String("error", err.Error()))
 		return "", fmt.Errorf("error parsing bifrost response JSON: %w", err)
 	}
 
 	if bifrostResp.Error != nil && bifrostResp.Error.Message != "" {
+		b.logger.Error("Bifrost API returned error response", slog.String("model", b.cfg.Model), slog.String("error", bifrostResp.Error.Message))
 		return "", fmt.Errorf("bifrost error: %s", bifrostResp.Error.Message)
 	}
 
 	if len(bifrostResp.Choices) == 0 {
+		b.logger.Error("Bifrost returned zero choices", slog.String("model", b.cfg.Model))
 		return "", fmt.Errorf("bifrost returned no choices in response")
 	}
 
+	b.logger.Info("Bifrost AI prompt completion successful", slog.String("model", b.cfg.Model), slog.Duration("duration", time.Since(start)))
 	return bifrostResp.Choices[0].Message.Content, nil
 }
 

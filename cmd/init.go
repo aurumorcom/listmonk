@@ -814,7 +814,7 @@ func initSequenceManager(msgrs []manager.Messenger, co *core.Core, md media.Stor
 			msgrMap["waha"] = firstWAHA
 		}
 	}
-	seqMgr := sequence.NewManager(co, msgrMap, md, l)
+	seqMgr := sequence.NewManager(co, msgrMap, md, appLogger)
 
 	// Initialize Bifrost Client if configured
 	bifrostKey := ko.String("bifrost.api_key")
@@ -835,6 +835,7 @@ func initSequenceManager(msgrs []manager.Messenger, co *core.Core, md media.Stor
 			Endpoint: bifrostEndpoint,
 			Model:    bifrostModel,
 			Timeout:  5 * time.Second,
+			Logger:   appLogger,
 		})
 		seqMgr.SetBifrostClient(bc)
 	}
@@ -957,6 +958,7 @@ func initWAHAMessengers(co *core.Core, ko *koanf.Koanf) []manager.Messenger {
 
 	rootURL := ko.String("app.root_url")
 	for _, o := range wahaConfigs {
+		o.Logger = appLogger
 		w, err := waha.New(o)
 		if err != nil {
 			lo.Fatalf("error initializing WAHA messenger %s: %v", o.Name, err)
