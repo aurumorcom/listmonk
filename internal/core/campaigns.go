@@ -905,12 +905,8 @@ func (c *Core) EnrollSubscribersByList(subIDs []int, listIDs []int, userContext 
 				phoneStr = strings.TrimSpace(rawPhone)
 			}
 			if emailStr != "" || phoneStr != "" {
-				c.log.Printf("no explicit user id in userContext; attempting fallback resolution via email=%q phone=%q", emailStr, phoneStr)
 				if u, err := c.GetUserByEmailOrPhone(emailStr, phoneStr); err == nil && u.ID > 0 {
 					uid = u.ID
-					c.log.Printf("fallback user resolution succeeded: matched user ID %d (%s)", u.ID, u.Username)
-				} else {
-					c.log.Printf("fallback user resolution produced no active user match for email=%q phone=%q", emailStr, phoneStr)
 				}
 			}
 		}
@@ -1391,12 +1387,8 @@ func (c *Core) EnrollCampaignSubscribers(sequenceID int, subscriberIDs []int, us
 				phoneStr = strings.TrimSpace(rawPhone)
 			}
 			if emailStr != "" || phoneStr != "" {
-				c.log.Printf("no explicit user id in userContext; attempting fallback resolution via email=%q phone=%q", emailStr, phoneStr)
 				if u, err := c.GetUserByEmailOrPhone(emailStr, phoneStr); err == nil && u.ID > 0 {
 					uid = u.ID
-					c.log.Printf("fallback user resolution succeeded: matched user ID %d (%s)", u.ID, u.Username)
-				} else {
-					c.log.Printf("fallback user resolution produced no active user match for email=%q phone=%q", emailStr, phoneStr)
 				}
 			}
 		}
