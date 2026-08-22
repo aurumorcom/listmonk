@@ -365,6 +365,9 @@ export const deleteCampaigns = (params) => http.delete(
   { params, loading: models.campaigns },
 );
 
+export const getCampaignSteps = (id) => http.get(`/api/campaigns/${id}/steps`);
+export const saveCampaignSteps = (id, data) => http.post(`/api/campaigns/${id}/steps`, data);
+
 // Media.
 export const getMedia = async (params) => http.get(
   '/api/media',
