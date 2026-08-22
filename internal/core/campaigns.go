@@ -863,7 +863,7 @@ func DisenrollListSubscribersFromSequences(c *Core, subIDs []int, listIDs []int)
 
 // LockSequenceChannelSender locks assigned email account or WAHA session for sequence subscribers.
 func LockSequenceChannelSender(c *Core, sequenceID int, subscriberIDs []int, userContext map[string]any) error {
-	return c.EnrollSequenceSubscribers(sequenceID, subscriberIDs, userContext)
+	return c.EnrollCampaignSubscribers(sequenceID, subscriberIDs, userContext)
 }
 
 // EnrollSubscribersByList enrolls active subscribers for given list IDs into all active sequence campaigns targeting those lists.
@@ -894,10 +894,21 @@ func (c *Core) EnrollSubscribersByList(subIDs []int, listIDs []int, userContext 
 			uid = int(rawID)
 		} else if rawIDInt, ok := ctx["id"].(int); ok && rawIDInt > 0 {
 			uid = rawIDInt
-		} else if rawUID, ok := ctx["user_id"].(float64); ok && rawUID > 0 {
-			uid = int(rawUID)
-		} else if rawUIDInt, ok := ctx["user_id"].(int); ok && rawUIDInt > 0 {
-			uid = rawUIDInt
+		}
+
+		if uid <= 0 {
+			var emailStr, phoneStr string
+			if rawEmail, ok := ctx["email"].(string); ok {
+				emailStr = strings.TrimSpace(rawEmail)
+			}
+			if rawPhone, ok := ctx["phone"].(string); ok {
+				phoneStr = strings.TrimSpace(rawPhone)
+			}
+			if emailStr != "" || phoneStr != "" {
+				if u, err := c.GetUserByEmailOrPhone(emailStr, phoneStr); err == nil && u.ID > 0 {
+					uid = u.ID
+				}
+			}
 		}
 
 		if uid > 0 {
@@ -1336,8 +1347,8 @@ func AllocateSendersCapacityWeighted(subIDs []int, emails []models.Email) map[in
 	return alloc
 }
 
-// EnrollSequenceSubscribers enrolls subscribers into a sequence campaign.
-func (c *Core) EnrollSequenceSubscribers(sequenceID int, subscriberIDs []int, userContext map[string]any) error {
+// EnrollCampaignSubscribers enrolls subscribers into a sequence campaign.
+func (c *Core) EnrollCampaignSubscribers(sequenceID int, subscriberIDs []int, userContext map[string]any) error {
 	if len(subscriberIDs) == 0 {
 		return nil
 	}
@@ -1365,10 +1376,21 @@ func (c *Core) EnrollSequenceSubscribers(sequenceID int, subscriberIDs []int, us
 			uid = int(rawID)
 		} else if rawIDInt, ok := userContext["id"].(int); ok && rawIDInt > 0 {
 			uid = rawIDInt
-		} else if rawUID, ok := userContext["user_id"].(float64); ok && rawUID > 0 {
-			uid = int(rawUID)
-		} else if rawUIDInt, ok := userContext["user_id"].(int); ok && rawUIDInt > 0 {
-			uid = rawUIDInt
+		}
+
+		if uid <= 0 {
+			var emailStr, phoneStr string
+			if rawEmail, ok := userContext["email"].(string); ok {
+				emailStr = strings.TrimSpace(rawEmail)
+			}
+			if rawPhone, ok := userContext["phone"].(string); ok {
+				phoneStr = strings.TrimSpace(rawPhone)
+			}
+			if emailStr != "" || phoneStr != "" {
+				if u, err := c.GetUserByEmailOrPhone(emailStr, phoneStr); err == nil && u.ID > 0 {
+					uid = u.ID
+				}
+			}
 		}
 
 		if uid > 0 {

@@ -4,7 +4,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/knadh/listmonk/internal/auth"
 	"github.com/knadh/listmonk/internal/utils"
@@ -38,6 +40,59 @@ func (c *Core) GetUser(id int, username, email string) (auth.User, error) {
 	}
 
 	return c.setupUserFields([]auth.User{out})[0], nil
+}
+
+// GetUserByEmail retrieves an active user matching the given email address.
+func (c *Core) GetUserByEmail(email string) (auth.User, error) {
+	email = strings.TrimSpace(email)
+	if email == "" {
+		return auth.User{}, echo.NewHTTPError(http.StatusBadRequest, c.i18n.Ts("globals.messages.notFound", "name", "{globals.terms.user}"))
+	}
+
+	var out auth.User
+	if err := c.q.GetUserByEmail.Get(&out, email); err != nil {
+		if err == sql.ErrNoRows {
+			return out, echo.NewHTTPError(http.StatusNotFound, c.i18n.Ts("globals.messages.notFound", "name", "{globals.terms.user}"))
+		}
+		return out, echo.NewHTTPError(http.StatusInternalServerError, c.i18n.Ts("globals.messages.errorFetching", "name", "{globals.terms.users}", "error", pqErrMsg(err)))
+	}
+
+	return c.setupUserFields([]auth.User{out})[0], nil
+}
+
+// GetUserByPhone retrieves an active user matching the given phone number.
+func (c *Core) GetUserByPhone(phone string) (auth.User, error) {
+	phone = strings.TrimSpace(phone)
+	reDigits := regexp.MustCompile(`[^\d]`)
+	digits := reDigits.ReplaceAllString(phone, "")
+	if digits == "" {
+		return auth.User{}, echo.NewHTTPError(http.StatusBadRequest, c.i18n.Ts("globals.messages.notFound", "name", "{globals.terms.user}"))
+	}
+
+	var out auth.User
+	if err := c.q.GetUserByPhone.Get(&out, digits); err != nil {
+		if err == sql.ErrNoRows {
+			return out, echo.NewHTTPError(http.StatusNotFound, c.i18n.Ts("globals.messages.notFound", "name", "{globals.terms.user}"))
+		}
+		return out, echo.NewHTTPError(http.StatusInternalServerError, c.i18n.Ts("globals.messages.errorFetching", "name", "{globals.terms.users}", "error", pqErrMsg(err)))
+	}
+
+	return c.setupUserFields([]auth.User{out})[0], nil
+}
+
+// GetUserByEmailOrPhone abstracts sequential matching by email then phone.
+func (c *Core) GetUserByEmailOrPhone(email, phone string) (auth.User, error) {
+	if email != "" {
+		if u, err := c.GetUserByEmail(email); err == nil && u.ID > 0 {
+			return u, nil
+		}
+	}
+	if phone != "" {
+		if u, err := c.GetUserByPhone(phone); err == nil && u.ID > 0 {
+			return u, nil
+		}
+	}
+	return auth.User{}, echo.NewHTTPError(http.StatusNotFound, c.i18n.Ts("globals.messages.notFound", "name", "{globals.terms.user}"))
 }
 
 // CreateUser creates a new user.

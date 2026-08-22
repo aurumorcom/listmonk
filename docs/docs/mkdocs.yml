@@ -67,6 +67,7 @@ nav:
     - "Templates": apis/templates.md
     - "Transactional": apis/transactional.md
     - "Bounces": apis/bounces.md
+    - "Users": apis/users.md
     - "Webhooks": apis/webhooks.md
   - "Maintenance":
     - "Performance": maintenance/performance.md

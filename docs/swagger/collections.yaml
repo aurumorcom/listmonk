@@ -55,6 +55,10 @@ tags:
     description: Maintenance API
   - name: Public
     description: Listmonk Public API
+  - name: Users
+    description: Users API
+    externalDocs:
+      url: https://listmonk.app/docs/apis/users/
 
 paths:
   /health:
@@ -2130,8 +2134,177 @@ paths:
                   has_optin:
                     type: boolean
 
+  /users:
+    get:
+      tags:
+        - Users
+      summary: Retrieve all users
+      operationId: getUsers
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+    post:
+      tags:
+        - Users
+      summary: Create a new user
+      operationId: createUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/User'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/User'
+    delete:
+      tags:
+        - Users
+      summary: Delete multiple users
+      operationId: deleteUsers
+      parameters:
+        - in: query
+          name: id
+          schema:
+            type: array
+            items:
+              type: integer
+          description: List of user IDs to delete
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: boolean
+
+  /users/{id}:
+    get:
+      tags:
+        - Users
+      summary: Get user details by ID
+      operationId: getUserById
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/User'
+    put:
+      tags:
+        - Users
+      summary: Update existing user
+      operationId: updateUser
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/User'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/User'
+    delete:
+      tags:
+        - Users
+      summary: Delete single user
+      operationId: deleteUser
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: boolean
+
 components:
   schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        type:
+          type: string
+          enum: [user, api]
+        user_role_id:
+          type: integer
+        list_role_id:
+          type: integer
+        status:
+          type: string
+          enum: [enabled, disabled]
+        email_id:
+          type: integer
+        waha_session:
+          type: string
+        signature:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
     LanguagePack:
       type: object
       properties:
