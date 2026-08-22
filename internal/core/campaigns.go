@@ -894,10 +894,6 @@ func (c *Core) EnrollSubscribersByList(subIDs []int, listIDs []int, userContext 
 			uid = int(rawID)
 		} else if rawIDInt, ok := ctx["id"].(int); ok && rawIDInt > 0 {
 			uid = rawIDInt
-		} else if rawUID, ok := ctx["user_id"].(float64); ok && rawUID > 0 {
-			uid = int(rawUID)
-		} else if rawUIDInt, ok := ctx["user_id"].(int); ok && rawUIDInt > 0 {
-			uid = rawUIDInt
 		}
 
 		if uid > 0 {
@@ -1365,10 +1361,6 @@ func (c *Core) EnrollSequenceSubscribers(sequenceID int, subscriberIDs []int, us
 			uid = int(rawID)
 		} else if rawIDInt, ok := userContext["id"].(int); ok && rawIDInt > 0 {
 			uid = rawIDInt
-		} else if rawUID, ok := userContext["user_id"].(float64); ok && rawUID > 0 {
-			uid = int(rawUID)
-		} else if rawUIDInt, ok := userContext["user_id"].(int); ok && rawUIDInt > 0 {
-			uid = rawUIDInt
 		}
 
 		if uid > 0 {
