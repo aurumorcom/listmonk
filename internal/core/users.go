@@ -4,7 +4,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/knadh/listmonk/internal/auth"
 	"github.com/knadh/listmonk/internal/utils"
@@ -38,6 +40,71 @@ func (c *Core) GetUser(id int, username, email string) (auth.User, error) {
 	}
 
 	return c.setupUserFields([]auth.User{out})[0], nil
+}
+
+// GetUserByEmail retrieves an active user matching the given email address.
+func (c *Core) GetUserByEmail(email string) (auth.User, error) {
+	email = strings.TrimSpace(email)
+	if email == "" {
+		return auth.User{}, echo.NewHTTPError(http.StatusBadRequest, c.i18n.Ts("globals.messages.notFound", "name", "{globals.terms.user}"))
+	}
+
+	c.log.Printf("attempting user resolution by email: %s", email)
+	var out auth.User
+	if err := c.q.GetUserByEmail.Get(&out, email); err != nil {
+		if err == sql.ErrNoRows {
+			c.log.Printf("no active user found for email: %s", email)
+			return out, echo.NewHTTPError(http.StatusNotFound, c.i18n.Ts("globals.messages.notFound", "name", "{globals.terms.user}"))
+		}
+		c.log.Printf("error querying user by email %s: %v", email, err)
+		return out, echo.NewHTTPError(http.StatusInternalServerError, c.i18n.Ts("globals.messages.errorFetching", "name", "{globals.terms.users}", "error", pqErrMsg(err)))
+	}
+
+	c.log.Printf("successfully matched user ID %d (%s) by email: %s", out.ID, out.Username, email)
+	return c.setupUserFields([]auth.User{out})[0], nil
+}
+
+// GetUserByPhone retrieves an active user matching the given phone number.
+func (c *Core) GetUserByPhone(phone string) (auth.User, error) {
+	phone = strings.TrimSpace(phone)
+	reDigits := regexp.MustCompile(`[^\d]`)
+	digits := reDigits.ReplaceAllString(phone, "")
+	if digits == "" {
+		return auth.User{}, echo.NewHTTPError(http.StatusBadRequest, c.i18n.Ts("globals.messages.notFound", "name", "{globals.terms.user}"))
+	}
+
+	c.log.Printf("attempting user resolution by phone digits: %s (raw: %s)", digits, phone)
+	var out auth.User
+	if err := c.q.GetUserByPhone.Get(&out, digits); err != nil {
+		if err == sql.ErrNoRows {
+			c.log.Printf("no active user found for phone: %s (digits: %s)", phone, digits)
+			return out, echo.NewHTTPError(http.StatusNotFound, c.i18n.Ts("globals.messages.notFound", "name", "{globals.terms.user}"))
+		}
+		c.log.Printf("error querying user by phone %s: %v", phone, err)
+		return out, echo.NewHTTPError(http.StatusInternalServerError, c.i18n.Ts("globals.messages.errorFetching", "name", "{globals.terms.users}", "error", pqErrMsg(err)))
+	}
+
+	c.log.Printf("successfully matched user ID %d (%s) by phone digits: %s", out.ID, out.Username, digits)
+	return c.setupUserFields([]auth.User{out})[0], nil
+}
+
+// GetUserByEmailOrPhone abstracts sequential matching by email then phone.
+func (c *Core) GetUserByEmailOrPhone(email, phone string) (auth.User, error) {
+	c.log.Printf("attempting fallback user matching with email=%q phone=%q", email, phone)
+	if email != "" {
+		if u, err := c.GetUserByEmail(email); err == nil && u.ID > 0 {
+			c.log.Printf("matched user ID %d (%s) via email fallback: %s", u.ID, u.Username, email)
+			return u, nil
+		}
+	}
+	if phone != "" {
+		if u, err := c.GetUserByPhone(phone); err == nil && u.ID > 0 {
+			c.log.Printf("matched user ID %d (%s) via phone fallback: %s", u.ID, u.Username, phone)
+			return u, nil
+		}
+	}
+	c.log.Printf("failed fallback user resolution for email=%q phone=%q", email, phone)
+	return auth.User{}, echo.NewHTTPError(http.StatusNotFound, c.i18n.Ts("globals.messages.notFound", "name", "{globals.terms.user}"))
 }
 
 // CreateUser creates a new user.
