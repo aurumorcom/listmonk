@@ -285,7 +285,7 @@ func (a *App) CreateSubscriber(c echo.Context) error {
 	var userCtx map[string]any
 	if user.ID > 0 {
 		userCtx = map[string]any{
-			"user_id":  user.ID,
+			"id":       user.ID,
 			"username": user.Name,
 		}
 		if user.EmailID.Valid {
@@ -317,7 +317,6 @@ func (a *App) UpdateSubscriber(c echo.Context) error {
 	req := struct {
 		models.Subscriber
 		Lists          []int `json:"lists"`
-		Sequences      []int `json:"sequences"`
 		PreconfirmSubs bool  `json:"preconfirm_subscriptions"`
 	}{}
 	if err := c.Bind(&req); err != nil {
@@ -373,7 +372,7 @@ func (a *App) UpdateSubscriber(c echo.Context) error {
 	var userCtx map[string]any
 	if user.ID > 0 {
 		userCtx = map[string]any{
-			"user_id":  user.ID,
+			"id":       user.ID,
 			"username": user.Name,
 		}
 		if user.EmailID.Valid {

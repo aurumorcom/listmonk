@@ -281,9 +281,9 @@ func TestInstall_CreateSequenceParameterMapping(t *testing.T) {
 
 func TestInstall_CreateCampaignStepParameterMapping(t *testing.T) {
 	// Verify create-campaign-step positional parameters alignment with queries/campaigns.sql:
-	// INSERT INTO sequence_steps (sequence_id, step_number, delay, messenger, condition, subject, body, email_type, template_id)
+	// INSERT INTO campaign_steps (campaign_id, step_number, delay, messenger, condition, subject, body, email_type, template_id)
 	// VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-	// RETURNING id, sequence_id, step_number, delay, messenger, condition, subject, body, email_type, template_id, created_at;
+	// RETURNING id, campaign_id, step_number, delay, messenger, condition, subject, body, email_type, template_id, created_at;
 
 	seqID := 10
 	campTplID := 5
@@ -349,9 +349,9 @@ func TestInstall_CreateCampaignStepParameterMapping(t *testing.T) {
 
 func TestInstall_EnrollCampaignSubscribersByListsParameterMapping(t *testing.T) {
 	// Verify enroll-campaign-subscribers-by-lists positional parameter alignment with queries/campaigns.sql:
-	// INSERT INTO sequence_subscribers (sequence_id, subscriber_id, status, current_step, next_send_at)
-	// SELECT DISTINCT sl.sequence_id, subl.subscriber_id, 'scheduled', 1, NOW()
-	// FROM sequence_lists sl ... WHERE sl.sequence_id = $1 ...
+	// INSERT INTO campaign_subscribers (campaign_id, subscriber_id, status, current_step, next_send_at)
+	// SELECT DISTINCT cl.campaign_id, subl.subscriber_id, 'scheduled', 1, NOW()
+	// FROM campaign_lists cl ... WHERE cl.campaign_id = $1 ...
 
 	seqID := 1
 	args := []any{seqID}

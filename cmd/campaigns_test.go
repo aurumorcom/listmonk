@@ -2454,7 +2454,7 @@ func TestE2E_UI_User_Assigned_Sender_CrossChannel_Continuity(t *testing.T) {
 	// 2. Simulate User Alice creating a contact 'Bob' and adding him to 'Cold List' (ID: 100)
 	targetListIDs := []int{100}
 	userCtx := map[string]any{
-		"user_id":      userAlice.ID,
+		"id":           userAlice.ID,
 		"username":     userAlice.Name,
 		"email_id":     userAlice.EmailID.Int,
 		"waha_session": userAlice.WahaSession.String,
@@ -2600,6 +2600,7 @@ func TestE2E_Campaign_MultiStep_EnrollSubscribersByList_SQLTypeSafety(t *testing
 		userContext map[string]any
 		expectedEID *int
 		expectedWS  *string
+		expectedUID int
 	}{
 		{
 			name:        "Empty user context (nil email_id and waha_session)",
@@ -2617,10 +2618,18 @@ func TestE2E_Campaign_MultiStep_EnrollSubscribersByList_SQLTypeSafety(t *testing
 			expectedWS:  func(s string) *string { return &s }("sales-session"),
 		},
 		{
-			name: "User ID resolution context",
+			name: "User ID resolution context (int id)",
 			userContext: map[string]any{
-				"user_id": 10,
+				"id": 10,
 			},
+			expectedUID: 10,
+		},
+		{
+			name: "User ID resolution context (float64 id)",
+			userContext: map[string]any{
+				"id": float64(10),
+			},
+			expectedUID: 10,
 		},
 	}
 
@@ -2651,6 +2660,18 @@ func TestE2E_Campaign_MultiStep_EnrollSubscribersByList_SQLTypeSafety(t *testing
 			}
 
 			// Validate parameter mapping structure
+			var uid int
+			if len(tc.userContext) > 0 {
+				if rawID, ok := tc.userContext["id"].(float64); ok && rawID > 0 {
+					uid = int(rawID)
+				} else if rawIDInt, ok := tc.userContext["id"].(int); ok && rawIDInt > 0 {
+					uid = rawIDInt
+				}
+			}
+			if tc.expectedUID > 0 && uid != tc.expectedUID {
+				t.Errorf("expected uid %d, got %d", tc.expectedUID, uid)
+			}
+
 			if tc.expectedEID != nil && (!explicitEmailID.Valid || explicitEmailID.Int != *tc.expectedEID) {
 				t.Errorf("expected email_id %v, got %v", *tc.expectedEID, explicitEmailID)
 			}
