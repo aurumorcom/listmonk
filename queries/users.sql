@@ -193,10 +193,10 @@ FROM sel
                     'permissions', COALESCE(cr.permissions, lr.permissions)
                 )
             ) AS list_role_perms
-        FROM lr
-        LEFT JOIN roles cr ON cr.parent_id = lr.id AND cr.type = 'list'
+        FROM roles cr
         LEFT JOIN lists cl ON cr.list_id = cl.id
-        WHERE cr.parent_id = lr.id OR cr.id = lr.id
+        WHERE cr.parent_id = lr.id AND cr.type = 'list'
+        GROUP BY lr.id
     ) lp ON true
     ORDER BY sel.id ASC LIMIT 1;
 
@@ -229,10 +229,10 @@ FROM sel
                     'permissions', COALESCE(cr.permissions, lr.permissions)
                 )
             ) AS list_role_perms
-        FROM lr
-        LEFT JOIN roles cr ON cr.parent_id = lr.id AND cr.type = 'list'
+        FROM roles cr
         LEFT JOIN lists cl ON cr.list_id = cl.id
-        WHERE cr.parent_id = lr.id OR cr.id = lr.id
+        WHERE cr.parent_id = lr.id AND cr.type = 'list'
+        GROUP BY lr.id
     ) lp ON true
     ORDER BY sel.id ASC LIMIT 1;
 
