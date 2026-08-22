@@ -444,6 +444,8 @@ func (m *Manager) PrepareAndDispatchStep(sub models.CampaignSubscriber, subscrib
 				isWhatsApp := step.Messenger == "whatsapp" || step.Messenger == "waha" || msgr.Name() == "whatsapp" || msgr.Name() == "waha" || strings.HasPrefix(msgr.Name(), "whatsapp-") || strings.HasPrefix(msgr.Name(), "waha-")
 				if !isWhatsApp {
 					respFormat = manager.EmailResponseFormat()
+				} else {
+					respFormat = manager.MessageResponseFormat()
 				}
 
 				ctx, cancel := m.bifrostClient.TimeoutContext()

@@ -83,10 +83,32 @@ func EmailResponseFormat() *BifrostResponseFormat {
 					},
 					"content": map[string]any{
 						"type":        "string",
-						"description": "The main body of the email in pure plain text. MUST NOT contain the subject line. MUST NOT contain signatures or sign-offs (e.g. 'Best regards', 'Sincerely', or closing names), as signatures are dynamically appended by the system.",
+						"description": "The main body of the email in pure plain text. MUST NOT contain the subject line. MUST NOT contain signatures or sign-offs (e.g. 'Best,', 'Warmly,', 'Best regards', 'Sincerely', or closing names), as signatures are dynamically appended by the system.",
 					},
 				},
 				"required":             []string{"subject", "content"},
+				"additionalProperties": false,
+			},
+		},
+	}
+}
+
+// MessageResponseFormat returns the json_schema response format guide for messaging prompt completions (WhatsApp/SMS).
+func MessageResponseFormat() *BifrostResponseFormat {
+	return &BifrostResponseFormat{
+		Type: "json_schema",
+		JSONSchema: map[string]any{
+			"name":   "message_prompt_output",
+			"strict": true,
+			"schema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"message": map[string]any{
+						"type":        "string",
+						"description": "The main body of the message in pure plain text. MUST NOT contain signatures or sign-offs (e.g. 'Best,', 'Warmly,', 'Best regards', 'Sincerely', or closing names), as signatures are dynamically appended by the system.",
+					},
+				},
+				"required":             []string{"message"},
 				"additionalProperties": false,
 			},
 		},

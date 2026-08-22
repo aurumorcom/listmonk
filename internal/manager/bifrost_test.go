@@ -517,4 +517,10 @@ func TestPlainTextFormattingUtilities(t *testing.T) {
 	if rf.Type != "json_schema" {
 		t.Errorf("expected EmailResponseFormat type 'json_schema', got %q", rf.Type)
 	}
+
+	// 5. Test MessageResponseFormat schema
+	mrf := MessageResponseFormat()
+	if mrf.Type != "json_schema" {
+		t.Errorf("expected MessageResponseFormat type 'json_schema', got %q", mrf.Type)
+	}
 }
