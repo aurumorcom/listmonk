@@ -163,3 +163,76 @@ UPDATE users SET twofa_type=$2::twofa_type, twofa_key=$3, updated_at=NOW() WHERE
 
 -- name: delete-user-sessions
 DELETE FROM sessions WHERE data->>'user_id' = $1 AND ($2 = '' OR id != $2);
+
+-- name: get-user-by-email
+WITH sel AS (
+    SELECT * FROM users
+    WHERE status = 'enabled' AND type = 'user' AND LOWER(email) = LOWER($1) AND $1 != ''
+)
+SELECT
+    sel.*,
+    ur.id AS user_role_id,
+    ur.name AS user_role_name,
+    ur.permissions AS user_role_permissions,
+    lr.id AS list_role_id,
+    lr.name AS list_role_name,
+    lp.list_role_perms
+FROM sel
+    LEFT JOIN roles ur ON sel.user_role_id = ur.id AND ur.type = 'user' AND ur.parent_id IS NULL
+    LEFT JOIN (
+        SELECT r.id, r.name, r.permissions, r.list_id, l.name AS list_name
+        FROM roles r
+        LEFT JOIN lists l ON r.list_id = l.id
+        WHERE r.type = 'list' AND r.parent_id IS NULL
+    ) lr ON sel.list_role_id = lr.id
+    LEFT JOIN LATERAL (
+        SELECT JSONB_AGG(
+                JSONB_BUILD_OBJECT(
+                    'id', COALESCE(cr.list_id, lr.list_id),
+                    'name', COALESCE(cl.name, lr.list_name),
+                    'permissions', COALESCE(cr.permissions, lr.permissions)
+                )
+            ) AS list_role_perms
+        FROM lr
+        LEFT JOIN roles cr ON cr.parent_id = lr.id AND cr.type = 'list'
+        LEFT JOIN lists cl ON cr.list_id = cl.id
+        WHERE cr.parent_id = lr.id OR cr.id = lr.id
+    ) lp ON true
+    ORDER BY sel.id ASC LIMIT 1;
+
+-- name: get-user-by-phone
+WITH sel AS (
+    SELECT * FROM users
+    WHERE status = 'enabled' AND type = 'user' AND REGEXP_REPLACE(phone, '[^\d]', '', 'g') = $1 AND $1 != ''
+)
+SELECT
+    sel.*,
+    ur.id AS user_role_id,
+    ur.name AS user_role_name,
+    ur.permissions AS user_role_permissions,
+    lr.id AS list_role_id,
+    lr.name AS list_role_name,
+    lp.list_role_perms
+FROM sel
+    LEFT JOIN roles ur ON sel.user_role_id = ur.id AND ur.type = 'user' AND ur.parent_id IS NULL
+    LEFT JOIN (
+        SELECT r.id, r.name, r.permissions, r.list_id, l.name AS list_name
+        FROM roles r
+        LEFT JOIN lists l ON r.list_id = l.id
+        WHERE r.type = 'list' AND r.parent_id IS NULL
+    ) lr ON sel.list_role_id = lr.id
+    LEFT JOIN LATERAL (
+        SELECT JSONB_AGG(
+                JSONB_BUILD_OBJECT(
+                    'id', COALESCE(cr.list_id, lr.list_id),
+                    'name', COALESCE(cl.name, lr.list_name),
+                    'permissions', COALESCE(cr.permissions, lr.permissions)
+                )
+            ) AS list_role_perms
+        FROM lr
+        LEFT JOIN roles cr ON cr.parent_id = lr.id AND cr.type = 'list'
+        LEFT JOIN lists cl ON cr.list_id = cl.id
+        WHERE cr.parent_id = lr.id OR cr.id = lr.id
+    ) lp ON true
+    ORDER BY sel.id ASC LIMIT 1;
+
