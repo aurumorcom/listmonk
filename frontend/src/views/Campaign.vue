@@ -68,6 +68,14 @@
                     :placeholder="$t('globals.fields.name')" required autofocus />
                 </b-field>
 
+                <b-field label="Campaign Type" label-position="on-border">
+                  <b-select v-model="form.type" name="type" :disabled="!canEdit || isEditing" required expanded>
+                    <option value="regular">Regular Broadcast</option>
+                    <option value="sequence">Multi-Step Sequence</option>
+                    <option value="optin">Opt-In Confirmation</option>
+                  </b-select>
+                </b-field>
+
                 <b-field :label="$t('campaigns.subject')" label-position="on-border">
                   <b-input :maxlength="5000" v-model="form.subject" name="subject" :disabled="!canEdit"
                     :placeholder="$t('campaigns.subject')" required />
@@ -111,7 +119,7 @@
                 </b-field>
                 <hr />
 
-                <div class="columns">
+                <div v-if="form.type !== 'sequence'" class="columns">
                   <div class="column is-4">
                     <b-field :label="$t('campaigns.sendLater')" data-cy="btn-send-later">
                       <b-switch v-model="form.sendLater" :disabled="!canEdit" />
@@ -173,7 +181,13 @@
         </section>
       </b-tab-item><!-- campaign -->
 
-      <b-tab-item :label="$t('campaigns.content')" icon="text" :disabled="isNew" value="content">
+      <b-tab-item v-if="form.type === 'sequence'" label="Steps" icon="format-list-checks" value="steps" :disabled="isNew">
+        <section class="wrap">
+          <campaign-steps-editor v-if="data.id" :campaign-id="data.id" />
+        </section>
+      </b-tab-item><!-- steps -->
+
+      <b-tab-item v-if="form.type !== 'sequence'" :label="$t('campaigns.content')" icon="text" :disabled="isNew" value="content">
         <editor v-if="data.id" v-model="form.content" :id="data.id" :title="data.name" :disabled="!canEdit"
           :templates="templates" :content-types="contentTypes" />
 
@@ -319,6 +333,7 @@ import Vue from 'vue';
 import { mapState } from 'vuex';
 
 import CampaignPreview from '../components/CampaignPreview.vue';
+import CampaignStepsEditor from '../components/CampaignStepsEditor.vue';
 import CopyText from '../components/CopyText.vue';
 import Editor from '../components/Editor.vue';
 import ListSelector from '../components/ListSelector.vue';
@@ -331,6 +346,7 @@ export default Vue.extend({
     Media,
     CopyText,
     CampaignPreview,
+    CampaignStepsEditor,
   },
 
   data() {
@@ -358,6 +374,7 @@ export default Vue.extend({
 
       // Binds form input values.
       form: {
+        type: 'regular',
         archiveSlug: null,
         name: '',
         subject: '',
@@ -509,6 +526,7 @@ export default Vue.extend({
         this.form = {
           ...this.form,
           ...data,
+          type: data.type || 'regular',
           headersStr: JSON.stringify(data.headers, null, 4),
           archiveMetaStr: data.archiveMeta ? JSON.stringify(data.archiveMeta, null, 4) : '{}',
           attribsStr: data.attribs ? JSON.stringify(data.attribs, null, 4) : '{}',

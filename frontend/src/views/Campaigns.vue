@@ -83,7 +83,10 @@
         header-class="cy-name">
         <div>
           <p>
-            <b-tag v-if="props.row.type === 'optin'" class="is-small">
+            <b-tag v-if="props.row.type === 'sequence'" type="is-info" class="is-small mr-1">
+              Sequence
+            </b-tag>
+            <b-tag v-else-if="props.row.type === 'optin'" type="is-warning" class="is-small mr-1">
               {{ $t('lists.optin') }}
             </b-tag>
             <router-link :to="{ name: 'campaign', params: { id: props.row.id } }">
