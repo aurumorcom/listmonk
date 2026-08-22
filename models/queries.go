@@ -133,6 +133,8 @@ type Queries struct {
 	DeleteUsers        *sqlx.Stmt `query:"delete-users"`
 	GetUsers           *sqlx.Stmt `query:"get-users"`
 	GetUser            *sqlx.Stmt `query:"get-user"`
+	GetUserByEmail     *sqlx.Stmt `query:"get-user-by-email"`
+	GetUserByPhone     *sqlx.Stmt `query:"get-user-by-phone"`
 	GetAPITokens       *sqlx.Stmt `query:"get-api-tokens"`
 	LoginUser          *sqlx.Stmt `query:"login-user"`
 	DeleteUserSessions *sqlx.Stmt `query:"delete-user-sessions"`
