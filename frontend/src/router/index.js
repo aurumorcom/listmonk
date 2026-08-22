@@ -102,6 +102,12 @@ const routes = [
     component: () => import('../views/Campaign.vue'),
   },
   {
+    path: '/campaigns/:campaignId/steps/:stepId',
+    name: 'campaignStep',
+    meta: { title: 'Step Campaign Setup', group: 'campaigns' },
+    component: () => import('../views/CampaignStep.vue'),
+  },
+  {
     path: '/sequences*',
     redirect: '/campaigns',
   },

@@ -68,11 +68,11 @@
                     :placeholder="$t('globals.fields.name')" required autofocus />
                 </b-field>
 
-                <b-field label="Campaign Type" label-position="on-border">
+                <b-field label="Type" label-position="on-border">
                   <b-select v-model="form.type" name="type" :disabled="!canEdit || isEditing" required expanded>
-                    <option value="regular">Regular Broadcast</option>
-                    <option value="sequence">Multi-Step Sequence</option>
-                    <option value="optin">Opt-In Confirmation</option>
+                    <option value="regular">Regular</option>
+                    <option value="sequence">Sequence</option>
+                    <option value="optin">Opt-In</option>
                   </b-select>
                 </b-field>
 
@@ -183,7 +183,84 @@
 
       <b-tab-item v-if="form.type === 'sequence'" label="Steps" icon="format-list-checks" value="steps" :disabled="isNew">
         <section class="wrap">
-          <campaign-steps-editor v-if="data.id" :campaign-id="data.id" />
+          <div class="columns page-header mb-3">
+            <div class="column is-6">
+              <h4 class="title is-5 mb-0">
+                Campaign Steps <span v-if="steps.length">({{ steps.length }})</span>
+              </h4>
+            </div>
+            <div class="column is-6 has-text-right">
+              <b-button
+                v-if="canEdit"
+                :to="{ name: 'campaignStep', params: { campaignId: data.id, stepId: 'new' } }"
+                tag="router-link"
+                type="is-primary"
+                icon-left="plus"
+              >
+                Add Step
+              </b-button>
+            </div>
+          </div>
+
+          <b-table :data="steps" :hoverable="true" :loading="loadingSteps">
+            <b-table-column v-slot="props" label="#" width="5%">
+              <strong>#{{ props.index + 1 }}</strong>
+            </b-table-column>
+
+            <b-table-column v-slot="props" label="Subject / Name" width="35%">
+              <router-link :to="{ name: 'campaignStep', params: { campaignId: data.id, stepId: props.row.step_number || props.index + 1 } }">
+                {{ props.row.subject || props.row.name || `Step #${props.index + 1}` }}
+              </router-link>
+            </b-table-column>
+
+            <b-table-column v-slot="props" label="Delay" width="15%">
+              <b-tag type="is-light">
+                <b-icon icon="clock-outline" size="is-small" /> {{ props.row.delay || '0s' }}
+              </b-tag>
+            </b-table-column>
+
+            <b-table-column v-slot="props" label="Messenger" width="15%">
+              <span class="is-capitalized">{{ props.row.messenger || 'email' }}</span>
+            </b-table-column>
+
+            <b-table-column v-slot="props" cell-class="actions" align="right" width="30%">
+              <div>
+                <b-button
+                  size="is-small"
+                  icon-left="arrow-up"
+                  :disabled="props.index === 0"
+                  @click="moveStepUp(props.index)"
+                  class="mr-1"
+                />
+                <b-button
+                  size="is-small"
+                  icon-left="arrow-down"
+                  :disabled="props.index === steps.length - 1"
+                  @click="moveStepDown(props.index)"
+                  class="mr-1"
+                />
+                <router-link
+                  :to="{ name: 'campaignStep', params: { campaignId: data.id, stepId: props.row.step_number || props.index + 1 } }"
+                  class="button is-small is-info mr-1"
+                >
+                  <b-icon icon="pencil-outline" size="is-small" />
+                </router-link>
+
+                <b-button
+                  size="is-small"
+                  type="is-danger"
+                  icon-left="trash-can-outline"
+                  @click="deleteStep(props.index)"
+                />
+              </div>
+            </b-table-column>
+
+            <template #empty>
+              <div class="has-text-centered p-4">
+                <p class="has-text-grey">No steps added yet. Click 'Add Step' to create the first message step.</p>
+              </div>
+            </template>
+          </b-table>
         </section>
       </b-tab-item><!-- steps -->
 
@@ -333,7 +410,6 @@ import Vue from 'vue';
 import { mapState } from 'vuex';
 
 import CampaignPreview from '../components/CampaignPreview.vue';
-import CampaignStepsEditor from '../components/CampaignStepsEditor.vue';
 import CopyText from '../components/CopyText.vue';
 import Editor from '../components/Editor.vue';
 import ListSelector from '../components/ListSelector.vue';
@@ -346,7 +422,6 @@ export default Vue.extend({
     Media,
     CopyText,
     CampaignPreview,
-    CampaignStepsEditor,
   },
 
   data() {
@@ -366,6 +441,8 @@ export default Vue.extend({
       isAttachModalOpen: false,
       isPreviewingArchive: false,
       activeTab: 'campaign',
+      loadingSteps: false,
+      steps: [],
 
       data: {},
 
@@ -547,6 +624,50 @@ export default Vue.extend({
           }
           return f;
         });
+
+        if (this.form.type === 'sequence') {
+          this.getSteps();
+        }
+      });
+    },
+
+    getSteps() {
+      if (!this.data || !this.data.id) return;
+      this.loadingSteps = true;
+      this.$api.getCampaignSteps(this.data.id).then((res) => {
+        this.steps = Array.isArray(res) ? res : (res.data || []);
+        this.loadingSteps = false;
+      }).catch(() => {
+        this.steps = [];
+        this.loadingSteps = false;
+      });
+    },
+
+    moveStepUp(index) {
+      if (index <= 0) return;
+      const item = this.steps.splice(index, 1)[0];
+      this.steps.splice(index - 1, 0, item);
+      this.saveStepOrder();
+    },
+
+    moveStepDown(index) {
+      if (index >= this.steps.length - 1) return;
+      const item = this.steps.splice(index, 1)[0];
+      this.steps.splice(index + 1, 0, item);
+      this.saveStepOrder();
+    },
+
+    deleteStep(index) {
+      this.$utils.confirm('Delete this step?', () => {
+        this.steps.splice(index, 1);
+        this.saveStepOrder();
+      });
+    },
+
+    saveStepOrder() {
+      this.steps = this.steps.map((s, idx) => ({ ...s, step_number: idx + 1 }));
+      this.$api.saveCampaignSteps(this.data.id, { steps: this.steps }).then(() => {
+        this.getSteps();
       });
     },
 
