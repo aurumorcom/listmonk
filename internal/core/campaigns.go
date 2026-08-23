@@ -949,7 +949,7 @@ func (c *Core) EnrollSubscribersByList(subIDs []int, listIDs []int, userContext 
 				(l.optin = 'double' AND subl.status = 'confirmed') OR
 				(l.optin != 'double' AND subl.status != 'unsubscribed')
 			)
-		JOIN campaigns camp ON camp.id = cl.campaign_id AND camp.type = 'sequence' AND camp.status IN ('running', 'active')
+		JOIN campaigns camp ON camp.id = cl.campaign_id AND camp.type = 'sequence' AND camp.status = 'running'
 		WHERE s.id = ANY($1::INT[]) AND subl.list_id = ANY($2::INT[]) AND s.status = 'enabled'
 		ON CONFLICT (campaign_id, subscriber_id) DO UPDATE SET
 			status = CASE
@@ -1470,7 +1470,7 @@ func (c *Core) GetDueSequenceSubscribers(limit int) ([]models.CampaignSubscriber
 	err := c.db.Select(&out, `SELECT cs.campaign_id, cs.subscriber_id, cs.email_id, cs.waha_session, cs.status, cs.current_step, cs.next_send_at, cs.last_read_at, cs.last_clicked_at, cs.last_message_id, cs.last_thread_msg_id, cs.created_at
 		FROM campaign_subscribers cs
 		JOIN campaigns c ON c.id = cs.campaign_id
-		WHERE c.type = 'sequence' AND c.status IN ('running', 'active') AND cs.status IN ('scheduled', 'in_progress') AND cs.next_send_at <= NOW()
+		WHERE c.type = 'sequence' AND c.status = 'running' AND cs.status IN ('scheduled', 'in_progress') AND cs.next_send_at <= NOW()
 		LIMIT $1`, limit)
 	if err != nil {
 		c.log.Printf("error getting due sequence subscribers: %v", err)
