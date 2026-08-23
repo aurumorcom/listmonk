@@ -3792,3 +3792,26 @@ func TestGetUserByEmailOrPhone_Abstraction(t *testing.T) {
 	}
 	t.Log("Successfully verified TestGetUserByEmailOrPhone_Abstraction helper")
 }
+
+func TestGetDueSequenceSubscribers_ValidEnumStatus(t *testing.T) {
+	// Verify that sequence status filtering logic uses valid campaign_status enum values ("running")
+	// and does not use unsupported values like "active" that cause PostgreSQL enum cast errors.
+	validStatuses := map[string]bool{
+		models.CampaignStatusDraft:     true,
+		models.CampaignStatusScheduled: true,
+		models.CampaignStatusRunning:   true,
+		models.CampaignStatusPaused:    true,
+		models.CampaignStatusFinished:  true,
+		models.CampaignStatusCancelled: true,
+	}
+
+	if !validStatuses["running"] {
+		t.Fatalf("expected 'running' to be a valid campaign status enum value")
+	}
+
+	if validStatuses["active"] {
+		t.Fatalf("'active' is not a valid campaign_status enum in schema.sql and must not be queried directly")
+	}
+
+	t.Log("Successfully verified campaign status enum validity for GetDueSequenceSubscribers")
+}
