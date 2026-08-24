@@ -219,6 +219,7 @@ func (c *Core) CreateCampaign(o models.Campaign, listIDs []int, mediaIDs []int) 
 		return models.Campaign{}, err
 	}
 
+	_ = c.DispatchWebhookEvent("campaign.created", out)
 	return out, nil
 }
 
@@ -260,6 +261,7 @@ func (c *Core) UpdateCampaign(id int, o models.Campaign, listIDs []int, mediaIDs
 		return models.Campaign{}, err
 	}
 
+	_ = c.DispatchWebhookEvent("campaign.updated", out)
 	return out, nil
 }
 
@@ -317,6 +319,9 @@ func (c *Core) UpdateCampaignStatus(id int, status string) (models.Campaign, err
 
 	cm.Status = status
 	_ = c.DispatchWebhookEvent("campaign.status_changed", cm)
+	if status == models.CampaignStatusFinished || status == "sent" {
+		_ = c.DispatchWebhookEvent("campaign.sent", cm)
+	}
 	return cm, nil
 }
 
@@ -347,6 +352,7 @@ func (c *Core) DeleteCampaign(id int) error {
 			c.i18n.Ts("globals.messages.notFound", "name", "{globals.terms.campaign}"))
 	}
 
+	_ = c.DispatchWebhookEvent("campaign.deleted", map[string]any{"id": id})
 	return nil
 }
 
@@ -366,6 +372,7 @@ func (c *Core) DeleteCampaigns(ids []int, query string, hasAllPerm bool, permitt
 			c.i18n.Ts("globals.messages.errorDeleting", "name", "{globals.terms.campaigns}", "error", pqErrMsg(err)))
 	}
 
+	_ = c.DispatchWebhookEvent("campaign.deleted", map[string]any{"ids": ids})
 	return nil
 }
 
@@ -466,6 +473,7 @@ func (c *Core) RegisterCampaignView(campUUID, subUUID string, meta ClientMeta) e
 		return echo.NewHTTPError(http.StatusInternalServerError,
 			c.i18n.Ts("globals.messages.errorUpdating", "name", "{globals.terms.campaign}", "error", pqErrMsg(err)))
 	}
+	_ = c.DispatchWebhookEvent("campaign.viewed", map[string]any{"campaign_uuid": campUUID, "subscriber_uuid": subUUID})
 	return nil
 }
 
@@ -624,6 +632,7 @@ func (c *Core) RegisterCampaignLinkClick(linkUUID, campUUID, subUUID string, met
 		return "", echo.NewHTTPError(http.StatusInternalServerError, c.i18n.Ts("public.errorProcessingRequest"))
 	}
 
+	_ = c.DispatchWebhookEvent("campaign.clicked", map[string]any{"campaign_uuid": campUUID, "subscriber_uuid": subUUID, "url": url})
 	return url, nil
 }
 
