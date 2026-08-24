@@ -177,29 +177,44 @@ type IMAPSettings struct {
 
 // SMTPSettings represents individual SMTP server and email account settings.
 type SMTPSettings struct {
-	Name          string              `json:"name"`
-	UUID          string              `json:"uuid"`
-	Enabled       bool                `json:"enabled"`
-	Host          string              `json:"host"`
-	HelloHostname string              `json:"hello_hostname"`
-	Port          int                 `json:"port"`
-	AuthProtocol  string              `json:"auth_protocol"`
-	Username      string              `json:"username"`
-	Password      string              `json:"password,omitempty"`
-	EmailHeaders  []map[string]string `json:"email_headers"`
-	MaxConns      int                 `json:"max_conns"`
-	MaxMsgRetries int                 `json:"max_msg_retries"`
-	MsgRetryDelay string              `json:"msg_retry_delay"`
-	IdleTimeout   string              `json:"idle_timeout"`
-	WaitTimeout   string              `json:"wait_timeout"`
-	TLSType       string              `json:"tls_type"`
-	TLSSkipVerify bool                `json:"tls_skip_verify"`
-	FromAddresses []string            `json:"from_addresses"`
-	MaxSendPerDay int                 `json:"max_send_per_day"`
-	SentToday     map[string]int      `json:"sent_today,omitempty"`
-	Signature     string              `json:"signature"`
-	UserID        null.Int            `json:"user_id"`
-	User          string              `json:"user,omitempty"`
+	Name              string              `json:"name"`
+	UUID              string              `json:"uuid"`
+	Enabled           bool                `json:"enabled"`
+	Host              string              `json:"host"`
+	HelloHostname     string              `json:"hello_hostname"`
+	Port              int                 `json:"port"`
+	AuthProtocol      string              `json:"auth_protocol"`
+	Username          string              `json:"username"`
+	Password          string              `json:"password,omitempty"`
+	EmailHeaders      []map[string]string `json:"email_headers"`
+	MaxConns          int                 `json:"max_conns"`
+	MaxMsgRetries     int                 `json:"max_msg_retries"`
+	MsgRetryDelay     string              `json:"msg_retry_delay"`
+	IdleTimeout       string              `json:"idle_timeout"`
+	WaitTimeout       string              `json:"wait_timeout"`
+	TLSType           string              `json:"tls_type"`
+	TLSSkipVerify     bool                `json:"tls_skip_verify"`
+	FromAddresses     []string            `json:"from_addresses"`
+	MaxSendPerDay     int                 `json:"max_send_per_day"`
+	SentToday         map[string]int      `json:"sent_today,omitempty"`
+	Signature         string              `json:"signature"`
+	UserID            null.Int            `json:"user_id"`
+	User              string              `json:"user,omitempty"`
+	IMAPEnabled       bool                `json:"imap_enabled"`
+	IMAPHost          string              `json:"imap_host"`
+	IMAPPort          int                 `json:"imap_port"`
+	IMAPAuthProtocol  string              `json:"imap_auth_protocol"`
+	IMAPUsername      string              `json:"imap_username"`
+	IMAPPassword      string              `json:"imap_password,omitempty"`
+	IMAPFolder        string              `json:"imap_folder"`
+	IMAPTLSType       string              `json:"imap_tls_type"`
+	IMAPTLSSkipVerify bool                `json:"imap_tls_skip_verify"`
+	IMAPMaxConns      int                 `json:"imap_max_conns"`
+	IMAPIdleTimeout   string              `json:"imap_idle_timeout"`
+	IMAPWaitTimeout   string              `json:"imap_wait_timeout"`
+	IMAPMaxRetries    int                 `json:"imap_max_retries"`
+	IMAPRetryDelay    string              `json:"imap_retry_delay"`
+	IMAPInterval      string              `json:"imap_interval"`
 }
 
 // UnmarshalJSON implements custom JSON unmarshaling for SMTPSettings to support both
@@ -221,6 +236,23 @@ func (s *SMTPSettings) UnmarshalJSON(b []byte) error {
 			IdleTimeout   string `json:"idle_timeout"`
 			WaitTimeout   string `json:"wait_timeout"`
 		} `json:"opt"`
+		IMAP *struct {
+			Enabled       bool   `json:"enabled"`
+			Host          string `json:"host"`
+			Port          int    `json:"port"`
+			AuthProtocol  string `json:"auth_protocol"`
+			Username      string `json:"username"`
+			Password      string `json:"password"`
+			Folder        string `json:"folder"`
+			TLSType       string `json:"tls_type"`
+			TLSSkipVerify *bool  `json:"tls_skip_verify"`
+			MaxConns      int    `json:"max_conns"`
+			IdleTimeout   string `json:"idle_timeout"`
+			WaitTimeout   string `json:"wait_timeout"`
+			MaxRetries    int    `json:"max_retries"`
+			RetryDelay    string `json:"retry_delay"`
+			Interval      string `json:"interval"`
+		} `json:"imap"`
 	}
 
 	if err := json.Unmarshal(b, &aux); err != nil {
@@ -263,6 +295,52 @@ func (s *SMTPSettings) UnmarshalJSON(b []byte) error {
 		if aux.Opt.WaitTimeout != "" {
 			s.WaitTimeout = aux.Opt.WaitTimeout
 		}
+	}
+
+	if aux.IMAP != nil {
+		if aux.IMAP.Host != "" {
+			s.IMAPHost = aux.IMAP.Host
+		}
+		if aux.IMAP.Port != 0 {
+			s.IMAPPort = aux.IMAP.Port
+		}
+		if aux.IMAP.AuthProtocol != "" {
+			s.IMAPAuthProtocol = aux.IMAP.AuthProtocol
+		}
+		if aux.IMAP.Username != "" {
+			s.IMAPUsername = aux.IMAP.Username
+		}
+		if aux.IMAP.Password != "" {
+			s.IMAPPassword = aux.IMAP.Password
+		}
+		if aux.IMAP.Folder != "" {
+			s.IMAPFolder = aux.IMAP.Folder
+		}
+		if aux.IMAP.TLSType != "" {
+			s.IMAPTLSType = aux.IMAP.TLSType
+		}
+		if aux.IMAP.TLSSkipVerify != nil {
+			s.IMAPTLSSkipVerify = *aux.IMAP.TLSSkipVerify
+		}
+		if aux.IMAP.MaxConns != 0 {
+			s.IMAPMaxConns = aux.IMAP.MaxConns
+		}
+		if aux.IMAP.IdleTimeout != "" {
+			s.IMAPIdleTimeout = aux.IMAP.IdleTimeout
+		}
+		if aux.IMAP.WaitTimeout != "" {
+			s.IMAPWaitTimeout = aux.IMAP.WaitTimeout
+		}
+		if aux.IMAP.MaxRetries != 0 {
+			s.IMAPMaxRetries = aux.IMAP.MaxRetries
+		}
+		if aux.IMAP.RetryDelay != "" {
+			s.IMAPRetryDelay = aux.IMAP.RetryDelay
+		}
+		if aux.IMAP.Interval != "" {
+			s.IMAPInterval = aux.IMAP.Interval
+		}
+		s.IMAPEnabled = aux.IMAP.Enabled
 	}
 
 	return nil

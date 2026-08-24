@@ -186,6 +186,9 @@
                     <option value="pop">
                       POP
                     </option>
+                    <option value="imap">
+                      IMAP
+                    </option>
                   </b-select>
                 </b-field>
               </div>
