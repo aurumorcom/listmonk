@@ -77,3 +77,82 @@ func TestSMTPSettings_WAHASettings_UserID_JSON(t *testing.T) {
 		t.Errorf("expected serialized waha user_id to be 5, got %v", wahaItem["user_id"])
 	}
 }
+
+func TestSMTPSettings_IMAPCredentials_JSON(t *testing.T) {
+	settingsJSON := []byte(`{
+		"smtp": [
+			{
+				"name": "email-outreach",
+				"host": "smtp.gmail.com",
+				"port": 587,
+				"imap_enabled": true,
+				"imap_host": "imap.gmail.com",
+				"imap_port": 993,
+				"imap_username": "user@gmail.com",
+				"imap_password": "app_specific_secret_password",
+				"imap_folder": "INBOX",
+				"imap_auth_protocol": "login"
+			}
+		]
+	}`)
+
+	var s models.Settings
+	if err := json.Unmarshal(settingsJSON, &s); err != nil {
+		t.Fatalf("unexpected error unmarshaling settings JSON: %v", err)
+	}
+
+	if len(s.SMTP) != 1 {
+		t.Fatalf("expected 1 SMTP setting, got %d", len(s.SMTP))
+	}
+
+	smtp := s.SMTP[0]
+	if !smtp.IMAPEnabled {
+		t.Errorf("expected IMAPEnabled to be true")
+	}
+	if smtp.IMAPHost != "imap.gmail.com" {
+		t.Errorf("expected IMAPHost 'imap.gmail.com', got %q", smtp.IMAPHost)
+	}
+	if smtp.IMAPPort != 993 {
+		t.Errorf("expected IMAPPort 993, got %d", smtp.IMAPPort)
+	}
+	if smtp.IMAPUsername != "user@gmail.com" {
+		t.Errorf("expected IMAPUsername 'user@gmail.com', got %q", smtp.IMAPUsername)
+	}
+	if smtp.IMAPPassword != "app_specific_secret_password" {
+		t.Errorf("expected IMAPPassword 'app_specific_secret_password', got %q", smtp.IMAPPassword)
+	}
+
+	// Test unmarshaling from nested "imap" sub-object
+	nestedJSON := []byte(`{
+		"smtp": [
+			{
+				"name": "email-outreach",
+				"host": "smtp.gmail.com",
+				"port": 587,
+				"imap": {
+					"enabled": true,
+					"host": "imap.mail.yahoo.com",
+					"port": 993,
+					"username": "user@yahoo.com",
+					"password": "yahoo_app_password"
+				}
+			}
+		]
+	}`)
+
+	var s2 models.Settings
+	if err := json.Unmarshal(nestedJSON, &s2); err != nil {
+		t.Fatalf("unexpected error unmarshaling nested IMAP settings: %v", err)
+	}
+
+	smtp2 := s2.SMTP[0]
+	if smtp2.IMAPHost != "imap.mail.yahoo.com" {
+		t.Errorf("expected nested IMAPHost 'imap.mail.yahoo.com', got %q", smtp2.IMAPHost)
+	}
+	if smtp2.IMAPUsername != "user@yahoo.com" {
+		t.Errorf("expected nested IMAPUsername 'user@yahoo.com', got %q", smtp2.IMAPUsername)
+	}
+	if smtp2.IMAPPassword != "yahoo_app_password" {
+		t.Errorf("expected nested IMAPPassword 'yahoo_app_password', got %q", smtp2.IMAPPassword)
+	}
+}
