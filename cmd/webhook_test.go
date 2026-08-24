@@ -30,7 +30,7 @@ func TestE2E_WebhookTestEndpoint(t *testing.T) {
 
 	// Execute test webhook delivery directly via core method
 	c := &core.Core{}
-	err := c.TestWebhook(ts.URL, "secret_123", "contact.created")
+	err := c.TestWebhook(ts.URL, "secret_123", "subscriber.created")
 	if err != nil {
 		t.Fatalf("unexpected TestWebhook error: %v", err)
 	}
@@ -46,8 +46,8 @@ func TestE2E_WebhookTestEndpoint(t *testing.T) {
 			t.Fatalf("failed to unmarshal test webhook payload: %v", err)
 		}
 
-		if payload["event"] != "contact.created" {
-			t.Fatalf("expected event contact.created, got: %v", payload["event"])
+		if payload["event"] != "subscriber.created" {
+			t.Fatalf("expected event subscriber.created, got: %v", payload["event"])
 		}
 	case <-time.After(3 * time.Second):
 		t.Fatalf("receiver did not receive test webhook request in time")
@@ -63,7 +63,7 @@ func TestWebhookSettings_StructAndSecretMasking(t *testing.T) {
 				"name": "n8n Integration",
 				"url": "https://n8n.example.com/webhook/123",
 				"secret": "whsec_supersecret123",
-				"events": ["contact.created", "contact.updated"],
+				"events": ["subscriber.created", "campaign.clicked"],
 				"enabled": true
 			}
 		]
@@ -93,7 +93,7 @@ func TestWebhookSettings_StructAndSecretMasking(t *testing.T) {
 		t.Errorf("unexpected webhook fields: %+v", wh)
 	}
 
-	if len(wh.Events) != 2 || wh.Events[0] != "contact.created" {
+	if len(wh.Events) != 2 || wh.Events[0] != "subscriber.created" || wh.Events[1] != "campaign.clicked" {
 		t.Errorf("unexpected webhook events: %v", wh.Events)
 	}
 }

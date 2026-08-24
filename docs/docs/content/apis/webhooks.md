@@ -1,6 +1,6 @@
 # Webhooks API
 
-The Webhooks API allows registering outbound webhook endpoints, managing event subscriptions (subscribers, contacts, sequences, campaigns), querying delivery logs, and testing webhook triggers.
+The Webhooks API allows registering outbound webhook endpoints, managing event subscriptions (subscribers, campaigns), querying delivery logs, and testing webhook triggers.
 
 ## Data Model
 
@@ -11,7 +11,7 @@ The Webhooks API allows registering outbound webhook endpoints, managing event s
 | `name` | string | Descriptive name for the webhook target |
 | `url` | string | Destination HTTP(S) endpoint URL receiving JSON payloads |
 | `secret` | string | Secret key for computing `Listmonk-Signature` HMAC SHA256 signature header |
-| `events` | string[] | Array of subscribed event triggers (e.g., `contact.created`, `sequence.step_executed`) |
+| `events` | string[] | Array of subscribed event triggers (e.g., `subscriber.created`, `campaign.status_changed`, `campaign.clicked`) |
 | `enabled` | boolean | Active status flag (`true` or `false`) |
 | `created_at` | string | ISO 8601 timestamp of creation |
 | `updated_at` | string | ISO 8601 timestamp of last update |
@@ -20,9 +20,9 @@ The Webhooks API allows registering outbound webhook endpoints, managing event s
 | Field | Type | Description |
 | :--- | :--- | :--- |
 | `id` | string | Unique event snapshot UUID (e.g. `evt_12345678`) |
-| `event` | string | Name of triggered event (e.g. `subscriber.created`, `contact.updated`) |
+| `event` | string | Name of triggered event (e.g. `subscriber.created`, `campaign.clicked`) |
 | `created_at` | string | ISO 8601 UTC timestamp of event dispatch |
-| `data` | object | Complete snapshot object of the resource (Subscriber, Contact, Campaign, Sequence) |
+| `data` | object | Complete snapshot object of the resource (Subscriber, Campaign) |
 
 ---
 
@@ -60,9 +60,8 @@ curl -u "username:token" -X GET 'http://localhost:9000/api/webhooks'
       "events": [
         "subscriber.created",
         "subscriber.updated",
-        "contact.created",
-        "contact.updated",
-        "sequence.step_executed"
+        "campaign.status_changed",
+        "campaign.clicked"
       ],
       "enabled": true,
       "created_at": "2026-08-10T12:00:00Z",
@@ -84,7 +83,7 @@ Register a new outbound webhook target.
 | `name` | string | Yes | Name identifier for the webhook endpoint |
 | `url` | string | Yes | HTTP(S) endpoint URL receiving JSON payloads |
 | `secret` | string | No | Secret key used for `Listmonk-Signature` HMAC SHA256 header |
-| `events` | string[] | Yes | Array of subscribed event triggers (e.g. `subscriber.created`, `contact.created`, `sequence.step_executed`) |
+| `events` | string[] | Yes | Array of subscribed event triggers (e.g. `subscriber.created`, `campaign.created`, `campaign.clicked`) |
 | `enabled` | boolean | No | Enable/disable status (default: `true`) |
 
 #### Example Request
@@ -98,7 +97,7 @@ curl -u "username:token" -X POST 'http://localhost:9000/api/webhooks' \
     "events": [
       "subscriber.created",
       "subscriber.unsubscribed",
-      "contact.created"
+      "campaign.status_changed"
     ],
     "enabled": true
   }'
@@ -129,7 +128,7 @@ curl -u "username:token" -X PUT 'http://localhost:9000/api/webhooks/1' \
     "secret": "whsec_new_secret",
     "events": [
       "subscriber.created",
-      "contact.created"
+      "subscriber.updated"
     ],
     "enabled": true
   }'
@@ -157,7 +156,7 @@ Send an immediate test event payload to verify endpoint URL connectivity and sig
 | :--- | :--- | :--- | :--- |
 | `url` | string | Yes | Target endpoint URL |
 | `secret` | string | No | Optional secret key for HMAC verification |
-| `event_type` | string | Yes | Trigger event name (e.g. `subscriber.created`, `contact.created`) |
+| `event_type` | string | Yes | Trigger event name (e.g. `subscriber.created`, `campaign.clicked`) |
 
 #### Example Request
 ```shell

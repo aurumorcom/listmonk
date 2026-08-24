@@ -68,16 +68,6 @@
                   </div>
                 </div>
 
-                <!-- Sequences -->
-                <div class="column is-6">
-                  <div class="label is-size-7 mb-2"><strong>Sequences</strong></div>
-                  <div class="field" v-for="evt in sequenceEvents" :key="evt.value">
-                    <b-checkbox v-model="item.events" :native-value="evt.value">
-                      {{ evt.label }}
-                    </b-checkbox>
-                  </div>
-                </div>
-
                 <!-- Campaigns -->
                 <div class="column is-6">
                   <div class="label is-size-7 mb-2"><strong>Campaigns</strong></div>
@@ -100,8 +90,12 @@
                     <strong>Select Test Event Type</strong>
                     <b-select v-model="testEventType" expanded class="mt-1">
                       <option value="subscriber.created">subscriber.created</option>
-                      <option value="sequence.step_executed">sequence.step_executed</option>
+                      <option value="subscriber.updated">subscriber.updated</option>
+                      <option value="campaign.created">campaign.created</option>
                       <option value="campaign.status_changed">campaign.status_changed</option>
+                      <option value="campaign.sent">campaign.sent</option>
+                      <option value="campaign.viewed">campaign.viewed</option>
+                      <option value="campaign.clicked">campaign.clicked</option>
                     </b-select>
                   </div>
                   <div class="column is-4">
@@ -143,7 +137,7 @@ const presetTemplates = {
   n8n: {
     name: 'n8n Production Sync',
     url: 'https://n8n.example.com/webhook/listmonk',
-    events: ['subscriber.created', 'subscriber.updated', 'sequence.step_executed'],
+    events: ['subscriber.created', 'subscriber.updated'],
   },
   zapier: {
     name: 'Zapier Catch Webhook',
@@ -153,7 +147,7 @@ const presetTemplates = {
   make: {
     name: 'Make Scenario Hook',
     url: 'https://hook.eu1.make.com/...',
-    events: ['subscriber.created', 'campaign.status_changed'],
+    events: ['subscriber.created', 'campaign.status_changed', 'campaign.sent'],
   },
   hubspot: {
     name: 'HubSpot Subscriber Sync',
@@ -168,8 +162,12 @@ const presetTemplates = {
       'subscriber.updated',
       'subscriber.unsubscribed',
       'subscriber.bounced',
-      'sequence.step_executed',
+      'campaign.created',
+      'campaign.updated',
       'campaign.status_changed',
+      'campaign.sent',
+      'campaign.viewed',
+      'campaign.clicked',
     ],
   },
 };
@@ -188,16 +186,21 @@ export default Vue.extend({
       webhookTestItem: null,
       testEventType: 'subscriber.created',
       errMsg: '',
-      sequenceEvents: [
-        { value: 'sequence.created', label: 'sequence.created' },
-        { value: 'sequence.subscriber_enrolled', label: 'sequence.subscriber_enrolled' },
-        { value: 'sequence.step_executed', label: 'sequence.step_executed' },
-        { value: 'sequence.subscriber_replied', label: 'sequence.subscriber_replied' },
-        { value: 'sequence.subscriber_completed', label: 'sequence.subscriber_completed' },
+      subscriberEvents: [
+        { value: 'subscriber.created', label: 'subscriber.created' },
+        { value: 'subscriber.updated', label: 'subscriber.updated' },
+        { value: 'subscriber.deleted', label: 'subscriber.deleted' },
+        { value: 'subscriber.unsubscribed', label: 'subscriber.unsubscribed' },
+        { value: 'subscriber.bounced', label: 'subscriber.bounced' },
       ],
       campaignEvents: [
+        { value: 'campaign.created', label: 'campaign.created' },
+        { value: 'campaign.updated', label: 'campaign.updated' },
+        { value: 'campaign.deleted', label: 'campaign.deleted' },
         { value: 'campaign.status_changed', label: 'campaign.status_changed' },
         { value: 'campaign.sent', label: 'campaign.sent' },
+        { value: 'campaign.viewed', label: 'campaign.viewed' },
+        { value: 'campaign.clicked', label: 'campaign.clicked' },
       ],
     };
   },
