@@ -34,6 +34,7 @@ type Subscriber struct {
 	Name    string         `db:"name" json:"name" form:"name"`
 	Phone   null.String    `db:"phone" json:"phone" form:"phone"`
 	TZ      string         `db:"tz" json:"tz" form:"tz"`
+	CRMID   null.String    `db:"crm_id" json:"crm_id" form:"crm_id"`
 	Attribs JSON           `db:"attribs" json:"attribs"`
 	Status  string         `db:"status" json:"status"`
 	Lists   types.JSONText `db:"lists" json:"lists"`

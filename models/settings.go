@@ -69,6 +69,13 @@ type Settings struct {
 		DefaultListRoleID null.Int `json:"default_list_role_id"`
 	} `json:"security.oidc"`
 
+	CRM struct {
+		Enabled   bool   `json:"enabled"`
+		BaseURL   string `json:"base_url"`
+		APIKey    string `json:"api_key"`
+		APISecret string `json:"api_secret"`
+	} `json:"crm"`
+
 	SecurityTrustedURLs []string `json:"security.trusted_urls"`
 
 	UploadProvider             string   `json:"upload.provider"`
