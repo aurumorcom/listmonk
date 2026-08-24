@@ -27,6 +27,7 @@ CREATE TABLE subscribers (
     attribs         JSONB NOT NULL DEFAULT '{}',
     status          subscriber_status NOT NULL DEFAULT 'enabled',
     tz              TEXT NOT NULL DEFAULT '',
+    crm_id          TEXT NULL,
 
     created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -37,6 +38,7 @@ DROP INDEX IF EXISTS idx_subs_status; CREATE INDEX idx_subs_status ON subscriber
 DROP INDEX IF EXISTS idx_subs_id_status; CREATE INDEX idx_subs_id_status ON subscribers(id, status);
 DROP INDEX IF EXISTS idx_subs_created_at; CREATE INDEX idx_subs_created_at ON subscribers(created_at);
 DROP INDEX IF EXISTS idx_subs_updated_at; CREATE INDEX idx_subs_updated_at ON subscribers(updated_at);
+DROP INDEX IF EXISTS idx_subs_crm_id; CREATE INDEX idx_subs_crm_id ON subscribers(crm_id) WHERE crm_id IS NOT NULL;
 
 -- lists
 DROP TABLE IF EXISTS lists CASCADE;
@@ -49,6 +51,7 @@ CREATE TABLE lists (
     status          list_status NOT NULL DEFAULT 'active',
     tags            VARCHAR(100)[],
     description     TEXT NOT NULL DEFAULT '',
+    crm_id          TEXT NULL,
 
     created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -59,6 +62,7 @@ DROP INDEX IF EXISTS idx_lists_status; CREATE INDEX idx_lists_status ON lists(st
 DROP INDEX IF EXISTS idx_lists_name; CREATE INDEX idx_lists_name ON lists(name);
 DROP INDEX IF EXISTS idx_lists_created_at; CREATE INDEX idx_lists_created_at ON lists(created_at);
 DROP INDEX IF EXISTS idx_lists_updated_at; CREATE INDEX idx_lists_updated_at ON lists(updated_at);
+DROP INDEX IF EXISTS idx_lists_crm_id; CREATE INDEX idx_lists_crm_id ON lists(crm_id) WHERE crm_id IS NOT NULL;
 
 
 DROP TABLE IF EXISTS subscriber_lists CASCADE;
@@ -149,6 +153,7 @@ CREATE TABLE campaigns (
     send_window       JSONB NOT NULL DEFAULT '{}',
     email_ids         INTEGER[] NOT NULL DEFAULT '{}',
     waha_sessions     TEXT[] NOT NULL DEFAULT '{}',
+    user_ids          INTEGER[] NOT NULL DEFAULT '{}',
 
     -- Publishing.
     archive             BOOLEAN NOT NULL DEFAULT false,
@@ -321,6 +326,7 @@ INSERT INTO settings (key, value) VALUES
     ('privacy.record_optin_ip', 'false'),
     ('security.captcha', '{"altcha": {"enabled": false, "complexity": 300000}, "hcaptcha": {"enabled": false, "key": "", "secret": ""}}'),
     ('security.oidc', '{"enabled": false, "provider_url": "", "provider_name": "", "client_id": "", "client_secret": "", "auto_create_users": false, "default_user_role_id": null, "default_list_role_id": null}'),
+    ('crm', '{"enabled": false, "base_url": "", "api_key": "", "api_secret": ""}'),
     ('security.trusted_urls', '[]'),
     ('upload.provider', '"filesystem"'),
     ('upload.max_file_size', '5000'),
@@ -428,10 +434,13 @@ CREATE TABLE users (
     waha_session     TEXT NULL,
     signature        TEXT NOT NULL DEFAULT '',
     phone            TEXT NULL,
+    crm_id           TEXT NULL,
+    attribs          JSONB NOT NULL DEFAULT '{}',
     loggedin_at      TIMESTAMP WITH TIME ZONE NULL,
     created_at       TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at       TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+DROP INDEX IF EXISTS idx_users_crm_id; CREATE INDEX idx_users_crm_id ON users(crm_id) WHERE crm_id IS NOT NULL;
 
 ALTER TABLE emails ADD CONSTRAINT fk_emails_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL;
 
@@ -562,6 +571,7 @@ CREATE TABLE campaign_subscribers (
     email_id           INTEGER NULL REFERENCES emails(id) ON DELETE SET NULL,
     from_address       TEXT NULL,
     waha_session       TEXT NULL,
+    user_id            INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
     status             TEXT NOT NULL DEFAULT 'scheduled',
     current_step       INTEGER NOT NULL DEFAULT 1,
     next_send_at       TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -574,6 +584,7 @@ CREATE TABLE campaign_subscribers (
 );
 CREATE INDEX idx_camp_subscribers_next_send ON campaign_subscribers(status, next_send_at);
 CREATE INDEX idx_camp_subscribers_sender ON campaign_subscribers(campaign_id, email_id, waha_session);
+CREATE INDEX idx_camp_subscribers_user_id ON campaign_subscribers(campaign_id, user_id);
 
 -- webhooks
 DROP TABLE IF EXISTS webhooks CASCADE;
