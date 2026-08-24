@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/knadh/listmonk/models"
 	"github.com/labstack/echo/v4"
 	"github.com/lib/pq"
 	null "gopkg.in/volatiletech/null.v6"
@@ -116,6 +117,8 @@ type User struct {
 	WahaSession   null.String      `db:"waha_session" json:"waha_session"`
 	Signature     string           `db:"signature" json:"signature"`
 	Phone         null.String      `db:"phone" json:"phone"`
+	CRMID         null.String      `db:"crm_id" json:"crm_id"`
+	Attribs       models.JSON      `db:"attribs" json:"attribs"`
 	LoggedInAt    null.Time        `db:"loggedin_at" json:"loggedin_at"`
 	UserRoleID    int              `db:"user_role_id" json:"user_role_id,omitempty"`
 	UserRoleName  string           `db:"user_role_name" json:"-"`
