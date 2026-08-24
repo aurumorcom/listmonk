@@ -357,7 +357,8 @@ func (c *Core) InsertSubscriber(sub models.Subscriber, listIDs []int, listUUIDs 
 		pq.Array(listIDs),
 		pq.Array(listUUIDs),
 		subStatus,
-		sub.Phone); err != nil {
+		sub.Phone,
+		sub.CRMID.String); err != nil {
 		if pqErr, ok := err.(*pq.Error); ok && pqErr.Constraint == "subscribers_email_key" {
 			return models.Subscriber{}, false, echo.NewHTTPError(http.StatusConflict, c.i18n.T("subscribers.emailExists"))
 		} else {
@@ -415,6 +416,7 @@ func (c *Core) UpdateSubscriber(id int, sub models.Subscriber) (models.Subscribe
 		sub.Status,
 		json.RawMessage(attribs),
 		sub.Phone,
+		sub.CRMID.String,
 	)
 	if err != nil {
 		c.log.Printf("error updating subscriber: %v", err)
@@ -463,7 +465,8 @@ func (c *Core) UpdateSubscriberWithLists(id int, sub models.Subscriber, listIDs 
 		deleteLists,
 		pq.Array(permittedListIDs),
 		allowResubscribe,
-		sub.Phone)
+		sub.Phone,
+		sub.CRMID.String)
 	if err != nil {
 		c.log.Printf("error updating subscriber: %v", err)
 		return models.Subscriber{}, false, echo.NewHTTPError(http.StatusInternalServerError,
