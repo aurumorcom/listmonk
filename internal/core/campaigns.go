@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"github.com/gofrs/uuid/v5"
 	"github.com/jmoiron/sqlx"
 	"github.com/knadh/listmonk/internal/auth"
+	"github.com/knadh/listmonk/internal/client"
 	"github.com/knadh/listmonk/internal/media"
 	"github.com/knadh/listmonk/internal/utils"
 	"github.com/knadh/listmonk/models"
@@ -1253,8 +1255,12 @@ func (c *Core) GetStepAttachments(store media.Store, mediaIDs []int64) ([]models
 	return atts, nil
 }
 
-// AllocateSendersRoundRobinInt distributes subscriber IDs round-robin across an integer pool (e.g. email account IDs).
-func AllocateSendersRoundRobinInt(subIDs []int, pool []int64) map[int]null.Int {
+// AllocateSendersRoundRobinInt distributes subscriber IDs round-robin across an integer pool (e.g. user IDs or email account IDs) with an optional starting offset.
+func AllocateSendersRoundRobinInt(subIDs []int, pool []int64, offset ...int) map[int]null.Int {
+	start := 0
+	if len(offset) > 0 {
+		start = offset[0]
+	}
 	alloc := make(map[int]null.Int, len(subIDs))
 	if len(pool) == 0 {
 		for _, id := range subIDs {
@@ -1263,13 +1269,17 @@ func AllocateSendersRoundRobinInt(subIDs []int, pool []int64) map[int]null.Int {
 		return alloc
 	}
 	for i, subID := range subIDs {
-		alloc[subID] = null.IntFrom(int(pool[i%len(pool)]))
+		alloc[subID] = null.IntFrom(int(pool[(start+i)%len(pool)]))
 	}
 	return alloc
 }
 
-// AllocateSendersRoundRobinString distributes subscriber IDs round-robin across a string pool (e.g. WAHA sessions).
-func AllocateSendersRoundRobinString(subIDs []int, pool []string) map[int]null.String {
+// AllocateSendersRoundRobinString distributes subscriber IDs round-robin across a string pool (e.g. WAHA sessions) with an optional starting offset.
+func AllocateSendersRoundRobinString(subIDs []int, pool []string, offset ...int) map[int]null.String {
+	start := 0
+	if len(offset) > 0 {
+		start = offset[0]
+	}
 	alloc := make(map[int]null.String, len(subIDs))
 	if len(pool) == 0 {
 		for _, id := range subIDs {
@@ -1278,7 +1288,7 @@ func AllocateSendersRoundRobinString(subIDs []int, pool []string) map[int]null.S
 		return alloc
 	}
 	for i, subID := range subIDs {
-		alloc[subID] = null.StringFrom(pool[i%len(pool)])
+		alloc[subID] = null.StringFrom(pool[(start+i)%len(pool)])
 	}
 	return alloc
 }
@@ -1362,71 +1372,27 @@ func (c *Core) EnrollCampaignSubscribers(sequenceID int, subscriberIDs []int, us
 		return nil
 	}
 
-	if _, err := c.GetSequence(sequenceID, ""); err != nil {
+	seq, err := c.GetSequence(sequenceID, "")
+	if err != nil {
 		return err
 	}
 
-	var explicitEmailID null.Int
-	var explicitWahaSession null.String
+	var existingCount int
+	_ = c.db.Get(&existingCount, "SELECT COUNT(*) FROM campaign_subscribers WHERE campaign_id = $1", sequenceID)
 
-	if len(userContext) > 0 {
-		if rawEID, ok := userContext["email_id"].(float64); ok && rawEID > 0 {
-			explicitEmailID = null.IntFrom(int(rawEID))
-		} else if rawEIDInt, ok := userContext["email_id"].(int); ok && rawEIDInt > 0 {
-			explicitEmailID = null.IntFrom(rawEIDInt)
-		}
-
-		if rawWS, ok := userContext["waha_session"].(string); ok && strings.TrimSpace(rawWS) != "" {
-			explicitWahaSession = null.StringFrom(strings.TrimSpace(rawWS))
-		}
-
-		var uid int
-		if rawID, ok := userContext["id"].(float64); ok && rawID > 0 {
-			uid = int(rawID)
-		} else if rawIDInt, ok := userContext["id"].(int); ok && rawIDInt > 0 {
-			uid = rawIDInt
-		}
-
-		if uid <= 0 {
-			var emailStr, phoneStr string
-			if rawEmail, ok := userContext["email"].(string); ok {
-				emailStr = strings.TrimSpace(rawEmail)
-			}
-			if rawPhone, ok := userContext["phone"].(string); ok {
-				phoneStr = strings.TrimSpace(rawPhone)
-			}
-			if emailStr != "" || phoneStr != "" {
-				if u, err := c.GetUserByEmailOrPhone(emailStr, phoneStr); err == nil && u.ID > 0 {
-					uid = u.ID
-				}
-			}
-		}
-
-		if uid > 0 {
-			var u auth.User
-			if err := c.db.Get(&u, "SELECT id, email_id, waha_session FROM users WHERE id = $1", uid); err == nil {
-				if u.EmailID.Valid && !explicitEmailID.Valid {
-					explicitEmailID = u.EmailID
-				}
-				if u.WahaSession.Valid && u.WahaSession.String != "" && (!explicitWahaSession.Valid || explicitWahaSession.String == "") {
-					explicitWahaSession = u.WahaSession
-				}
-			}
-			if !explicitEmailID.Valid {
-				var emailAccountID int
-				if err := c.db.Get(&emailAccountID, "SELECT id FROM emails WHERE user_id = $1 ORDER BY id ASC LIMIT 1", uid); err == nil && emailAccountID > 0 {
-					explicitEmailID = null.IntFrom(emailAccountID)
-				}
-			}
-		}
+	var userAlloc map[int]null.Int
+	if len(seq.UserIDs) > 0 {
+		userAlloc = AllocateSendersRoundRobinInt(subscriberIDs, seq.UserIDs, existingCount)
 	}
 
-	emailAlloc := make(map[int]null.Int, len(subscriberIDs))
-	wahaAlloc := make(map[int]null.String, len(subscriberIDs))
+	var emailAlloc map[int]null.Int
+	if len(seq.EmailIDs) > 0 {
+		emailAlloc = AllocateSendersRoundRobinInt(subscriberIDs, seq.EmailIDs, existingCount)
+	}
 
-	for _, id := range subscriberIDs {
-		emailAlloc[id] = explicitEmailID
-		wahaAlloc[id] = explicitWahaSession
+	var wahaAlloc map[int]null.String
+	if len(seq.WahaSessions) > 0 {
+		wahaAlloc = AllocateSendersRoundRobinString(subscriberIDs, seq.WahaSessions, existingCount)
 	}
 
 	tx, err := c.db.Beginx()
@@ -1435,9 +1401,12 @@ func (c *Core) EnrollCampaignSubscribers(sequenceID int, subscriberIDs []int, us
 	}
 	defer tx.Rollback()
 
-	stmt, err := tx.Preparex(`INSERT INTO campaign_subscribers (campaign_id, subscriber_id, email_id, waha_session, status, current_step, next_send_at)
-		VALUES ($1, $2, $3, $4, 'scheduled', 1, NOW())
-		ON CONFLICT (campaign_id, subscriber_id) DO UPDATE SET email_id = EXCLUDED.email_id, waha_session = EXCLUDED.waha_session`)
+	stmt, err := tx.Preparex(`INSERT INTO campaign_subscribers (campaign_id, subscriber_id, user_id, email_id, waha_session, status, current_step, next_send_at)
+		VALUES ($1, $2, $3, $4, $5, 'scheduled', 1, NOW())
+		ON CONFLICT (campaign_id, subscriber_id) DO UPDATE SET
+			user_id = COALESCE(campaign_subscribers.user_id, EXCLUDED.user_id),
+			email_id = COALESCE(campaign_subscribers.email_id, EXCLUDED.email_id),
+			waha_session = COALESCE(campaign_subscribers.waha_session, EXCLUDED.waha_session)`)
 	if err != nil {
 		c.log.Printf("error preparing sequence enrollment stmt: %v", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, c.i18n.Ts("public.errorProcessingRequest"))
@@ -1445,32 +1414,79 @@ func (c *Core) EnrollCampaignSubscribers(sequenceID int, subscriberIDs []int, us
 	defer stmt.Close()
 
 	for _, subID := range subscriberIDs {
-		emailID := emailAlloc[subID]
-		wSession := wahaAlloc[subID]
-
+		var uVal any
+		if userAlloc != nil && userAlloc[subID].Valid {
+			uVal = userAlloc[subID].Int
+		}
 		var mbVal any
-		if emailID.Valid {
-			mbVal = emailID.Int
+		if emailAlloc != nil && emailAlloc[subID].Valid {
+			mbVal = emailAlloc[subID].Int
 		}
 		var wsVal any
-		if wSession.Valid && wSession.String != "" {
-			wsVal = wSession.String
+		if wahaAlloc != nil && wahaAlloc[subID].Valid && wahaAlloc[subID].String != "" {
+			wsVal = wahaAlloc[subID].String
 		}
 
-		if _, err := stmt.Exec(sequenceID, subID, mbVal, wsVal); err != nil {
+		if _, err := stmt.Exec(sequenceID, subID, uVal, mbVal, wsVal); err != nil {
 			c.log.Printf("error enrolling subscriber %d into sequence %d: %v", subID, sequenceID, err)
 			return echo.NewHTTPError(http.StatusInternalServerError, c.i18n.Ts("public.errorProcessingRequest"))
 		}
+	}
 
-		if len(userContext) > 0 {
-			userBytes, err := json.Marshal(userContext)
-			if err == nil {
-				_, _ = tx.Exec(`UPDATE subscribers SET attribs = jsonb_set(COALESCE(attribs, '{}'::jsonb), '{user}', $1::jsonb) WHERE id = $2`, string(userBytes), subID)
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+
+	if st, err := c.GetSettings(); err == nil && st.CRM.Enabled && st.CRM.BaseURL != "" {
+		crmClient := client.CRM(st.CRM)
+		var listIDs []int
+		_ = c.db.Select(&listIDs, "SELECT list_id FROM campaign_lists WHERE campaign_id = $1 AND list_id IS NOT NULL", sequenceID)
+
+		for _, subID := range subscriberIDs {
+			sub, err := c.GetSubscriber(subID, "", "")
+			if err != nil {
+				continue
 			}
+			var cs models.CampaignSubscriber
+			if err := c.db.Get(&cs, `SELECT campaign_id, subscriber_id, email_id, waha_session, user_id, status, current_step, next_send_at, created_at FROM campaign_subscribers WHERE campaign_id = $1 AND subscriber_id = $2`, sequenceID, subID); err != nil {
+				continue
+			}
+			payload := BuildCRMDeepResearchPayload(cs, sub, sequenceID, listIDs)
+			_ = c.SetSubscriberStatusWaiting(sequenceID, subID)
+			go func(p client.CRMDeepResearchPayload) {
+				_ = crmClient.DeepResearch(context.Background(), p)
+			}(payload)
 		}
 	}
 
-	return tx.Commit()
+	return nil
+}
+
+// BuildCRMDeepResearchPayload constructs an unmutated payload for CRM deep research.
+func BuildCRMDeepResearchPayload(cs models.CampaignSubscriber, sub models.Subscriber, campaignID int, listIDs []int) client.CRMDeepResearchPayload {
+	return client.CRMDeepResearchPayload{
+		CampaignSubscriber: cs,
+		Subscriber:         sub,
+		CampaignID:         campaignID,
+		ListIDs:            listIDs,
+	}
+}
+
+// SetSubscriberStatusWaiting sets a campaign subscriber's status to 'waiting' while awaiting CRM deep research.
+func (c *Core) SetSubscriberStatusWaiting(campaignID int, subscriberID int) error {
+	_, err := c.db.Exec(`UPDATE campaign_subscribers SET status = $1 WHERE campaign_id = $2 AND subscriber_id = $3`, models.CampaignSubscriberStatusWaiting, campaignID, subscriberID)
+	return err
+}
+
+// UpdateCampaignSubscriberStatus updates the status of a campaign subscriber and resets next_send_at to NOW().
+func (c *Core) UpdateCampaignSubscriberStatus(campaignID int, subscriberID int, status string) error {
+	_, err := c.db.Exec(`UPDATE campaign_subscribers SET status = $1, next_send_at = NOW() WHERE campaign_id = $2 AND subscriber_id = $3`, status, campaignID, subscriberID)
+	return err
+}
+
+// CompleteCRMDeepResearch updates subscriber status from 'waiting' to 'scheduled' and resumes sequence steps.
+func (c *Core) CompleteCRMDeepResearch(campaignID int, subscriberID int) error {
+	return c.UpdateCampaignSubscriberStatus(campaignID, subscriberID, models.CampaignSubscriberStatusScheduled)
 }
 
 // GetDueSequenceSubscribers returns sequence subscribers due for sending for active sequence campaigns.

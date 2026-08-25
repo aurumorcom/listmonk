@@ -17,6 +17,7 @@ import (
 	"github.com/knadh/listmonk/internal/auth"
 	"github.com/knadh/listmonk/internal/testutil"
 	"github.com/knadh/listmonk/models"
+	null "gopkg.in/volatiletech/null.v6"
 )
 
 func getEnv(key, fallback string) string {
@@ -98,7 +99,6 @@ func TestIntegration_Bifrost_LiveAI_Completion(t *testing.T) {
 func TestExtractTemplateScope(t *testing.T) {
 	attribsMap := models.JSON{
 		"context": map[string]any{"company": "Acme Inc", "industry": "Software"},
-		"user":    map[string]any{"name": "Alice Sender", "title": "Account Executive"},
 	}
 
 	sub := models.Subscriber{
@@ -108,7 +108,15 @@ func TestExtractTemplateScope(t *testing.T) {
 		Attribs: attribsMap,
 	}
 
-	scope := ExtractTemplateScope(sub)
+	senderUser := &auth.User{
+		Base:     auth.Base{ID: 5},
+		Name:     "Alice Sender",
+		Username: "alicesender",
+		Email:    null.StringFrom("alice@example.com"),
+		Attribs:  models.JSON{"bio": "Account Executive"},
+	}
+
+	scope := ExtractTemplateScopeAdvanced(sub, senderUser)
 
 	if subObj, ok := scope["Subscriber"].(models.Subscriber); !ok || subObj.ID != 101 {
 		t.Errorf("expected Subscriber ID 101, got %v", scope["Subscriber"])
@@ -120,8 +128,34 @@ func TestExtractTemplateScope(t *testing.T) {
 	}
 
 	userMap, ok := scope["User"].(map[string]any)
-	if !ok || userMap["name"] != "Alice Sender" {
-		t.Errorf("expected User name 'Alice Sender', got %v", scope["User"])
+	if !ok || userMap["Name"] != "Alice Sender" || userMap["bio"] != "Account Executive" {
+		t.Errorf("expected User Name 'Alice Sender' and bio 'Account Executive', got %v", scope["User"])
+	}
+}
+
+func TestBuildSenderUserScope(t *testing.T) {
+	u := &auth.User{
+		Base:      auth.Base{ID: 42},
+		Name:      "John Doe",
+		Username:  "johndoe",
+		Email:     null.StringFrom("john@example.com"),
+		Phone:     null.StringFrom("+123456789"),
+		Signature: "Best regards, John",
+		CRMID:     null.StringFrom("crm_123"),
+		Attribs:   models.JSON{"bio": "Account Lead", "department": "Sales"},
+	}
+
+	res := BuildSenderUserScope(u)
+	if res["ID"] != 42 || res["Name"] != "John Doe" || res["Username"] != "johndoe" || res["Email"] != "john@example.com" {
+		t.Errorf("unexpected basic fields in user scope: %v", res)
+	}
+	if res["Signature"] != "Best regards, John" || res["CRMID"] != "crm_123" || res["bio"] != "Account Lead" {
+		t.Errorf("unexpected extended fields in user scope: %v", res)
+	}
+
+	nilRes := BuildSenderUserScope(nil)
+	if len(nilRes) != 0 {
+		t.Errorf("expected empty map for nil user, got %v", nilRes)
 	}
 }
 

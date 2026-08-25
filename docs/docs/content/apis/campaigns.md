@@ -9,6 +9,7 @@
 | GET    | [/api/campaigns/analytics/{type}](#get-apicampaignsanalyticstype)           | Retrieve view counts for a  campaign.     |
 | POST   | [/api/campaigns](#post-apicampaigns)                                        | Create a new campaign.                    |
 | POST   | [/api/campaigns/{campaign_id}/test](#post-apicampaignscampaign_idtest)      | Test campaign with arbitrary subscribers. |
+| POST   | [/api/campaigns/{campaign_id}/subscribers/{subscriber_id}](#post-apicampaignscampaign_idsubscriberssubscriber_id) | Update campaign subscriber status (e.g. resume sequence execution). |
 | PUT    | [/api/campaigns/{campaign_id}](#put-apicampaignscampaign_id)                | Update a campaign.                        |
 | PUT    | [/api/campaigns/{campaign_id}/status](#put-apicampaignscampaign_idstatus)   | Change status of a campaign.              |
 | PUT    | [/api/campaigns/{campaign_id}/archive](#put-apicampaignscampaign_idarchive) | Publish campaign to public archive.       |
@@ -541,5 +542,45 @@ curl -u "username:token" -X DELETE 'http://localhost:9000/api/campaigns?query=te
 ```json
 {
     "data": true
+}
+```
+
+______________________________________________________________________
+
+#### POST /api/campaigns/{campaign_id}/subscribers/{subscriber_id}
+
+Update status for a specific subscriber within a sequence campaign (e.g. transition from `waiting` to `scheduled` to signal deep research completion and trigger step scheduling forward).
+
+##### Parameters
+
+| Name          | Type   | Required | Description                |
+| :------------ | :----- | :------- | :------------------------- |
+| campaign_id   | number | Yes      | Campaign (or Sequence) ID. |
+| subscriber_id | number | Yes      | Subscriber ID.             |
+
+##### Request Body Data Model
+
+| Field  | Type   | Required | Description                                                                      |
+| :----- | :----- | :------- | :------------------------------------------------------------------------------- |
+| status | string | Yes      | Target status (`scheduled`, `in_progress`, `replied`, `finished`, `opted_out`). |
+
+##### Example Request
+
+```shell
+curl -u "username:token" -X POST 'http://localhost:9000/api/campaigns/42/subscribers/100' \
+    -H "Content-Type: application/json" \
+    -d '{
+        "status": "scheduled"
+    }'
+```
+
+##### Example Response
+
+```json
+{
+    "data": {
+        "status": "ok",
+        "message": "Campaign subscriber status updated to scheduled, sequence resumed"
+    }
 }
 ```

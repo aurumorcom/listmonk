@@ -1,5 +1,5 @@
 -- name: create-user
-INSERT INTO users (username, password_login, password, email, name, type, user_role_id, list_role_id, status, signature, phone)
+INSERT INTO users (username, password_login, password, email, name, type, user_role_id, list_role_id, status, signature, phone, crm_id, attribs)
     VALUES($1, $2, (
         CASE
             -- For user types with password_login enabled, bcrypt and store the hash of the password.
@@ -10,7 +10,7 @@ INSERT INTO users (username, password_login, password, email, name, type, user_r
                 THEN $3
             ELSE NULL
         END
-    ), $4, $5, $6, (SELECT id FROM roles WHERE id = $7 AND type = 'user'), (SELECT id FROM roles WHERE id = $8 AND type = 'list'), $9, $10, $11) RETURNING id;
+    ), $4, $5, $6, (SELECT id FROM roles WHERE id = $7 AND type = 'user'), (SELECT id FROM roles WHERE id = $8 AND type = 'list'), $9, $10, $11, NULLIF($12, ''), COALESCE($13::JSONB, '{}'::JSONB)) RETURNING id;
 
 -- name: update-user
 WITH u AS (
@@ -46,6 +46,8 @@ UPDATE users SET
     status=(CASE WHEN $10 != '' THEN $10::user_status ELSE status END),
     signature=$11,
     phone=$12,
+    crm_id=COALESCE(NULLIF($13, ''), crm_id),
+    attribs=COALESCE($14::JSONB, attribs),
     updated_at=NOW()
     WHERE id=$1 AND (SELECT canEdit FROM u) = TRUE;
 

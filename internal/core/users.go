@@ -118,8 +118,13 @@ func (c *Core) CreateUser(u auth.User) (auth.User, error) {
 		dbPassword = null.String{String: auth.HashAPIToken(tk), Valid: true}
 	}
 
+	attribsJSON, _ := json.Marshal(u.Attribs)
+	if u.Attribs == nil {
+		attribsJSON = []byte("{}")
+	}
+
 	var id int
-	if err := c.q.CreateUser.Get(&id, u.Username, u.PasswordLogin, dbPassword, u.Email, u.Name, u.Type, u.UserRoleID, u.ListRoleID, u.Status, u.Signature, u.Phone); err != nil {
+	if err := c.q.CreateUser.Get(&id, u.Username, u.PasswordLogin, dbPassword, u.Email, u.Name, u.Type, u.UserRoleID, u.ListRoleID, u.Status, u.Signature, u.Phone, u.CRMID.String, string(attribsJSON)); err != nil {
 		return auth.User{}, echo.NewHTTPError(http.StatusInternalServerError,
 			c.i18n.Ts("globals.messages.errorCreating", "name", "{globals.terms.user}", "error", pqErrMsg(err)))
 	}
@@ -147,7 +152,12 @@ func (c *Core) UpdateUser(id int, u auth.User) (auth.User, error) {
 		listRoleID = *u.ListRoleID
 	}
 
-	res, err := c.q.UpdateUser.Exec(id, u.Username, u.PasswordLogin, u.Password, u.Email, u.Name, u.Type, u.UserRoleID, listRoleID, u.Status, u.Signature, u.Phone)
+	attribsJSON, _ := json.Marshal(u.Attribs)
+	if u.Attribs == nil {
+		attribsJSON = []byte("{}")
+	}
+
+	res, err := c.q.UpdateUser.Exec(id, u.Username, u.PasswordLogin, u.Password, u.Email, u.Name, u.Type, u.UserRoleID, listRoleID, u.Status, u.Signature, u.Phone, u.CRMID.String, string(attribsJSON))
 	if err != nil {
 		return auth.User{}, echo.NewHTTPError(http.StatusInternalServerError,
 			c.i18n.Ts("globals.messages.errorUpdating", "name", "{globals.terms.user}", "error", pqErrMsg(err)))

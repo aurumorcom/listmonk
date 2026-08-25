@@ -39,6 +39,11 @@ curl -u "username:token" -X GET 'http://localhost:9000/api/users'
       "email_id": 10,
       "waha_session": "sales_session_a",
       "signature": "<p>Best regards,<br/>Admin User</p>",
+      "crm_id": "crm_usr_101",
+      "attribs": {
+        "bio": "Senior Sales Executive",
+        "department": "Enterprise"
+      },
       "created_at": "2024-01-01T00:00:00Z",
       "updated_at": "2024-01-01T00:00:00Z"
     }
@@ -98,7 +103,12 @@ Create a new user.
   "status": "enabled",
   "email_id": 10,
   "waha_session": "sales_session_a",
-  "signature": "<p>Best regards,<br/>Alice</p>"
+  "signature": "<p>Best regards,<br/>Alice</p>",
+  "crm_id": "crm_usr_101",
+  "attribs": {
+    "bio": "Senior Sales Executive",
+    "department": "Enterprise"
+  }
 }
 ```
 

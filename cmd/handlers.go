@@ -181,6 +181,7 @@ func initHTTPHandlers(e *echo.Echo, a *App) {
 		g.DELETE("/api/campaigns/:id", pm(hasID(a.DeleteCampaign), "campaigns:manage_all", "campaigns:manage"))
 		g.GET("/api/campaigns/:id/steps", pm(hasID(a.GetSequenceSteps), "campaigns:manage_all", "campaigns:manage", "campaigns:get"))
 		g.POST("/api/campaigns/:id/steps", pm(hasID(a.SaveSequenceSteps), "campaigns:manage_all", "campaigns:manage"))
+		g.POST("/api/campaigns/:id/subscribers/:subscriber_id", pm(hasID(a.UpdateCampaignSubscriberStatus), "campaigns:manage_all", "campaigns:manage", "subscribers:manage"))
 
 		g.GET("/api/webhooks", pm(a.GetWebhooks, "webhooks:get"))
 		g.POST("/api/webhooks", pm(a.CreateWebhook, "webhooks:manage"))

@@ -33,7 +33,8 @@ type campReq struct {
 	// write a list of int IDs during creation and updation.
 	// Campaign.Lists is JSONText for sending lists children
 	// to the outside world.
-	ListIDs []int `json:"lists"`
+	ListIDs []int         `json:"lists"`
+	UserIDs pq.Int64Array `json:"user_ids"`
 
 	MediaIDs []int `json:"media"`
 
@@ -962,7 +963,8 @@ type sequenceStepsReq struct {
 
 type sequenceReq struct {
 	models.Campaign
-	Lists []int `json:"lists"`
+	Lists   []int         `json:"lists"`
+	UserIDs pq.Int64Array `json:"user_ids"`
 }
 
 type sequenceTestReq struct {
@@ -1322,7 +1324,7 @@ func (a *App) TestSequence(c echo.Context) error {
 				SubscriberID: sub.ID,
 				CurrentStep:  req.StepNumber,
 				EmailID:      assignedEmailID,
-				WahaSession:  assignedWahaSession,
+				WhatsAppID:   assignedWahaSession,
 			}
 
 			if err := a.stepManager.PrepareAndDispatchStep(seqSub, sub, testStep, target); err != nil {
@@ -1334,4 +1336,36 @@ func (a *App) TestSequence(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, okResp{true})
+}
+
+type campaignSubscriberStatusReq struct {
+	Status string `json:"status"`
+}
+
+// UpdateCampaignSubscriberStatus updates the status of a campaign subscriber (e.g. from 'waiting' to 'scheduled' to resume sequence execution).
+func (a *App) UpdateCampaignSubscriberStatus(c echo.Context) error {
+	campaignID := getID(c)
+	subscriberID, err := strconv.Atoi(c.Param("subscriber_id"))
+	if err != nil || subscriberID <= 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, a.i18n.Ts("globals.messages.invalidFields", "name", "subscriber_id"))
+	}
+
+	var req campaignSubscriberStatusReq
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, a.i18n.Ts("globals.messages.invalidReq"))
+	}
+
+	status := strings.TrimSpace(req.Status)
+	if status == "" {
+		status = models.CampaignSubscriberStatusScheduled
+	}
+
+	if err := a.core.UpdateCampaignSubscriberStatus(campaignID, subscriberID, status); err != nil {
+		return err
+	}
+
+	return c.JSON(http.StatusOK, okResp{map[string]any{
+		"status":  "ok",
+		"message": "Campaign subscriber status updated to scheduled, sequence resumed",
+	}})
 }

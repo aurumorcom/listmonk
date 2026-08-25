@@ -7,6 +7,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/knadh/listmonk/internal/auth"
 	"github.com/knadh/listmonk/models"
 )
 
@@ -24,7 +25,6 @@ func TestScopeContextIsolationConcurrent(t *testing.T) {
 
 			attribs := models.JSON{
 				"context": map[string]any{"company": companyName},
-				"user":    map[string]any{"name": userName},
 			}
 
 			sub := models.Subscriber{
@@ -33,7 +33,9 @@ func TestScopeContextIsolationConcurrent(t *testing.T) {
 				Attribs: attribs,
 			}
 
-			scope := ExtractTemplateScope(sub)
+			senderUser := &auth.User{Name: userName}
+
+			scope := ExtractTemplateScopeAdvanced(sub, senderUser)
 
 			ctxMap, ok := scope["Context"].(map[string]any)
 			if !ok || ctxMap["company"] != companyName {
@@ -41,7 +43,7 @@ func TestScopeContextIsolationConcurrent(t *testing.T) {
 			}
 
 			userMap, ok := scope["User"].(map[string]any)
-			if !ok || userMap["name"] != userName {
+			if !ok || userMap["Name"] != userName {
 				t.Errorf("worker %d: expected user name %s, got %v", id, userName, scope["User"])
 			}
 		}(i)

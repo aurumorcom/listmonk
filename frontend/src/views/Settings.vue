@@ -58,6 +58,10 @@
             <whatsapp-settings :form="form" :key="key" />
           </b-tab-item><!-- whatsapp -->
 
+          <b-tab-item label="CRM (Frappe)">
+            <crm-settings :form="form" :key="key" />
+          </b-tab-item><!-- crm -->
+
           <b-tab-item label="Webhooks">
             <webhook-settings :form="form" :key="key" />
           </b-tab-item><!-- webhooks -->
@@ -80,6 +84,7 @@ import GeneralSettings from './settings/general.vue';
 import MediaSettings from './settings/media.vue';
 import MessengerSettings from './settings/messengers.vue';
 import WhatsappSettings from './settings/whatsapp.vue';
+import CrmSettings from './settings/crm.vue';
 import WebhookSettings from './settings/webhooks.vue';
 import PerformanceSettings from './settings/performance.vue';
 import PrivacySettings from './settings/privacy.vue';
@@ -97,6 +102,7 @@ export default Vue.extend({
     BounceSettings,
     MessengerSettings,
     WhatsappSettings,
+    CrmSettings,
     WebhookSettings,
     AppearanceSettings,
   },
@@ -185,6 +191,14 @@ export default Vue.extend({
         form['security.captcha'].hcaptcha.secret = '';
       } else if (this.hasDummy(form['security.captcha'].hcaptcha.secret)) {
         hasDummy = 'captcha';
+      }
+
+      if (form.crm) {
+        if (this.isDummy(form.crm.api_secret)) {
+          form.crm.api_secret = '';
+        } else if (this.hasDummy(form.crm.api_secret)) {
+          hasDummy = 'crm';
+        }
       }
 
       if (this.isDummy(form['security.oidc'].client_secret)) {
@@ -319,6 +333,16 @@ export default Vue.extend({
             if (!item.typing_mode) item.typing_mode = 'human';
             return item;
           });
+        }
+
+        // Ensure crm object exists
+        if (!d.crm) {
+          d.crm = {
+            enabled: false,
+            base_url: '',
+            api_key: '',
+            api_secret: '',
+          };
         }
 
         // Ensure webhooks exists and events array is initialized

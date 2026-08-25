@@ -31,6 +31,7 @@ const (
 	CampaignContentTypePlain    = "plain"
 	CampaignContentTypeVisual   = "visual"
 
+	CampaignSubscriberStatusWaiting    = "waiting"
 	CampaignSubscriberStatusScheduled  = "scheduled"
 	CampaignSubscriberStatusInProgress = "in_progress"
 	CampaignSubscriberStatusReplied    = "replied"
@@ -80,6 +81,7 @@ type Campaign struct {
 	SendWindow   JSON           `db:"send_window" json:"send_window"`
 	EmailIDs     pq.Int64Array  `db:"email_ids" json:"email_ids"`
 	WahaSessions pq.StringArray `db:"waha_sessions" json:"waha_sessions"`
+	UserIDs      pq.Int64Array  `db:"user_ids" json:"user_ids"`
 	Steps        []CampaignStep `db:"-" json:"steps,omitempty"`
 
 	// TemplateBody is joined in from templates by the next-campaigns query.
@@ -450,7 +452,8 @@ type CampaignSubscriber struct {
 	SubscriberID    int         `db:"subscriber_id" json:"subscriber_id"`
 	EmailID         null.Int    `db:"email_id" json:"email_id"`
 	FromAddress     null.String `db:"from_address" json:"from_address"`
-	WahaSession     null.String `db:"waha_session" json:"waha_session"`
+	WhatsAppID      null.String `db:"waha_session" json:"whatsapp_id"`
+	UserID          null.Int    `db:"user_id" json:"user_id"`
 	Status          string      `db:"status" json:"status"`
 	CurrentStep     int         `db:"current_step" json:"current_step"`
 	NextSendAt      null.Time   `db:"next_send_at" json:"next_send_at"`

@@ -89,8 +89,8 @@ SELECT lists.*,
 
 -- name: insert-subscriber
 WITH sub AS (
-    INSERT INTO subscribers (uuid, email, name, status, attribs, phone)
-    VALUES($1, $2, $3, $4, $5, $9)
+    INSERT INTO subscribers (uuid, email, name, status, attribs, phone, crm_id)
+    VALUES($1, $2, $3, $4, $5, $9, NULLIF($10, ''))
     RETURNING id, status
 ),
 listIDs AS (
@@ -119,13 +119,14 @@ SELECT id from sub;
 -- Upserts a subscriber where existing subscribers get their names and attributes overwritten.
 -- If $7 = true, update name/attribs. If $8 = true, update subscription status.
 WITH sub AS (
-    INSERT INTO subscribers as s (uuid, email, name, attribs, status, phone)
-    VALUES($1, $2, $3, $4, 'enabled', $9)
+    INSERT INTO subscribers as s (uuid, email, name, attribs, status, phone, crm_id)
+    VALUES($1, $2, $3, $4, 'enabled', $9, NULLIF($10, ''))
     ON CONFLICT (email)
     DO UPDATE SET
         name=(CASE WHEN $7 THEN $3 ELSE s.name END),
         attribs=(CASE WHEN $7 THEN $4 ELSE s.attribs END),
         phone=(CASE WHEN $7 THEN $9 ELSE s.phone END),
+        crm_id=(CASE WHEN $7 AND $10 != '' THEN $10 ELSE s.crm_id END),
         updated_at=NOW()
     RETURNING uuid, id, status
 ),
@@ -160,6 +161,7 @@ UPDATE subscribers SET
     status=(CASE WHEN $4 != '' THEN $4::subscriber_status ELSE status END),
     attribs=(CASE WHEN $5 != '' THEN $5::JSONB ELSE attribs END),
     phone=$6,
+    crm_id=(CASE WHEN $7 != '' THEN $7 ELSE crm_id END),
     updated_at=NOW()
 WHERE id = $1;
 
@@ -173,6 +175,7 @@ WITH s AS (
         status=(CASE WHEN $4 != '' THEN $4::subscriber_status ELSE status END),
         attribs=(CASE WHEN $5 != '' THEN $5::JSONB ELSE attribs END),
         phone=$12,
+        crm_id=(CASE WHEN $13 != '' THEN $13 ELSE crm_id END),
         updated_at=NOW()
     WHERE id = $1 RETURNING id
 ),

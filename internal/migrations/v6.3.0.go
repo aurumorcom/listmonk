@@ -32,6 +32,11 @@ func V6_3_0(db *sqlx.DB, fs stuffbin.FileSystem, ko *koanf.Koanf, lo *log.Logger
 		-- 2. Subscriber Timezone
 		ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS tz TEXT NOT NULL DEFAULT '';
 		UPDATE subscribers SET tz = COALESCE(NULLIF(attribs->>'tz', ''), NULLIF(attribs->>'timezone', ''), '') WHERE tz = '';
+		ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS crm_id TEXT NULL;
+		CREATE INDEX IF NOT EXISTS idx_subs_crm_id ON subscribers(crm_id) WHERE crm_id IS NOT NULL;
+
+		ALTER TABLE lists ADD COLUMN IF NOT EXISTS crm_id TEXT NULL;
+		CREATE INDEX IF NOT EXISTS idx_lists_crm_id ON lists(crm_id) WHERE crm_id IS NOT NULL;
 
 		-- 3. Unified Campaign Schema Updates
 		ALTER TYPE campaign_type ADD VALUE IF NOT EXISTS 'sequence';
@@ -62,7 +67,8 @@ func V6_3_0(db *sqlx.DB, fs stuffbin.FileSystem, ko *koanf.Koanf, lo *log.Logger
 			ADD COLUMN IF NOT EXISTS schedule_id INTEGER NULL REFERENCES schedules(id) ON DELETE SET NULL,
 			ADD COLUMN IF NOT EXISTS send_window JSONB NOT NULL DEFAULT '{}',
 			ADD COLUMN IF NOT EXISTS email_ids INTEGER[] NOT NULL DEFAULT '{}',
-			ADD COLUMN IF NOT EXISTS waha_sessions TEXT[] NOT NULL DEFAULT '{}';
+			ADD COLUMN IF NOT EXISTS waha_sessions TEXT[] NOT NULL DEFAULT '{}',
+			ADD COLUMN IF NOT EXISTS user_ids INTEGER[] NOT NULL DEFAULT '{}';
 
 		CREATE TABLE IF NOT EXISTS campaign_steps (
 			id           SERIAL PRIMARY KEY,
@@ -93,6 +99,7 @@ func V6_3_0(db *sqlx.DB, fs stuffbin.FileSystem, ko *koanf.Koanf, lo *log.Logger
 			email_id           INTEGER NULL REFERENCES emails(id) ON DELETE SET NULL,
 			from_address       TEXT NULL,
 			waha_session       TEXT NULL,
+			user_id            INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
 			status             TEXT NOT NULL DEFAULT 'scheduled',
 			current_step       INTEGER NOT NULL DEFAULT 1,
 			next_send_at       TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -103,8 +110,10 @@ func V6_3_0(db *sqlx.DB, fs stuffbin.FileSystem, ko *koanf.Koanf, lo *log.Logger
 			created_at         TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
 			PRIMARY KEY (campaign_id, subscriber_id)
 		);
+		ALTER TABLE campaign_subscribers ADD COLUMN IF NOT EXISTS user_id INTEGER NULL REFERENCES users(id) ON DELETE SET NULL;
 		CREATE INDEX IF NOT EXISTS idx_camp_subscribers_next_send ON campaign_subscribers(status, next_send_at);
 		CREATE INDEX IF NOT EXISTS idx_camp_subscribers_sender ON campaign_subscribers(campaign_id, email_id, waha_session);
+		CREATE INDEX IF NOT EXISTS idx_camp_subscribers_user_id ON campaign_subscribers(campaign_id, user_id);
 
 		-- 4. Templates
 		ALTER TYPE template_type ADD VALUE IF NOT EXISTS 'prompt';
@@ -116,9 +125,12 @@ func V6_3_0(db *sqlx.DB, fs stuffbin.FileSystem, ko *koanf.Koanf, lo *log.Logger
 			ADD COLUMN IF NOT EXISTS email_id INTEGER NULL REFERENCES emails(id) ON DELETE SET NULL,
 			ADD COLUMN IF NOT EXISTS waha_session TEXT NULL,
 			ADD COLUMN IF NOT EXISTS signature TEXT NOT NULL DEFAULT '',
-			ADD COLUMN IF NOT EXISTS phone TEXT NULL;
+			ADD COLUMN IF NOT EXISTS phone TEXT NULL,
+			ADD COLUMN IF NOT EXISTS crm_id TEXT NULL,
+			ADD COLUMN IF NOT EXISTS attribs JSONB NOT NULL DEFAULT '{}';
 		CREATE INDEX IF NOT EXISTS idx_users_channels ON users(email_id, waha_session);
 		CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone);
+		CREATE INDEX IF NOT EXISTS idx_users_crm_id ON users(crm_id) WHERE crm_id IS NOT NULL;
 
 		-- 6. Webhooks & Webhook Logs
 		DO $$
@@ -161,7 +173,8 @@ func V6_3_0(db *sqlx.DB, fs stuffbin.FileSystem, ko *koanf.Koanf, lo *log.Logger
 		-- 7. Seed Settings Rows
 		INSERT INTO settings (key, value) VALUES
 			('waha', '[]'),
-			('webhooks', '[]')
+			('webhooks', '[]'),
+			('crm', '{"enabled": false, "base_url": "", "api_key": "", "api_secret": ""}')
 		ON CONFLICT (key) DO NOTHING;
 	`); err != nil {
 		return err

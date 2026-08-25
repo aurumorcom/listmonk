@@ -26,7 +26,7 @@ camp AS (
     INSERT INTO campaigns (uuid, type, name, subject, from_email, body, altbody,
         content_type, send_at, headers, attribs, tags, messenger, template_id, to_send,
         max_subscriber_id, archive, archive_slug, archive_template_id, archive_meta, body_source,
-        schedule_id, send_window, email_ids, waha_sessions)
+        schedule_id, send_window, email_ids, waha_sessions, user_ids)
         SELECT $1, $2, $3, $4, $5,
             -- body
             COALESCE(NULLIF($6, ''), (SELECT body FROM tpl), ''),
@@ -42,7 +42,7 @@ camp AS (
             $19,
             -- body_source
             COALESCE($21, (SELECT body_source FROM tpl)),
-            $22, COALESCE($23::JSONB, '{}'::JSONB), COALESCE($24::INT[], '{}'::INT[]), COALESCE($25::TEXT[], '{}'::TEXT[])
+            $22, COALESCE($23::JSONB, '{}'::JSONB), COALESCE($24::INT[], '{}'::INT[]), COALESCE($25::TEXT[], '{}'::TEXT[]), COALESCE($26::INT[], '{}'::INT[])
         RETURNING id
 ),
 med AS (
@@ -421,6 +421,7 @@ WITH camp AS (
         send_window=COALESCE($22::JSONB, '{}'::JSONB),
         email_ids=COALESCE($23::INT[], '{}'::INT[]),
         waha_sessions=COALESCE($24::TEXT[], '{}'::TEXT[]),
+        user_ids=COALESCE($25::INT[], '{}'::INT[]),
         updated_at=NOW()
     WHERE id = $1 RETURNING id
 ),
@@ -519,8 +520,8 @@ WHERE view.campaign_id IS NOT NULL;
 -- campaign sequence steps & subscribers
 
 -- name: enroll-campaign-subscribers-by-lists
-INSERT INTO campaign_subscribers (campaign_id, subscriber_id, status, current_step, next_send_at)
-SELECT DISTINCT cl.campaign_id, subl.subscriber_id, 'scheduled', 1, NOW()
+INSERT INTO campaign_subscribers (campaign_id, subscriber_id, user_id, status, current_step, next_send_at)
+SELECT DISTINCT cl.campaign_id, subl.subscriber_id, NULL, 'scheduled', 1, NOW()
 FROM campaign_lists cl
 JOIN lists l ON l.id = cl.list_id
 JOIN subscriber_lists subl ON subl.list_id = cl.list_id
@@ -541,8 +542,8 @@ ON CONFLICT (campaign_id, subscriber_id) DO UPDATE SET
     END;
 
 -- name: enroll-subscribers-into-active-sequences-for-lists
-INSERT INTO campaign_subscribers (campaign_id, subscriber_id, status, current_step, next_send_at)
-SELECT DISTINCT cl.campaign_id, s.id, 'scheduled', 1, NOW()
+INSERT INTO campaign_subscribers (campaign_id, subscriber_id, user_id, status, current_step, next_send_at)
+SELECT DISTINCT cl.campaign_id, s.id, NULL, 'scheduled', 1, NOW()
 FROM subscribers s
 JOIN subscriber_lists subl ON subl.subscriber_id = s.id
 JOIN campaign_lists cl ON cl.list_id = subl.list_id
@@ -606,14 +607,14 @@ RETURNING id, campaign_id, step_number, delay, messenger, condition, subject, bo
 DELETE FROM campaign_steps WHERE campaign_id = $1;
 
 -- name: enroll-campaign-subscribers
-INSERT INTO campaign_subscribers (campaign_id, subscriber_id, status, current_step, next_send_at)
-SELECT $1, id, 'scheduled', 1, NOW()
+INSERT INTO campaign_subscribers (campaign_id, subscriber_id, user_id, status, current_step, next_send_at)
+SELECT $1, id, NULL, 'scheduled', 1, NOW()
 FROM subscribers
 WHERE id = ANY($2::INT[])
 ON CONFLICT (campaign_id, subscriber_id) DO NOTHING;
 
 -- name: get-due-campaign-subscribers
-SELECT campaign_id, subscriber_id, email_id, from_address, waha_session, status, current_step, next_send_at, last_read_at, last_clicked_at, last_message_id, last_thread_msg_id, created_at
+SELECT campaign_id, subscriber_id, email_id, from_address, waha_session, user_id, status, current_step, next_send_at, last_read_at, last_clicked_at, last_message_id, last_thread_msg_id, created_at
 FROM campaign_subscribers
 WHERE status IN ('scheduled', 'in_progress') AND next_send_at <= NOW()
 LIMIT $1;

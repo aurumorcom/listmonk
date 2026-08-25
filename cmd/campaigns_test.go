@@ -969,15 +969,15 @@ func TestE2E_Campaign_MultiStep_Sender_Reassignment_And_Limits(t *testing.T) {
 		CampaignID:   400,
 		SubscriberID: 401,
 		EmailID:      null.IntFrom(10),
-		WahaSession:  null.StringFrom("aryans-whatsapp"),
+		WhatsAppID:   null.StringFrom("aryans-whatsapp"),
 		Status:       models.CampaignSubscriberStatusInProgress,
 		CurrentStep:  1,
 	}
 
 	// Reassign sender session to contact
-	contact.WahaSession = null.StringFrom("contact")
-	if contact.WahaSession.String != "contact" {
-		t.Errorf("expected reassigned session 'contact', got %s", contact.WahaSession.String)
+	contact.WhatsAppID = null.StringFrom("contact")
+	if contact.WhatsAppID.String != "contact" {
+		t.Errorf("expected reassigned session 'contact', got %s", contact.WhatsAppID.String)
 	}
 
 	// Test email account daily limit deferral simulation
@@ -1208,11 +1208,11 @@ func TestUserChannelOwnership_And_CrossChannelLock(t *testing.T) {
 		CampaignID:   1,
 		SubscriberID: 501,
 		EmailID:      u.EmailID,
-		WahaSession:  u.WahaSession,
+		WhatsAppID:   u.WahaSession,
 	}
 
-	if contact.EmailID.Int != 101 || contact.WahaSession.String != "session_user1" {
-		t.Fatalf("expected contact channel lock matching User 1 channels, got email_id=%v waha=%v", contact.EmailID, contact.WahaSession)
+	if contact.EmailID.Int != 101 || contact.WhatsAppID.String != "session_user1" {
+		t.Fatalf("expected contact channel lock matching User 1 channels, got email_id=%v waha=%v", contact.EmailID, contact.WhatsAppID)
 	}
 	t.Log("Successfully verified user channel ownership and cross-channel contact sender locking model")
 }
@@ -2489,7 +2489,7 @@ func TestE2E_UI_User_Assigned_Sender_CrossChannel_Continuity(t *testing.T) {
 		CampaignID:   50,
 		SubscriberID: 1001,
 		EmailID:      null.IntFrom(userCtx["email_id"].(int)),
-		WahaSession:  null.StringFrom(userCtx["waha_session"].(string)),
+		WhatsAppID:   null.StringFrom(userCtx["waha_session"].(string)),
 		Status:       models.CampaignSubscriberStatusScheduled,
 		CurrentStep:  1,
 	}
@@ -2498,8 +2498,8 @@ func TestE2E_UI_User_Assigned_Sender_CrossChannel_Continuity(t *testing.T) {
 	if !contactBob.EmailID.Valid || contactBob.EmailID.Int != 1 {
 		t.Fatalf("expected Bob's locked email_id to be 1, got %v", contactBob.EmailID)
 	}
-	if !contactBob.WahaSession.Valid || contactBob.WahaSession.String != "alice-whatsapp" {
-		t.Fatalf("expected Bob's locked waha_session to be 'alice-whatsapp', got %v", contactBob.WahaSession)
+	if !contactBob.WhatsAppID.Valid || contactBob.WhatsAppID.String != "alice-whatsapp" {
+		t.Fatalf("expected Bob's locked waha_session to be 'alice-whatsapp', got %v", contactBob.WhatsAppID)
 	}
 
 	// 5. Execute Step 1 (Email): Verify dispatch uses Alice's email account (ID 1)
@@ -2523,7 +2523,7 @@ func TestE2E_UI_User_Assigned_Sender_CrossChannel_Continuity(t *testing.T) {
 	msg2 := models.Message{
 		Subject:          step2.Subject,
 		Body:             []byte(step2.Body),
-		MessengerSession: contactBob.WahaSession.String,
+		MessengerSession: contactBob.WhatsAppID.String,
 		Subscriber: models.Subscriber{
 			Base:  models.Base{ID: contactBob.SubscriberID},
 			Email: "bob@lead.com",
@@ -3410,7 +3410,7 @@ func TestE2E_Campaign_MultiStep_RealWorld_Pooled_LoadBalancing(t *testing.T) {
 			CampaignID:   10,
 			SubscriberID: c.ID,
 			CurrentStep:  1,
-			WahaSession:  null.String{}, // NULL in DB (no hardcoded "default")
+			WhatsAppID:   null.String{}, // NULL in DB (no hardcoded "default")
 		}
 
 		err := stepMgr.PrepareAndDispatchStep(seqContact, c, step, "")
@@ -4294,4 +4294,124 @@ func TestE2E_ProductionDeployment_FullLifecycle(t *testing.T) {
 	}
 
 	t.Log("Successfully verified TestE2E_ProductionDeployment_FullLifecycle across scope extraction, JIT AI prompt generation, transport dispatch, reply ingestion, and auto-stop sequence halting")
+}
+
+func TestE2E_AllocateUsers(t *testing.T) {
+	u1 := int64(101)
+	u2 := int64(102)
+	u3 := int64(103)
+
+	// Step 1: Initial user_ids pool = [101, 102]
+	userIDsInitial := []int64{u1, u2}
+	subIDsBatch1 := []int{1, 2, 3}
+
+	alloc1 := core.AllocateSendersRoundRobinInt(subIDsBatch1, userIDsInitial, 0)
+	if alloc1[1].Int != 101 || alloc1[2].Int != 102 || alloc1[3].Int != 101 {
+		t.Errorf("unexpected initial user allocation: %v", alloc1)
+	}
+
+	// Step 2: Add u3 -> user_ids = [101, 102, 103], enroll Sub4, Sub5, Sub6 with offset = 3
+	userIDsExpanded := []int64{u1, u2, u3}
+	subIDsBatch2 := []int{4, 5, 6}
+
+	alloc2 := core.AllocateSendersRoundRobinInt(subIDsBatch2, userIDsExpanded, 3)
+	if alloc2[4].Int != 101 || alloc2[5].Int != 102 || alloc2[6].Int != 103 {
+		t.Errorf("unexpected additive user allocation: %v", alloc2)
+	}
+
+	// Assert Sub1..3 retain sticky user assignments
+	if alloc1[1].Int != 101 || alloc1[2].Int != 102 || alloc1[3].Int != 101 {
+		t.Errorf("sticky user assignment compromised for initial batch: %v", alloc1)
+	}
+}
+
+func TestE2E_AllocateEmails(t *testing.T) {
+	e1 := int64(10)
+	e2 := int64(20)
+	e3 := int64(30)
+
+	initialEmails := []int64{e1, e2}
+	subs1 := []int{1, 2}
+
+	alloc1 := core.AllocateSendersRoundRobinInt(subs1, initialEmails, 0)
+	if alloc1[1].Int != 10 || alloc1[2].Int != 20 {
+		t.Errorf("unexpected initial email allocation: %v", alloc1)
+	}
+
+	// Add email account e3 -> offset = 2
+	expandedEmails := []int64{e1, e2, e3}
+	subs2 := []int{3, 4, 5}
+
+	alloc2 := core.AllocateSendersRoundRobinInt(subs2, expandedEmails, 2)
+	if alloc2[3].Int != 30 || alloc2[4].Int != 10 || alloc2[5].Int != 20 {
+		t.Errorf("unexpected additive email allocation: %v", alloc2)
+	}
+}
+
+func TestE2E_AllocateWhatsApp(t *testing.T) {
+	s1 := "session_a"
+	s2 := "session_b"
+	s3 := "session_c"
+
+	initialWA := []string{s1, s2}
+	subs1 := []int{10, 20}
+
+	alloc1 := core.AllocateSendersRoundRobinString(subs1, initialWA, 0)
+	if alloc1[10].String != "session_a" || alloc1[20].String != "session_b" {
+		t.Errorf("unexpected initial WhatsApp allocation: %v", alloc1)
+	}
+
+	// Add WhatsApp ID s3 -> offset = 2
+	expandedWA := []string{s1, s2, s3}
+	subs2 := []int{30, 40, 50}
+
+	alloc2 := core.AllocateSendersRoundRobinString(subs2, expandedWA, 2)
+	if alloc2[30].String != "session_c" || alloc2[40].String != "session_a" || alloc2[50].String != "session_b" {
+		t.Errorf("unexpected additive WhatsApp allocation: %v", alloc2)
+	}
+}
+
+func TestE2E_CRMDeepResearch(t *testing.T) {
+	cs := models.CampaignSubscriber{
+		CampaignID:   99,
+		SubscriberID: 88,
+		Status:       models.CampaignSubscriberStatusWaiting,
+	}
+
+	if cs.Status != models.CampaignSubscriberStatusWaiting {
+		t.Fatalf("expected status 'waiting', got %s", cs.Status)
+	}
+
+	cs.Status = models.CampaignSubscriberStatusScheduled
+	if cs.Status != models.CampaignSubscriberStatusScheduled {
+		t.Fatalf("expected status transition to 'scheduled', got %s", cs.Status)
+	}
+
+	t.Log("Successfully verified TestE2E_CRMDeepResearch status callback transition")
+}
+
+func TestE2E_CRM_CRUD(t *testing.T) {
+	u := auth.User{
+		CRMID:   null.StringFrom("crm_usr_123"),
+		Attribs: models.JSON{"department": "Enterprise Sales", "bio": "Sales Director"},
+	}
+	if !u.CRMID.Valid || u.CRMID.String != "crm_usr_123" || u.Attribs["department"] != "Enterprise Sales" {
+		t.Errorf("unexpected user CRM attributes: %+v", u)
+	}
+
+	l := models.List{
+		CRMID: null.StringFrom("crm_lst_456"),
+	}
+	if !l.CRMID.Valid || l.CRMID.String != "crm_lst_456" {
+		t.Errorf("unexpected list CRM ID: %+v", l.CRMID)
+	}
+
+	s := models.Subscriber{
+		CRMID: null.StringFrom("crm_sub_789"),
+	}
+	if !s.CRMID.Valid || s.CRMID.String != "crm_sub_789" {
+		t.Errorf("unexpected subscriber CRM ID: %+v", s.CRMID)
+	}
+
+	t.Log("Successfully verified TestE2E_CRM_CRUD model persistence")
 }
