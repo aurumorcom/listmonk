@@ -6,6 +6,14 @@ import (
 	"gopkg.in/volatiletech/null.v6"
 )
 
+// CRMSettings represents the CRM integration settings.
+type CRMSettings struct {
+	Enabled   bool   `json:"enabled"`
+	BaseURL   string `json:"base_url"`
+	APIKey    string `json:"api_key"`
+	APISecret string `json:"api_secret"`
+}
+
 // Settings represents the app settings stored in the DB.
 type Settings struct {
 	AppSiteName                   string   `json:"app.site_name"`
@@ -69,12 +77,7 @@ type Settings struct {
 		DefaultListRoleID null.Int `json:"default_list_role_id"`
 	} `json:"security.oidc"`
 
-	CRM struct {
-		Enabled   bool   `json:"enabled"`
-		BaseURL   string `json:"base_url"`
-		APIKey    string `json:"api_key"`
-		APISecret string `json:"api_secret"`
-	} `json:"crm"`
+	CRM CRMSettings `json:"crm"`
 
 	SecurityTrustedURLs []string `json:"security.trusted_urls"`
 

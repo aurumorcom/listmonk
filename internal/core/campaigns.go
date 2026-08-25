@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"github.com/gofrs/uuid/v5"
 	"github.com/jmoiron/sqlx"
 	"github.com/knadh/listmonk/internal/auth"
+	"github.com/knadh/listmonk/internal/client"
 	"github.com/knadh/listmonk/internal/media"
 	"github.com/knadh/listmonk/internal/utils"
 	"github.com/knadh/listmonk/models"
@@ -1431,7 +1433,63 @@ func (c *Core) EnrollCampaignSubscribers(sequenceID int, subscriberIDs []int, us
 		}
 	}
 
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+
+	if st, err := c.GetSettings(); err == nil && st.CRM.Enabled && st.CRM.BaseURL != "" {
+		crmClient := client.CRM(st.CRM)
+		var listIDs []int
+		for _, l := range seq.Lists {
+			listIDs = append(listIDs, l.ID)
+		}
+
+		for _, subID := range subscriberIDs {
+			sub, err := c.GetSubscriber(subID, false)
+			if err != nil {
+				continue
+			}
+			var cs models.CampaignSubscriber
+			if err := c.db.Get(&cs, `SELECT campaign_id, subscriber_id, email_id, waha_session, user_id, status, current_step, next_send_at, created_at FROM campaign_subscribers WHERE campaign_id = $1 AND subscriber_id = $2`, sequenceID, subID); err != nil {
+				continue
+			}
+			cs.WhatsAppID = cs.WahaSession
+			payload := BuildCRMDeepResearchPayload(cs, sub, sequenceID, listIDs)
+			_ = c.SetSubscriberStatusWaiting(sequenceID, subID)
+			go func(p client.CRMDeepResearchPayload) {
+				_ = crmClient.DeepResearch(context.Background(), p)
+			}(payload)
+		}
+	}
+
+	return nil
+}
+
+// BuildCRMDeepResearchPayload constructs an unmutated payload for CRM deep research.
+func BuildCRMDeepResearchPayload(cs models.CampaignSubscriber, sub models.Subscriber, campaignID int, listIDs []int) client.CRMDeepResearchPayload {
+	return client.CRMDeepResearchPayload{
+		CampaignSubscriber: cs,
+		Subscriber:         sub,
+		CampaignID:         campaignID,
+		ListIDs:            listIDs,
+	}
+}
+
+// SetSubscriberStatusWaiting sets a campaign subscriber's status to 'waiting' while awaiting CRM deep research.
+func (c *Core) SetSubscriberStatusWaiting(campaignID int, subscriberID int) error {
+	_, err := c.db.Exec(`UPDATE campaign_subscribers SET status = $1 WHERE campaign_id = $2 AND subscriber_id = $3`, models.CampaignSubscriberStatusWaiting, campaignID, subscriberID)
+	return err
+}
+
+// UpdateCampaignSubscriberStatus updates the status of a campaign subscriber and resets next_send_at to NOW().
+func (c *Core) UpdateCampaignSubscriberStatus(campaignID int, subscriberID int, status string) error {
+	_, err := c.db.Exec(`UPDATE campaign_subscribers SET status = $1, next_send_at = NOW() WHERE campaign_id = $2 AND subscriber_id = $3`, status, campaignID, subscriberID)
+	return err
+}
+
+// CompleteCRMDeepResearch updates subscriber status from 'waiting' to 'scheduled' and resumes sequence steps.
+func (c *Core) CompleteCRMDeepResearch(campaignID int, subscriberID int) error {
+	return c.UpdateCampaignSubscriberStatus(campaignID, subscriberID, models.CampaignSubscriberStatusScheduled)
 }
 
 // GetDueSequenceSubscribers returns sequence subscribers due for sending for active sequence campaigns.
