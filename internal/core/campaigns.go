@@ -1440,12 +1440,10 @@ func (c *Core) EnrollCampaignSubscribers(sequenceID int, subscriberIDs []int, us
 	if st, err := c.GetSettings(); err == nil && st.CRM.Enabled && st.CRM.BaseURL != "" {
 		crmClient := client.CRM(st.CRM)
 		var listIDs []int
-		for _, l := range seq.Lists {
-			listIDs = append(listIDs, l.ID)
-		}
+		_ = c.db.Select(&listIDs, "SELECT list_id FROM campaign_lists WHERE campaign_id = $1 AND list_id IS NOT NULL", sequenceID)
 
 		for _, subID := range subscriberIDs {
-			sub, err := c.GetSubscriber(subID, false)
+			sub, err := c.GetSubscriber(subID, "", "")
 			if err != nil {
 				continue
 			}
@@ -1453,7 +1451,6 @@ func (c *Core) EnrollCampaignSubscribers(sequenceID int, subscriberIDs []int, us
 			if err := c.db.Get(&cs, `SELECT campaign_id, subscriber_id, email_id, waha_session, user_id, status, current_step, next_send_at, created_at FROM campaign_subscribers WHERE campaign_id = $1 AND subscriber_id = $2`, sequenceID, subID); err != nil {
 				continue
 			}
-			cs.WhatsAppID = cs.WahaSession
 			payload := BuildCRMDeepResearchPayload(cs, sub, sequenceID, listIDs)
 			_ = c.SetSubscriberStatusWaiting(sequenceID, subID)
 			go func(p client.CRMDeepResearchPayload) {
