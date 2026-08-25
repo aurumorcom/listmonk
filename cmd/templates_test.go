@@ -11,6 +11,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/knadh/listmonk/internal/auth"
 	"github.com/knadh/listmonk/internal/manager"
 	"github.com/knadh/listmonk/models"
 	null "gopkg.in/volatiletech/null.v6"
@@ -229,7 +230,11 @@ func TestE2E_TestMessageDispatch_Lifecycle(t *testing.T) {
 }
 
 func TestE2E_DummySubscriber_UserBio_And_StepVariations(t *testing.T) {
-	scope := manager.ExtractTemplateScope(dummySubscriber)
+	dummyUser := &auth.User{
+		Name:    "Admin User",
+		Attribs: models.JSON{"bio": "Experienced Account Executive"},
+	}
+	scope := manager.ExtractTemplateScopeAdvanced(dummySubscriber, dummyUser)
 
 	// Verify User bio
 	userObj, ok := scope["User"].(map[string]any)
@@ -238,7 +243,7 @@ func TestE2E_DummySubscriber_UserBio_And_StepVariations(t *testing.T) {
 	}
 
 	// Verify Step 1 variations
-	tplStr := `Rep: {{ .User.name }} ({{ .User.bio }}). Step 1: {{ .Step1.subject }}. Steps.Step1: {{ .Steps.Step1.subject }}. Step.1: {{ (index .Step "1").subject }}. Step.Step1: {{ .Step.Step1.subject }}`
+	tplStr := `Rep: {{ .User.Name }} ({{ .User.bio }}). Step 1: {{ .Step1.subject }}. Steps.Step1: {{ .Steps.Step1.subject }}. Step.1: {{ (index .Step "1").subject }}. Step.Step1: {{ .Step.Step1.subject }}`
 	tmpl, err := template.New("test_dummy").Parse(tplStr)
 	if err != nil {
 		t.Fatalf("failed to parse template string: %v", err)
