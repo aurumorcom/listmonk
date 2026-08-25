@@ -72,6 +72,7 @@ curl -u "username:token" -X GET 'http://localhost:9000/api/subscribers' \
                 "uuid": "ea06b2e7-4b08-4697-bcfc-2a5c6dde8f1c",
                 "email": "john@example.com",
                 "name": "John Doe",
+                "crm_id": "crm_sub_789",
                 "attribs": {
                     "city": "Bengaluru",
                     "good": true,

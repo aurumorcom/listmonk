@@ -59,6 +59,7 @@ curl -u "username:token" -X GET 'http://localhost:9000/api/lists?status=archived
                 "type": "public",
                 "optin": "double",
                 "status": "active",
+                "crm_id": "crm_lst_456",
                 "tags": [
                     "test"
                 ],
