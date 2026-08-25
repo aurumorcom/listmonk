@@ -452,7 +452,7 @@ type CampaignSubscriber struct {
 	SubscriberID    int         `db:"subscriber_id" json:"subscriber_id"`
 	EmailID         null.Int    `db:"email_id" json:"email_id"`
 	FromAddress     null.String `db:"from_address" json:"from_address"`
-	WahaSession     null.String `db:"waha_session" json:"waha_session"`
+	WhatsAppID      null.String `db:"waha_session" json:"whatsapp_id"`
 	UserID          null.Int    `db:"user_id" json:"user_id"`
 	Status          string      `db:"status" json:"status"`
 	CurrentStep     int         `db:"current_step" json:"current_step"`
