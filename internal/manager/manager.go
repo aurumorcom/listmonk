@@ -18,6 +18,7 @@ import (
 	"maps"
 
 	"github.com/Masterminds/sprig/v3"
+	"github.com/knadh/listmonk/internal/auth"
 	"github.com/knadh/listmonk/internal/i18n"
 	"github.com/knadh/listmonk/internal/notifs"
 	"github.com/knadh/listmonk/internal/utils"
@@ -116,8 +117,10 @@ type Manager struct {
 // CampaignMessage represents an instance of campaign message to be pushed out,
 // specific to a subscriber, via the campaign's messenger.
 type CampaignMessage struct {
-	Campaign   *models.Campaign
-	Subscriber models.Subscriber
+	Campaign           *models.Campaign
+	Subscriber         models.Subscriber
+	CampaignSubscriber *models.CampaignSubscriber
+	SenderUser         *auth.User
 
 	from     string
 	to       string

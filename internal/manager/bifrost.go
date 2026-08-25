@@ -322,22 +322,44 @@ func (b *BifrostClient) GeneratePromptWithFormat(ctx context.Context, systemProm
 	return bifrostResp.Choices[0].Message.Content, nil
 }
 
+// BuildSenderUserScope creates a map representation of the assigned sender user for template interpolation.
+func BuildSenderUserScope(senderUser *auth.User) map[string]any {
+	userObj := map[string]any{}
+	if senderUser != nil {
+		userObj["ID"] = senderUser.ID
+		userObj["Name"] = senderUser.Name
+		userObj["Username"] = senderUser.Username
+		userObj["Email"] = senderUser.Email.String
+		userObj["Phone"] = senderUser.Phone.String
+		userObj["Signature"] = senderUser.Signature
+		userObj["CRMID"] = senderUser.CRMID.String
+		userObj["Attribs"] = senderUser.Attribs
+		userObj["attribs"] = senderUser.Attribs
+		if bio, ok := senderUser.Attribs["bio"]; ok {
+			userObj["bio"] = bio
+		}
+	}
+	return userObj
+}
+
 // ExtractTemplateScope extracts .Context, .User, .Subscriber/.Contact, .Campaign, and step history maps (.Steps, .Step1, .Step) from Subscriber attribs.
 func ExtractTemplateScope(sub models.Subscriber) map[string]any {
+	return ExtractTemplateScopeAdvanced(sub, nil)
+}
+
+// ExtractTemplateScopeAdvanced extracts template variables combining subscriber context and assigned sender user scope.
+func ExtractTemplateScopeAdvanced(sub models.Subscriber, senderUser *auth.User) map[string]any {
 	var ctxObj any
-	var userObj any
 
 	if sub.Attribs != nil {
 		ctxObj = sub.Attribs["context"]
-		userObj = sub.Attribs["user"]
 	}
 
 	if ctxObj == nil {
 		ctxObj = map[string]any{}
 	}
-	if userObj == nil {
-		userObj = map[string]any{}
-	}
+
+	userObj := BuildSenderUserScope(senderUser)
 
 	// Normalize subscriber attributes with shorthand case aliases into a thread-safe map copy
 	cleanAttribs := make(models.JSON)
@@ -479,15 +501,6 @@ func ResolveSignatureAdvanced(opts SignatureOpts) string {
 		}
 		if sig, ok := opts.Subscriber.Attribs["enrollment_signature"].(string); ok && strings.TrimSpace(sig) != "" {
 			return strings.TrimSpace(sig)
-		}
-		if userMap, ok := opts.Subscriber.Attribs["user"].(map[string]any); ok {
-			if sig, ok := userMap["signature"].(string); ok && strings.TrimSpace(sig) != "" {
-				return strings.TrimSpace(sig)
-			}
-		} else if userMap, ok := opts.Subscriber.Attribs["user"].(models.JSON); ok {
-			if sig, ok := userMap["signature"].(string); ok && strings.TrimSpace(sig) != "" {
-				return strings.TrimSpace(sig)
-			}
 		}
 		if sig, ok := opts.Subscriber.Attribs["user_signature"].(string); ok && strings.TrimSpace(sig) != "" {
 			return strings.TrimSpace(sig)

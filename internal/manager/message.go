@@ -5,16 +5,23 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/knadh/listmonk/internal/auth"
 	"github.com/knadh/listmonk/models"
 )
 
 // NewCampaignMessage creates and returns a CampaignMessage that is made available
 // to message templates while they're compiled. It represents a message from
 // a campaign that's bound to a single Subscriber.
-func (m *Manager) NewCampaignMessage(c *models.Campaign, s models.Subscriber) (CampaignMessage, error) {
+func (m *Manager) NewCampaignMessage(c *models.Campaign, s models.Subscriber, senderUser ...*auth.User) (CampaignMessage, error) {
+	var user *auth.User
+	if len(senderUser) > 0 {
+		user = senderUser[0]
+	}
+
 	msg := CampaignMessage{
 		Campaign:   c,
 		Subscriber: s,
+		SenderUser: user,
 
 		subject:  c.Subject,
 		from:     c.FromEmail,
@@ -37,7 +44,7 @@ func (m *CampaignMessage) render() error {
 
 	// If this is a Prompt template type and Bifrost client is configured, run JIT AI generation.
 	if m.pipe != nil && m.pipe.m != nil && m.pipe.m.bifrostClient != nil && m.Campaign != nil {
-		scope := ExtractTemplateScope(m.Subscriber)
+		scope := ExtractTemplateScopeAdvanced(m.Subscriber, m.SenderUser)
 
 		sysPromptStr := m.Campaign.TemplateBody
 		if m.Campaign.SystemPromptTpl != nil {
@@ -65,6 +72,7 @@ func (m *CampaignMessage) render() error {
 						}
 						sig := ResolveSignatureAdvanced(SignatureOpts{
 							Subscriber: m.Subscriber,
+							User:       m.SenderUser,
 						})
 						finalContent := FormatPlainTextWithSignature(structOut.Content, sig)
 						m.body = []byte(finalContent)

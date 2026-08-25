@@ -411,7 +411,7 @@ func (m *Manager) PrepareAndDispatchStep(sub models.CampaignSubscriber, subscrib
 		}
 	}
 
-	scope := manager.ExtractTemplateScope(subscriber)
+	scope := manager.ExtractTemplateScopeAdvanced(subscriber, assignedUser)
 	if seqUUID != "" {
 		if rawCamp, ok := scope["Campaign"].(map[string]any); ok {
 			rawCamp["UUID"] = seqUUID
@@ -582,8 +582,8 @@ func (m *Manager) PrepareAndDispatchStep(sub models.CampaignSubscriber, subscrib
 		}
 	}
 
-	if (step.Messenger == "whatsapp" || step.Messenger == "waha" || msgr.Name() == "whatsapp" || msgr.Name() == "waha" || strings.HasPrefix(msgr.Name(), "whatsapp-") || strings.HasPrefix(msgr.Name(), "waha-")) && sub.WahaSession.Valid && sub.WahaSession.String != "" && sub.WahaSession.String != "default" {
-		msg.MessengerSession = sub.WahaSession.String
+	if (step.Messenger == "whatsapp" || step.Messenger == "waha" || msgr.Name() == "whatsapp" || msgr.Name() == "waha" || strings.HasPrefix(msgr.Name(), "whatsapp-") || strings.HasPrefix(msgr.Name(), "waha-")) && sub.WhatsAppID.Valid && sub.WhatsAppID.String != "" && sub.WhatsAppID.String != "default" {
+		msg.MessengerSession = sub.WhatsAppID.String
 	}
 
 	if len(step.MediaIDs) > 0 && m.mediaStore != nil {
