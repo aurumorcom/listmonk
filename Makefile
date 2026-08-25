@@ -11,6 +11,8 @@ endif
 
 BUILDSTR := ${VERSION} (\#${LAST_COMMIT} $(BUILDDATE))
 
+export CGO_ENABLED=0
+
 YARN ?= yarn
 GOPATH ?= $(HOME)/go
 STUFFBIN ?= $(GOPATH)/bin/stuffbin
@@ -78,12 +80,12 @@ $(FRONTEND_EMAIL_BUILDER_YARN_STAMP): $(FRONTEND_EMAIL_BUILDER)/package.json $(w
 
 # Build the backend to ./listmonk.
 $(BIN): $(SRC) go.mod go.sum schema.sql $(SQL) permissions.json
-	CGO_ENABLED=0 go build -o ${BIN} -ldflags="-s -w -X 'main.buildString=${BUILDSTR}' -X 'main.versionString=${VERSION}'" ./cmd
+	go build -o ${BIN} -ldflags="-s -w -X 'main.buildString=${BUILDSTR}' -X 'main.versionString=${VERSION}'" ./cmd
 
 # Run the backend in dev mode. The frontend assets in dev mode are loaded from disk from frontend/dist.
 .PHONY: run
 run:
-	CGO_ENABLED=0 go run -ldflags="-s -w -X 'main.buildString=${BUILDSTR}' -X 'main.versionString=${VERSION}' -X 'main.frontendDir=frontend/dist'" ./cmd
+	go run -ldflags="-s -w -X 'main.buildString=${BUILDSTR}' -X 'main.versionString=${VERSION}' -X 'main.frontendDir=frontend/dist'" ./cmd
 
 # Build the JS frontend into frontend/dist.
 $(FRONTEND_DIST): $(FRONTEND_DEPS)
@@ -158,7 +160,6 @@ dev-frontend run-frontend:
 
 # Run Go backend API server locally (starts background DB/deps if not already running).
 .PHONY: dev-backend
-dev-backend: export CGO_ENABLED=0
 dev-backend: dev-deps
 	go run -ldflags="-s -w -X 'main.buildString=${BUILDSTR}' -X 'main.versionString=${VERSION}'" ./cmd --config=dev/config.toml
 
@@ -183,7 +184,7 @@ dev-docker: build-dev-docker ## Build and spawns docker containers for the entir
 # Run the backend in docker-dev mode. The frontend assets in dev mode are loaded from disk from frontend/dist.
 .PHONY: run-backend-docker
 run-backend-docker:
-	CGO_ENABLED=0 go run -ldflags="-s -w -X 'main.buildString=${BUILDSTR}' -X 'main.versionString=${VERSION}' -X 'main.frontendDir=frontend/dist'" ./cmd --config=dev/config.toml
+	go run -ldflags="-s -w -X 'main.buildString=${BUILDSTR}' -X 'main.versionString=${VERSION}' -X 'main.frontendDir=frontend/dist'" ./cmd --config=dev/config.toml
 
 # Tear down the complete local development docker suite.
 .PHONY: rm-dev-docker
