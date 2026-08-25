@@ -51,7 +51,10 @@ import Vue from 'vue';
 
 export default Vue.extend({
   props: {
-    form: Object,
+    form: {
+      type: Object,
+      default: () => ({}),
+    },
   },
   data() {
     return {
