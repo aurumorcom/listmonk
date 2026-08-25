@@ -502,6 +502,15 @@ func ResolveSignatureAdvanced(opts SignatureOpts) string {
 		if sig, ok := opts.Subscriber.Attribs["enrollment_signature"].(string); ok && strings.TrimSpace(sig) != "" {
 			return strings.TrimSpace(sig)
 		}
+		if userMap, ok := opts.Subscriber.Attribs["user"].(map[string]any); ok {
+			if sig, ok := userMap["signature"].(string); ok && strings.TrimSpace(sig) != "" {
+				return strings.TrimSpace(sig)
+			}
+		} else if userMap, ok := opts.Subscriber.Attribs["user"].(models.JSON); ok {
+			if sig, ok := userMap["signature"].(string); ok && strings.TrimSpace(sig) != "" {
+				return strings.TrimSpace(sig)
+			}
+		}
 		if sig, ok := opts.Subscriber.Attribs["user_signature"].(string); ok && strings.TrimSpace(sig) != "" {
 			return strings.TrimSpace(sig)
 		}
